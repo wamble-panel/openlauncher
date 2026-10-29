@@ -32,13 +32,11 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -255,15 +253,15 @@ private fun DateBar(height: Dp) {
 
 // ── Orbit menu ───────────────────────────────────────────────────────────────
 
-private data class OrbitItem(val key: String, val label: String, val icon: ImageVector, val angle: Float)
+private data class OrbitItem(val key: String, val label: String, val glyph: MmiGlyph, val angle: Float)
 
 private val ORBIT_ITEMS = listOf(
-    OrbitItem("dashboard", "Dashboard", Icons.Default.Speed, -100f),
-    OrbitItem("video", "Video", Icons.Default.Movie, -58f),
-    OrbitItem("settings", "Settings", Icons.Default.Settings, -16f),
-    OrbitItem("music", "Music", Icons.Default.MusicNote, 20f),
-    OrbitItem("phone", "Phone", Icons.Default.Phone, 60f),
-    OrbitItem("nav", "Navigation", Icons.Default.SportsScore, 102f),
+    OrbitItem("dashboard", "Dashboard", MmiGlyph.GAUGE, -106f),
+    OrbitItem("video", "Video", MmiGlyph.REEL, -64f),
+    OrbitItem("settings", "Settings", MmiGlyph.GEARS, -26f),
+    OrbitItem("music", "Music", MmiGlyph.NOTE, 18f),
+    OrbitItem("phone", "Phone", MmiGlyph.HANDSET, 64f),
+    OrbitItem("nav", "Navigation", MmiGlyph.FLAG, 110f),
 )
 
 @Composable
@@ -271,52 +269,76 @@ private fun Orbit(modifier: Modifier, selected: String, onSelect: (String) -> Un
     BoxWithConstraints(modifier) {
         val w = maxWidth
         val h = maxHeight
-        val cx = w * 0.43f
+        val cx = w * 0.42f
         val cy = h * 0.50f
-        val rx = w * 0.39f
-        val ry = h * 0.42f
-        val iconSize = h * 0.12f
+        val rx = w * 0.38f
+        val ry = h * 0.44f
+        val iconSize = h * 0.13f
         val labelSize = with(LocalDensity.current) { (h * 0.05f).toSp() }
+        val carX = w * 0.03f
+        val carY = h * 0.15f
+        val carW = w * 0.46f
+        val carH = carW * (473f / 900f)
 
-        // The ring: a dark track with a chrome rim that brightens toward the bottom.
         Canvas(Modifier.fillMaxSize()) {
             val c = Offset(cx.toPx(), cy.toPx())
             val rxp = rx.toPx()
             val ryp = ry.toPx()
-            val band = size.height * 0.045f
+            val band = size.height * 0.075f
+            val ringTL = Offset(c.x - rxp, c.y - ryp)
+            val ringSize = Size(rxp * 2, ryp * 2)
+            val outerTL = Offset(ringTL.x - band / 2, ringTL.y - band / 2)
+            val outerSize = Size(ringSize.width + band, ringSize.height + band)
+            val innerTL = Offset(ringTL.x + band / 2, ringTL.y + band / 2)
+            val innerSize = Size(ringSize.width - band, ringSize.height - band)
+
+            // Floor shadow, then the glossy black tube.
+            drawOval(Color(0x80000000), topLeft = ringTL + Offset(0f, band * 0.7f), size = ringSize, style = Stroke(band * 1.5f))
             drawOval(
-                Color(0xF0040405),
-                topLeft = Offset(c.x - rxp, c.y - ryp), size = Size(rxp * 2, ryp * 2),
-                style = Stroke(band),
+                Brush.verticalGradient(
+                    listOf(Color(0xFF1E2125), Color(0xFF060607), Color(0xFF15171A)),
+                    startY = c.y - ryp, endY = c.y + ryp,
+                ),
+                topLeft = ringTL, size = ringSize, style = Stroke(band),
             )
-            drawOval(
-                Brush.verticalGradient(listOf(Color(0x22FFFFFF), Color(0xDDC9CFD6)), startY = c.y - ryp, endY = c.y + ryp),
-                topLeft = Offset(c.x - rxp - band / 2, c.y - ryp - band / 2),
-                size = Size(rxp * 2 + band, ryp * 2 + band),
-                style = Stroke(2.dp.toPx()),
+            // Faint rim all round, bright chrome rim along the lower right.
+            drawOval(Color(0x30FFFFFF), topLeft = outerTL, size = outerSize, style = Stroke(1.5.dp.toPx()))
+            drawOval(Color(0x70000000), topLeft = innerTL, size = innerSize, style = Stroke(1.5.dp.toPx()))
+            drawArc(
+                Brush.linearGradient(
+                    listOf(Color(0x00FFFFFF), Color(0xFFE8ECF0), Color(0xFFFFFFFF), Color(0x00FFFFFF)),
+                    start = Offset(c.x + rxp, c.y - ryp * 0.4f), end = Offset(c.x - rxp * 0.7f, c.y + ryp),
+                ),
+                startAngle = -35f, sweepAngle = 175f, useCenter = false,
+                topLeft = outerTL, size = outerSize,
+                style = Stroke(3.dp.toPx(), cap = StrokeCap.Round),
             )
-            drawOval(
-                Brush.verticalGradient(listOf(Color(0x11FFFFFF), Color(0x88AEB6BF)), startY = c.y - ryp, endY = c.y + ryp),
-                topLeft = Offset(c.x - rxp + band / 2, c.y - ryp + band / 2),
-                size = Size(rxp * 2 - band, ryp * 2 - band),
-                style = Stroke(1.dp.toPx()),
+            drawArc(
+                Color(0x60FFFFFF), startAngle = 10f, sweepAngle = 140f, useCenter = false,
+                topLeft = innerTL, size = innerSize, style = Stroke(1.dp.toPx(), cap = StrokeCap.Round),
             )
-            // Blue under-glow and contact shadow beneath the car.
-            val gx = size.width * 0.27f
-            val gy = size.height * 0.66f
-            val gw = size.width * 0.27f
+
+            // Blue under-glow beneath the car's wheels.
+            val gy = carY.toPx() + carH.toPx() * 0.93f
+            val gx = carX.toPx() + carW.toPx() * 0.47f
+            val gw = carW.toPx() * 0.62f
             drawOval(
                 Brush.horizontalGradient(
-                    listOf(Color.Transparent, MmiCyan.copy(alpha = 0.8f), Color.Transparent),
+                    listOf(Color.Transparent, MmiCyan.copy(alpha = 0.35f), Color.Transparent),
                     startX = gx - gw, endX = gx + gw,
                 ),
-                topLeft = Offset(gx - gw, gy - size.height * 0.018f),
-                size = Size(gw * 2, size.height * 0.036f),
+                topLeft = Offset(gx - gw, gy - size.height * 0.03f), size = Size(gw * 2, size.height * 0.06f),
             )
             drawOval(
-                Color(0x99000000),
-                topLeft = Offset(gx - gw * 0.75f, gy - size.height * 0.035f),
-                size = Size(gw * 1.5f, size.height * 0.04f),
+                Brush.horizontalGradient(
+                    listOf(Color.Transparent, MmiCyan, Color(0xFFBFF1FF), MmiCyan, Color.Transparent),
+                    startX = gx - gw * 0.85f, endX = gx + gw * 0.85f,
+                ),
+                topLeft = Offset(gx - gw * 0.85f, gy - size.height * 0.007f), size = Size(gw * 1.7f, size.height * 0.014f),
+            )
+            drawOval(
+                Color(0xB0000000),
+                topLeft = Offset(gx - gw * 0.55f, gy - size.height * 0.04f), size = Size(gw * 1.1f, size.height * 0.045f),
             )
         }
 
@@ -324,13 +346,13 @@ private fun Orbit(modifier: Modifier, selected: String, onSelect: (String) -> Un
             painter = painterResource(R.drawable.mmi_car),
             contentDescription = "Your car",
             contentScale = ContentScale.Fit,
-            modifier = Modifier.offset(x = w * 0.04f, y = h * 0.20f).width(w * 0.48f),
+            modifier = Modifier.offset(x = carX, y = carY).size(carW, carH),
         )
 
         ORBIT_ITEMS.forEach { item ->
             val rad = Math.toRadians(item.angle.toDouble())
             OrbitEntry(
-                label = item.label, icon = item.icon,
+                label = item.label, glyph = item.glyph,
                 x = cx + rx * cos(rad).toFloat() - iconSize / 2,
                 y = cy + ry * sin(rad).toFloat() - iconSize / 2,
                 iconSize = iconSize, labelSize = labelSize,
@@ -339,8 +361,8 @@ private fun Orbit(modifier: Modifier, selected: String, onSelect: (String) -> Un
             )
         }
         OrbitEntry(
-            label = "APPS", icon = Icons.Default.Apps,
-            x = w * 0.02f, y = h * 0.70f,
+            label = "APPS", glyph = MmiGlyph.APPS,
+            x = w * 0.02f, y = h * 0.72f,
             iconSize = iconSize, labelSize = labelSize,
             selected = selected == "apps",
             onClick = { onSelect("apps") },
@@ -351,7 +373,7 @@ private fun Orbit(modifier: Modifier, selected: String, onSelect: (String) -> Un
 @Composable
 private fun OrbitEntry(
     label: String,
-    icon: ImageVector,
+    glyph: MmiGlyph,
     x: Dp,
     y: Dp,
     iconSize: Dp,
@@ -373,7 +395,7 @@ private fun OrbitEntry(
                 )
             }
         ) {
-            Icon(icon, null, tint = Color.White, modifier = Modifier.fillMaxSize().chrome())
+            MmiIcon(glyph, Modifier.fillMaxSize())
         }
         Spacer(Modifier.width(6.dp))
         Text(
@@ -384,19 +406,6 @@ private fun OrbitEntry(
         )
     }
 }
-
-// Paints whatever is drawn (an icon) with a brushed-chrome gradient.
-private fun Modifier.chrome(): Modifier = this
-    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-    .drawWithCache {
-        val brush = Brush.verticalGradient(
-            listOf(Color(0xFFF6F8FA), Color(0xFF9AA2AC), Color(0xFFE4E8EC), Color(0xFF5C636C)),
-        )
-        onDrawWithContent {
-            drawContent()
-            drawRect(brush, blendMode = BlendMode.SrcIn)
-        }
-    }
 
 // ── Weather card ─────────────────────────────────────────────────────────────
 
@@ -426,9 +435,13 @@ private fun WeatherCard(weather: WeatherState?, placeName: String?, metric: Bool
                     modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp),
                 )
             }
-            Text(weather?.conditionIcon ?: "🌡️", fontSize = 56.sp, modifier = Modifier.align(Alignment.Center))
+            WeatherGlyph(
+                code = weather?.weatherCode,
+                isDay = weather?.isDay ?: true,
+                modifier = Modifier.align(Alignment.Center).fillMaxWidth(0.62f).aspectRatio(1f),
+            )
             Text(
-                weather?.conditionLabel ?: "Weather unavailable",
+                weather?.conditionLabel ?: "No weather data",
                 color = MmiDim, fontFamily = MmiFont, fontSize = 17.sp,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
