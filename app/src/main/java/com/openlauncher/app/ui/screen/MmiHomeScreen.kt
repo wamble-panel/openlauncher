@@ -96,7 +96,7 @@ private enum class MmiPage(val title: String?, val inSettings: Boolean = false) 
     HOME(null), DASHBOARD("Dashboard"), SETTINGS("Settings"),
     MUSIC("Music"), RADIO("Radio"), BT_HUB("Bluetooth"), PHONE("Telephone"), CONTACTS("Contacts"), APPS("Apps"),
     NAV("Navigation"), SYSTEM("System check", true),
-    PERMISSIONS("Permissions", true), STORAGE("Storage & about", true), DISPLAY("Display", true), SOUND("Sound", true), BLUETOOTH("Bluetooth devices", true), NAV_SETTINGS("Navigation settings", true),
+    PERMISSIONS("Permissions", true), CLEANUP("Unit cleanup & speed", true), STORAGE("Storage & about", true), DISPLAY("Display", true), SOUND("Sound", true), BLUETOOTH("Bluetooth devices", true), NAV_SETTINGS("Navigation settings", true),
 }
 
 /**
@@ -293,6 +293,7 @@ fun MmiHomeScreen(
                     }
                     MmiPage.DISPLAY -> MmiDisplayPage()
                     MmiPage.PERMISSIONS -> MmiPermissionsPage()
+                    MmiPage.CLEANUP -> MmiCleanupPage()
                     MmiPage.STORAGE -> MmiStoragePage()
                     MmiPage.SOUND -> MmiSoundPage(apps, onLaunchPackage)
                     MmiPage.BLUETOOTH -> MmiBluetoothPage(apps, onLaunchPackage, startPairing = pairOnOpen)
@@ -343,6 +344,7 @@ fun MmiHomeScreen(
         }
         HazardBanner(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
         HomeAppPrompt()
+        PerfReadout(Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 6.dp))
     }
 }
 
@@ -385,6 +387,46 @@ private fun HomeAppPrompt() {
             }
         }
     }
+}
+
+/**
+ * Performance readout (Settings > Unit cleanup & speed): frames per second, share of
+ * slow frames (>33 ms) and free memory, so tuning uses real numbers from the unit.
+ * Only runs while switched on — measuring keeps the screen drawing every frame.
+ */
+@Composable
+private fun PerfReadout(modifier: Modifier) {
+    val on by com.openlauncher.app.util.PerfOverlay.enabled.collectAsStateWithLifecycle()
+    if (!on) return
+    val context = LocalContext.current
+    var text by remember { mutableStateOf("…") }
+    LaunchedEffect(Unit) {
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        var last = 0L
+        var frames = 0
+        var slow = 0
+        var windowStart = 0L
+        while (true) {
+            withFrameNanos { t ->
+                if (last != 0L) {
+                    frames++
+                    if (t - last > 33_000_000L) slow++
+                }
+                last = t
+                if (windowStart == 0L) windowStart = t
+                if (t - windowStart >= 2_000_000_000L) {
+                    val secs = (t - windowStart) / 1e9
+                    val mem = android.app.ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
+                    text = "%.0f fps · %d%% slow · %d MB free".format(frames / secs, if (frames > 0) slow * 100 / frames else 0, mem.availMem shr 20)
+                    frames = 0; slow = 0; windowStart = t
+                }
+            }
+        }
+    }
+    Text(
+        text, color = Color(0xFF4CD964), fontFamily = MmiFont, fontSize = 12.sp,
+        modifier = modifier.background(Color(0xC0000000)).padding(horizontal = 8.dp, vertical = 3.dp),
+    )
 }
 
 /** Pothole / speed bump warning from road memory, shown over every page. */
@@ -982,6 +1024,7 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
         },
         "Permissions" to { onOpen(MmiPage.PERMISSIONS) },
         "Date & time" to { context.launchFirst(Intent(Settings.ACTION_DATE_SETTINGS)); Unit },
+        "Unit cleanup & speed" to { onOpen(MmiPage.CLEANUP) },
         "Storage & about" to { onOpen(MmiPage.STORAGE) },
         "System check" to { onOpen(MmiPage.SYSTEM) },
         "Android settings" to openSystem,

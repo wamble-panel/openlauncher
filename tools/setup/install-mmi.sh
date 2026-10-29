@@ -15,5 +15,7 @@ adb shell cmd notification allow_listener $PKG/$PKG.service.MediaListenerService
 adb shell cmd role add-role-holder android.app.role.HOME $PKG 0 || true
 adb shell cmd package set-home-activity $PKG/.MainActivity || true
 adb shell dumpsys deviceidle whitelist +$PKG || true
+# Lets MMI apply its speed settings itself (Settings > Unit cleanup & speed)
+adb shell pm grant $PKG android.permission.WRITE_SECURE_SETTINGS || true
 adb shell am start -n $PKG/.MainActivity
 echo "Done. MMI is installed, set as home screen and has every permission."

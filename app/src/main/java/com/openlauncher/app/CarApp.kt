@@ -7,6 +7,7 @@ import com.openlauncher.app.util.BtConnect
 import com.openlauncher.app.util.CarAudio
 import com.openlauncher.app.util.CrashLog
 import com.openlauncher.app.util.ThemePack
+import com.openlauncher.app.util.PerfOverlay
 
 class CarApp : Application() {
     override fun onCreate() {
@@ -17,5 +18,6 @@ class CarApp : Application() {
         BtConnect.init(this)
         RoadMemory.init(this)
         ThemePack.init(this)
+        PerfOverlay.init(this)
     }
 }

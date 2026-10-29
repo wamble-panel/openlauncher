@@ -52,6 +52,10 @@
     <!-- Uninstall from the MMI Apps menu (Android still asks to confirm) -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
+    <!-- Speed settings applied by MMI (granted once over ADB by the install script) -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+
     <!-- Edge-swipe volume gesture + MMI equalizer -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
