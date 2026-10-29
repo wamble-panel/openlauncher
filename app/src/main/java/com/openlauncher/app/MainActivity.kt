@@ -295,22 +295,8 @@ class MainActivity : ComponentActivity() {
                                 label    = "pane_transition"
                             ) { destination ->
                                 when (destination) {
-                                    NavDestination.HOME -> if (settings.themeId == "mbux") MbuxHomeScreen(
-                                        nowPlaying      = nowPlaying,
-                                        hardwareRadio   = hardwareRadio,
-                                        accent          = accent,
-                                        onPlayPause     = vm::playPause,
-                                        onNext          = vm::skipNext,
-                                        onPrev          = vm::skipPrev,
-                                        onTapNowPlaying = {
-                                            val pkg = nowPlaying?.controller?.packageName
-                                            if (!pkg.isNullOrEmpty()) vm.launchApp(pkg)
-                                        },
-                                        onLaunchRadio   = { vm.launchHardwareRadioApp() },
-                                        onRadioSeekUp   = { vm.radioSeekUp() },
-                                        onRadioSeekDown = { vm.radioSeekDown() },
-                                        onOpenApps      = { vm.navigate(NavDestination.APP_LIBRARY) },
-                                    ) else HomeScreen(
+                                    NavDestination.HOME -> {
+                                    val widgetHome: @Composable () -> Unit = { HomeScreen(
                                         settings            = settings,
                                         weather             = weather,
                                         nowPlaying          = nowPlaying,
@@ -361,7 +347,37 @@ class MainActivity : ComponentActivity() {
                                         onRadioTune           = { band, freq -> vm.radioTune(band, freq) },
                                         onAssignRadio         = { vm.startRadioPicker() },
                                         onUpdate              = { block -> vm.updateSettings(block) }
-                                    )
+                                    ) }
+                                    when (settings.themeId) {
+                                        "mbux" -> MbuxHomeScreen(
+                                        nowPlaying      = nowPlaying,
+                                        hardwareRadio   = hardwareRadio,
+                                        accent          = accent,
+                                        onPlayPause     = vm::playPause,
+                                        onNext          = vm::skipNext,
+                                        onPrev          = vm::skipPrev,
+                                        onTapNowPlaying = {
+                                            val pkg = nowPlaying?.controller?.packageName
+                                            if (!pkg.isNullOrEmpty()) vm.launchApp(pkg)
+                                        },
+                                        onLaunchRadio   = { vm.launchHardwareRadioApp() },
+                                        onRadioSeekUp   = { vm.radioSeekUp() },
+                                        onRadioSeekDown = { vm.radioSeekDown() },
+                                        onOpenApps      = { vm.navigate(NavDestination.APP_LIBRARY) },
+                                        )
+                                        "mmi" -> MmiHomeScreen(
+                                            weather                = weather,
+                                            placeName              = placeName,
+                                            metric                 = settings.unitSystem == com.openlauncher.app.data.UnitSystem.METRIC,
+                                            nowPlayingPackage      = nowPlaying?.controller?.packageName,
+                                            onLaunchPackage        = { pkg -> vm.launchApp(pkg) },
+                                            onOpenApps             = { vm.navigate(NavDestination.APP_LIBRARY) },
+                                            onOpenLauncherSettings = { vm.navigate(NavDestination.SETTINGS) },
+                                            dashboard              = widgetHome,
+                                        )
+                                        else -> widgetHome()
+                                    }
+                                    }
 
                                     NavDestination.APP_LIBRARY -> AppLibraryScreen(
                                         apps                = apps,
@@ -391,7 +407,9 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        if (isBottomBar) {
+                        if (settings.themeId == "mmi" && nav == NavDestination.HOME) {
+                            mainPane(Modifier.fillMaxSize())
+                        } else if (isBottomBar) {
                             Column(modifier = Modifier.fillMaxSize()) {
                                 mainPane(Modifier.weight(1f).fillMaxWidth())
                                 androidx.compose.material3.HorizontalDivider(color = layoutDivColor)

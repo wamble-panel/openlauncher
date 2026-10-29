@@ -76,6 +76,11 @@ val DASHBOARD_THEMES = listOf(
         lightGradientEnd = 0xFFCDE0F2L,
         gradient = GradientDirection.TOP_TO_BOTTOM,
     ),
+    DashboardThemeDef(
+        id = "mmi", label = "MMI",
+        darkAccent  = 0xFF3EC6F0L, darkBg  = 0xFF0B0C0EL, darkInk = 0xFFF0F2F4L,
+        lightAccent = 0xFF1E7FA8L, lightBg = 0xFFE6E8EBL
+    ),
 )
 
 data class ResolvedTheme(
