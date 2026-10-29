@@ -107,8 +107,6 @@
     <string name="language_label">Langue</string>
     <string name="language_sublabel">Choisissez la langue du lanceur (langue de l’appareil par défaut)</string>
     <string name="lang_system">Système</string>
-    <string name="lang_english">Anglais</string>
-    <string name="lang_polish">Polonais</string>
 
     <!-- Typography -->
     <string name="font_label">Police</string>

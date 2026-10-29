@@ -26,7 +26,7 @@ import kotlin.math.sin
 // paths built once per size (drawWithCache), with a dark extrusion offset behind
 // the chrome face to give the chunky 3D look of the MMI menu icons.
 
-enum class MmiGlyph { GAUGE, REEL, GEARS, NOTE, HANDSET, FLAG, APPS }
+enum class MmiGlyph { GAUGE, REEL, GEARS, NOTE, HANDSET, FLAG, APPS, RADIO }
 
 private val ChromeStops = listOf(
     Color(0xFFF8FAFC), Color(0xFFC3C9D0), Color(0xFF79808A), Color(0xFFDDE2E7), Color(0xFF4E545C),
@@ -192,6 +192,20 @@ private fun buildGlyph(glyph: MmiGlyph, s: Float): List<Layer> = when (glyph) {
             Layer(white, Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFC8CDD3)), startY = t * s, endY = b * s), extrude = false),
         )
     }
+    MmiGlyph.RADIO -> {
+        val top = Offset(0.5f * s, 0.29f * s)
+        val waves = Path().apply {
+            for (r in listOf(0.18f, 0.31f)) {
+                arcTo(Rect(top, r * s), 205f, 55f, true)
+                arcTo(Rect(top, r * s), -80f, 55f, true)
+            }
+        }
+        listOf(
+            Layer(poly(s, 0.45f to 0.34f, 0.55f to 0.34f, 0.66f to 0.96f, 0.34f to 0.96f)),
+            Layer(circle(0.5f, 0.29f, 0.075f, s)),
+            Layer(waves, stroke = s * 0.06f),
+        )
+    }
     MmiGlyph.APPS -> {
         fun sq(x: Float, y: Float) = Path().apply {
             addRoundRect(RoundRect(Rect(x * s, y * s, (x + 0.38f) * s, (y + 0.38f) * s), CornerRadius(0.07f * s)))
@@ -306,5 +320,87 @@ private fun DrawScope.cloud(s: Float, alpha: Float) {
     drawRoundRect(
         brush, topLeft = Offset(0.18f * s, 0.58f * s), size = Size(0.74f * s, 0.20f * s),
         cornerRadius = CornerRadius(0.10f * s), alpha = alpha,
+    )
+}
+
+// ── Line icons (white UI glyphs) ─────────────────────────────────────────────
+
+enum class MmiLine {
+    WIND, THERMO, DROP, CHEVRON_LEFT, ARROW, MENU, PREV, NEXT, PLAY, PAUSE,
+    CALL, BACKSPACE, OPEN, WIDGETS, BLUETOOTH, CONTACTS, NOTE,
+}
+
+@Composable
+fun MmiLineIcon(kind: MmiLine, color: Color, modifier: Modifier) {
+    Spacer(
+        modifier.drawWithCache {
+            val s = size.minDimension
+            val ox = (size.width - s) / 2f
+            val oy = (size.height - s) / 2f
+            val stroke = Stroke(s * 0.085f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+            val (strokes, fills) = linePaths(kind, s)
+            onDrawBehind {
+                translate(ox, oy) {
+                    strokes.forEach { drawPath(it, color, style = stroke) }
+                    fills.forEach { drawPath(it, color) }
+                }
+            }
+        }
+    )
+}
+
+private fun path(s: Float, block: Path.(Float) -> Unit) = Path().apply { block(s) }
+
+private fun linePaths(kind: MmiLine, s: Float): Pair<List<Path>, List<Path>> = when (kind) {
+    MmiLine.WIND -> listOf(
+        path(s) { moveTo(0.10f * it, 0.36f * it); lineTo(0.62f * it, 0.36f * it); cubicTo(0.84f * it, 0.36f * it, 0.84f * it, 0.10f * it, 0.64f * it, 0.14f * it) },
+        path(s) { moveTo(0.10f * it, 0.56f * it); lineTo(0.76f * it, 0.56f * it); cubicTo(0.98f * it, 0.56f * it, 0.98f * it, 0.84f * it, 0.78f * it, 0.82f * it) },
+        path(s) { moveTo(0.10f * it, 0.76f * it); lineTo(0.44f * it, 0.76f * it) },
+    ) to emptyList<Path>()
+    MmiLine.THERMO -> listOf(
+        path(s) { addRoundRect(RoundRect(Rect(0.40f * it, 0.06f * it, 0.60f * it, 0.66f * it), CornerRadius(0.10f * it))) },
+    ) to listOf(circle(0.5f, 0.78f, 0.15f, s), rect(0.465f, 0.30f, 0.535f, 0.72f, s))
+    MmiLine.DROP -> emptyList<Path>() to listOf(path(s) {
+        moveTo(0.5f * it, 0.06f * it)
+        cubicTo(0.62f * it, 0.24f * it, 0.82f * it, 0.46f * it, 0.82f * it, 0.64f * it)
+        cubicTo(0.82f * it, 0.82f * it, 0.68f * it, 0.94f * it, 0.5f * it, 0.94f * it)
+        cubicTo(0.32f * it, 0.94f * it, 0.18f * it, 0.82f * it, 0.18f * it, 0.64f * it)
+        cubicTo(0.18f * it, 0.46f * it, 0.38f * it, 0.24f * it, 0.5f * it, 0.06f * it)
+        close()
+    })
+    MmiLine.CHEVRON_LEFT -> listOf(path(s) { moveTo(0.64f * it, 0.14f * it); lineTo(0.30f * it, 0.5f * it); lineTo(0.64f * it, 0.86f * it) }) to emptyList<Path>()
+    MmiLine.ARROW -> emptyList<Path>() to listOf(poly(s, 0.28f to 0.14f, 0.84f to 0.5f, 0.28f to 0.86f))
+    MmiLine.MENU -> listOf(0.30f, 0.50f, 0.70f).map { y -> path(s) { moveTo(0.20f * it, y * it); lineTo(0.80f * it, y * it) } } to emptyList<Path>()
+    MmiLine.PREV -> emptyList<Path>() to listOf(poly(s, 0.86f to 0.18f, 0.36f to 0.5f, 0.86f to 0.82f), rect(0.14f, 0.18f, 0.27f, 0.82f, s))
+    MmiLine.NEXT -> emptyList<Path>() to listOf(poly(s, 0.14f to 0.18f, 0.64f to 0.5f, 0.14f to 0.82f), rect(0.73f, 0.18f, 0.86f, 0.82f, s))
+    MmiLine.PLAY -> emptyList<Path>() to listOf(poly(s, 0.26f to 0.12f, 0.88f to 0.5f, 0.26f to 0.88f))
+    MmiLine.PAUSE -> emptyList<Path>() to listOf(rect(0.22f, 0.14f, 0.42f, 0.86f, s), rect(0.58f, 0.14f, 0.78f, 0.86f, s))
+    MmiLine.CALL -> listOf(path(s) { moveTo(0.26f * it, 0.20f * it); cubicTo(0.10f * it, 0.50f * it, 0.44f * it, 0.92f * it, 0.82f * it, 0.80f * it) }) to
+        listOf(circle(0.26f, 0.20f, 0.13f, s), circle(0.80f, 0.80f, 0.13f, s))
+    MmiLine.BACKSPACE -> listOf(
+        path(s) { moveTo(0.36f * it, 0.22f * it); lineTo(0.90f * it, 0.22f * it); lineTo(0.90f * it, 0.78f * it); lineTo(0.36f * it, 0.78f * it); lineTo(0.10f * it, 0.5f * it); close() },
+        path(s) { moveTo(0.50f * it, 0.38f * it); lineTo(0.72f * it, 0.62f * it); moveTo(0.72f * it, 0.38f * it); lineTo(0.50f * it, 0.62f * it) },
+    ) to emptyList<Path>()
+    MmiLine.OPEN -> listOf(
+        path(s) { moveTo(0.52f * it, 0.14f * it); lineTo(0.14f * it, 0.14f * it); lineTo(0.14f * it, 0.86f * it); lineTo(0.86f * it, 0.86f * it); lineTo(0.86f * it, 0.48f * it) },
+        path(s) { moveTo(0.46f * it, 0.54f * it); lineTo(0.88f * it, 0.12f * it); moveTo(0.62f * it, 0.12f * it); lineTo(0.88f * it, 0.12f * it); lineTo(0.88f * it, 0.38f * it) },
+    ) to emptyList<Path>()
+    MmiLine.WIDGETS -> listOf(0.10f to 0.10f, 0.56f to 0.10f, 0.10f to 0.56f, 0.56f to 0.56f).map { (x, y) ->
+        path(s) { addRoundRect(RoundRect(Rect(x * it, y * it, (x + 0.34f) * it, (y + 0.34f) * it), CornerRadius(0.06f * it))) }
+    } to emptyList<Path>()
+    MmiLine.BLUETOOTH -> listOf(path(s) {
+        moveTo(0.28f * it, 0.30f * it); lineTo(0.70f * it, 0.68f * it); lineTo(0.50f * it, 0.88f * it)
+        lineTo(0.50f * it, 0.12f * it); lineTo(0.70f * it, 0.32f * it); lineTo(0.28f * it, 0.70f * it)
+    }) to emptyList<Path>()
+    MmiLine.CONTACTS -> emptyList<Path>() to listOf(
+        circle(0.5f, 0.32f, 0.17f, s),
+        path(s) { moveTo(0.16f * it, 0.92f * it); cubicTo(0.16f * it, 0.58f * it, 0.84f * it, 0.58f * it, 0.84f * it, 0.92f * it); close() },
+    )
+    MmiLine.NOTE -> emptyList<Path>() to listOf(
+        path(s) {
+            addOval(Rect(0.14f * it, 0.66f * it, 0.46f * it, 0.92f * it))
+            addRect(Rect(0.38f * it, 0.10f * it, 0.46f * it, 0.80f * it))
+        },
+        poly(s, 0.38f to 0.08f, 0.86f to 0.22f, 0.86f to 0.38f, 0.38f to 0.26f),
     )
 }

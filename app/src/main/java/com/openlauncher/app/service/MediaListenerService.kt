@@ -26,6 +26,7 @@ class MediaListenerService : NotificationListenerService() {
         instance = this
         isConnected.value = true
         refreshNowPlaying()
+        runCatching { activeNotifications?.forEach { NavigationTracker.onPosted(it, this) } }
     }
 
     override fun onListenerDisconnected() {
@@ -34,10 +35,18 @@ class MediaListenerService : NotificationListenerService() {
         isConnected.value = false
         clearController()
         _nowPlaying.value = null
+        NavigationTracker.clear()
     }
 
-    override fun onNotificationPosted(sbn: StatusBarNotification?)  { refreshNowPlaying() }
-    override fun onNotificationRemoved(sbn: StatusBarNotification?) { refreshNowPlaying() }
+    override fun onNotificationPosted(sbn: StatusBarNotification?) {
+        refreshNowPlaying()
+        sbn?.let { NavigationTracker.onPosted(it, this) }
+    }
+
+    override fun onNotificationRemoved(sbn: StatusBarNotification?) {
+        refreshNowPlaying()
+        sbn?.let { NavigationTracker.onRemoved(it) }
+    }
 
     override fun onDestroy() {
         instance = null

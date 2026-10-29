@@ -1,6 +1,5 @@
 package com.openlauncher.app.ui.screen
 
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
@@ -9,19 +8,24 @@ import android.net.Uri
 import android.provider.Settings
 import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -34,23 +38,32 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.openlauncher.app.R
+import com.openlauncher.app.model.AppInfo
+import com.openlauncher.app.model.NowPlayingState
 import com.openlauncher.app.model.WeatherState
+import com.openlauncher.app.service.NavGuidance
+import com.openlauncher.app.service.NavigationTracker
+import com.openlauncher.app.util.LocationData
+import com.openlauncher.app.viewmodel.LauncherViewModel
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -59,34 +72,61 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-private enum class MmiPage { HOME, DASHBOARD, SETTINGS }
-
-private val MmiInk = Color(0xFFF0F2F4)
-private val MmiDim = Color(0xFF9AA0A8)
-private val MmiCyan = Color(0xFF3EC6F0)
-private val MmiFont = FontFamily.SansSerif
+private enum class MmiPage(val title: String?) {
+    HOME(null), DASHBOARD("Dashboard"), WIDGETS("Widgets"), SETTINGS("Settings"),
+    MUSIC("Music"), RADIO("Radio"), PHONE("Phone"), APPS("Apps"),
+}
 
 /**
- * Audi MMI-style home: graphite grid floor, chrome horizon bar, the owner's car
- * inside an elliptical ring of chrome menu icons, weather card on the right and a
- * trapezoid date bar. Dashboard opens the regular widget grid; Settings opens an
- * MMI-styled settings list.
+ * Audi MMI-style shell. HOME is the car-and-ring menu with a weather card that
+ * becomes a live navigation card while Maps/Waze is guiding; every other entry
+ * opens an MMI-styled page inside the same frame (chrome bar, date bar), with a
+ * zoom-and-fade transition between them.
  */
 @Composable
 fun MmiHomeScreen(
     weather: WeatherState?,
     placeName: String?,
     metric: Boolean,
-    nowPlayingPackage: String?,
+    nowPlaying: NowPlayingState?,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onPrev: () -> Unit,
+    hardwareRadio: LauncherViewModel.HardwareRadioState?,
+    radioPackage: String,
+    onLaunchRadio: () -> Unit,
+    onRadioSeekUp: () -> Unit,
+    onRadioSeekDown: () -> Unit,
+    onRadioFm: () -> Unit,
+    onRadioAm: () -> Unit,
+    apps: List<AppInfo>,
+    location: LocationData?,
+    bearing: Float,
+    voltage: Float?,
     onLaunchPackage: (String) -> Unit,
-    onOpenApps: () -> Unit,
     onOpenLauncherSettings: () -> Unit,
-    dashboard: @Composable () -> Unit,
+    widgets: @Composable () -> Unit,
 ) {
     var page by rememberSaveable { mutableStateOf(MmiPage.HOME) }
     var selected by rememberSaveable { mutableStateOf("nav") }
-    BackHandler(enabled = page != MmiPage.HOME) { page = MmiPage.HOME }
+    BackHandler(enabled = page != MmiPage.HOME) {
+        page = if (page == MmiPage.WIDGETS) MmiPage.DASHBOARD else MmiPage.HOME
+    }
     val context = LocalContext.current
+    val guidance by NavigationTracker.guidance.collectAsStateWithLifecycle()
+
+    val openRadioApp = {
+        if (radioPackage.isNotEmpty() || hardwareRadio != null) onLaunchRadio()
+        else apps.findByLabel("radio", "fm")?.let { onLaunchPackage(it.packageName) } ?: onLaunchRadio()
+    }
+    val openMusicApp = {
+        val pkg = nowPlaying?.controller?.packageName
+        when {
+            !pkg.isNullOrEmpty() -> onLaunchPackage(pkg)
+            context.launchFirst(Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_MUSIC)) -> Unit
+            else -> apps.findByLabel("music")?.let { onLaunchPackage(it.packageName) } ?: Unit
+        }
+    }
 
     BoxWithConstraints(Modifier.fillMaxSize().mmiBackdrop()) {
         val barHeight = maxHeight * 0.11f
@@ -94,15 +134,22 @@ fun MmiHomeScreen(
         Column(Modifier.fillMaxSize()) {
             TopBar(
                 height = barHeight,
-                title = when (page) {
-                    MmiPage.HOME -> null
-                    MmiPage.DASHBOARD -> "Dashboard"
-                    MmiPage.SETTINGS -> "Settings"
-                },
-                onBack = { page = MmiPage.HOME },
+                title = page.title,
+                nowPlaying = nowPlaying,
+                onBack = { page = if (page == MmiPage.WIDGETS) MmiPage.DASHBOARD else MmiPage.HOME },
+                onTapNowPlaying = { page = MmiPage.MUSIC },
             )
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                when (page) {
+            AnimatedContent(
+                targetState = page,
+                transitionSpec = {
+                    (fadeIn(tween(260, delayMillis = 60)) +
+                        scaleIn(tween(320, easing = FastOutSlowInEasing), initialScale = 0.94f)) togetherWith
+                        (fadeOut(tween(180)) + scaleOut(tween(220), targetScale = 1.04f))
+                },
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                label = "mmi_page",
+            ) { target ->
+                when (target) {
                     MmiPage.HOME -> Row(Modifier.fillMaxSize()) {
                         Orbit(
                             modifier = Modifier.weight(1f).fillMaxHeight(),
@@ -111,26 +158,43 @@ fun MmiHomeScreen(
                                 selected = key
                                 when (key) {
                                     "dashboard" -> page = MmiPage.DASHBOARD
-                                    "video" -> context.openVideo()
+                                    "video" -> context.openVideo(apps, onLaunchPackage)
                                     "settings" -> page = MmiPage.SETTINGS
-                                    "music" -> context.openMusic(nowPlayingPackage, onLaunchPackage, onOpenApps)
-                                    "phone" -> context.launchFirst(Intent(Intent.ACTION_DIAL))
-                                    "nav" -> context.openNavigation()
-                                    "apps" -> onOpenApps()
+                                    "music" -> page = MmiPage.MUSIC
+                                    "radio" -> page = MmiPage.RADIO
+                                    "phone" -> page = MmiPage.PHONE
+                                    "nav" -> context.openNavigation(guidance)
+                                    "apps" -> page = MmiPage.APPS
                                     else -> Unit
                                 }
                             },
                         )
-                        WeatherCard(
-                            weather = weather,
-                            placeName = placeName,
-                            metric = metric,
-                            modifier = Modifier.fillMaxHeight().width(cardWidth)
-                                .padding(end = 16.dp, top = 4.dp, bottom = 8.dp),
-                        )
+                        Box(Modifier.fillMaxHeight().width(cardWidth).padding(end = 16.dp, top = 4.dp, bottom = 8.dp)) {
+                            val active = guidance
+                            if (active != null) {
+                                NavCard(active, Modifier.fillMaxSize()) { context.openNavigation(active) }
+                            } else {
+                                WeatherCard(weather, placeName, metric, Modifier.fillMaxSize())
+                            }
+                        }
                     }
+                    MmiPage.DASHBOARD -> MmiDashboardPage(location, bearing, voltage, metric) { page = MmiPage.WIDGETS }
+                    MmiPage.WIDGETS -> widgets()
                     MmiPage.SETTINGS -> SettingsPanel(onOpenLauncherSettings)
-                    MmiPage.DASHBOARD -> dashboard()
+                    MmiPage.MUSIC -> MmiMusicPage(
+                        state = nowPlaying,
+                        onPlayPause = onPlayPause, onNext = onNext, onPrev = onPrev,
+                        onOpenSource = openMusicApp,
+                        onOpenMusicApp = openMusicApp,
+                    )
+                    MmiPage.RADIO -> MmiRadioPage(
+                        radio = hardwareRadio,
+                        onOpenRadio = openRadioApp,
+                        onSeekUp = onRadioSeekUp, onSeekDown = onRadioSeekDown,
+                        onFm = onRadioFm, onAm = onRadioAm,
+                    )
+                    MmiPage.PHONE -> MmiPhonePage(apps)
+                    MmiPage.APPS -> MmiAppsPage(apps, onLaunchPackage)
                 }
             }
             DateBar(barHeight)
@@ -188,17 +252,36 @@ private fun Modifier.mmiBackdrop() = drawWithCache {
 // ── Top bar and date bar ─────────────────────────────────────────────────────
 
 @Composable
-private fun TopBar(height: Dp, title: String?, onBack: () -> Unit) {
+private fun TopBar(
+    height: Dp,
+    title: String?,
+    nowPlaying: NowPlayingState?,
+    onBack: () -> Unit,
+    onTapNowPlaying: () -> Unit,
+) {
     val titleSize = with(LocalDensity.current) { (height * 0.36f).toSp() }
     Box(Modifier.fillMaxWidth().height(height)) {
         if (title != null) {
             Row(
-                Modifier.align(Alignment.CenterStart).padding(start = 32.dp)
-                    .clickable(onClick = onBack),
+                Modifier.align(Alignment.CenterStart).padding(start = 28.dp).pressable(onBack),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Default.ChevronLeft, "Back", tint = MmiDim, modifier = Modifier.size(height * 0.45f))
+                MmiLineIcon(MmiLine.CHEVRON_LEFT, MmiDim, Modifier.size(height * 0.4f))
+                Spacer(Modifier.width(6.dp))
                 Text(title, color = MmiInk, fontFamily = MmiFont, fontSize = titleSize)
+            }
+        }
+        if (nowPlaying != null && nowPlaying.title.isNotBlank()) {
+            Row(
+                Modifier.align(Alignment.CenterEnd).padding(end = 28.dp).widthIn(max = 420.dp).pressable(onTapNowPlaying),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MmiLineIcon(if (nowPlaying.isPlaying) MmiLine.NOTE else MmiLine.PAUSE, MmiCyan, Modifier.size(height * 0.3f))
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    listOf(nowPlaying.title, nowPlaying.artist).filter { it.isNotBlank() }.joinToString(" – "),
+                    color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
@@ -256,16 +339,21 @@ private fun DateBar(height: Dp) {
 private data class OrbitItem(val key: String, val label: String, val glyph: MmiGlyph, val angle: Float)
 
 private val ORBIT_ITEMS = listOf(
-    OrbitItem("dashboard", "Dashboard", MmiGlyph.GAUGE, -106f),
-    OrbitItem("video", "Video", MmiGlyph.REEL, -64f),
-    OrbitItem("settings", "Settings", MmiGlyph.GEARS, -26f),
-    OrbitItem("music", "Music", MmiGlyph.NOTE, 18f),
-    OrbitItem("phone", "Phone", MmiGlyph.HANDSET, 64f),
-    OrbitItem("nav", "Navigation", MmiGlyph.FLAG, 110f),
+    OrbitItem("dashboard", "Dashboard", MmiGlyph.GAUGE, -110f),
+    OrbitItem("video", "Video", MmiGlyph.REEL, -74f),
+    OrbitItem("settings", "Settings", MmiGlyph.GEARS, -38f),
+    OrbitItem("music", "Music", MmiGlyph.NOTE, -2f),
+    OrbitItem("radio", "Radio", MmiGlyph.RADIO, 34f),
+    OrbitItem("phone", "Phone", MmiGlyph.HANDSET, 70f),
+    OrbitItem("nav", "Navigation", MmiGlyph.FLAG, 108f),
 )
 
 @Composable
 private fun Orbit(modifier: Modifier, selected: String, onSelect: (String) -> Unit) {
+    // One-shot entrance: the ring draws in, the car slides in, items pop in one by one.
+    val intro = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { intro.animateTo(1f, tween(900, easing = FastOutSlowInEasing)) }
+
     BoxWithConstraints(modifier) {
         val w = maxWidth
         val h = maxHeight
@@ -280,7 +368,7 @@ private fun Orbit(modifier: Modifier, selected: String, onSelect: (String) -> Un
         val carW = w * 0.46f
         val carH = carW * (473f / 900f)
 
-        Canvas(Modifier.fillMaxSize()) {
+        Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = (intro.value * 1.6f).coerceAtMost(1f) }) {
             val c = Offset(cx.toPx(), cy.toPx())
             val rxp = rx.toPx()
             val ryp = ry.toPx()
@@ -292,7 +380,6 @@ private fun Orbit(modifier: Modifier, selected: String, onSelect: (String) -> Un
             val innerTL = Offset(ringTL.x + band / 2, ringTL.y + band / 2)
             val innerSize = Size(ringSize.width - band, ringSize.height - band)
 
-            // Floor shadow, then the glossy black tube.
             drawOval(Color(0x80000000), topLeft = ringTL + Offset(0f, band * 0.7f), size = ringSize, style = Stroke(band * 1.5f))
             drawOval(
                 Brush.verticalGradient(
@@ -301,7 +388,6 @@ private fun Orbit(modifier: Modifier, selected: String, onSelect: (String) -> Un
                 ),
                 topLeft = ringTL, size = ringSize, style = Stroke(band),
             )
-            // Faint rim all round, bright chrome rim along the lower right.
             drawOval(Color(0x30FFFFFF), topLeft = outerTL, size = outerSize, style = Stroke(1.5.dp.toPx()))
             drawOval(Color(0x70000000), topLeft = innerTL, size = innerSize, style = Stroke(1.5.dp.toPx()))
             drawArc(
@@ -309,47 +395,52 @@ private fun Orbit(modifier: Modifier, selected: String, onSelect: (String) -> Un
                     listOf(Color(0x00FFFFFF), Color(0xFFE8ECF0), Color(0xFFFFFFFF), Color(0x00FFFFFF)),
                     start = Offset(c.x + rxp, c.y - ryp * 0.4f), end = Offset(c.x - rxp * 0.7f, c.y + ryp),
                 ),
-                startAngle = -35f, sweepAngle = 175f, useCenter = false,
+                startAngle = -35f, sweepAngle = 175f * intro.value, useCenter = false,
                 topLeft = outerTL, size = outerSize,
                 style = Stroke(3.dp.toPx(), cap = StrokeCap.Round),
             )
             drawArc(
-                Color(0x60FFFFFF), startAngle = 10f, sweepAngle = 140f, useCenter = false,
+                Color(0x60FFFFFF), startAngle = 10f, sweepAngle = 140f * intro.value, useCenter = false,
                 topLeft = innerTL, size = innerSize, style = Stroke(1.dp.toPx(), cap = StrokeCap.Round),
             )
 
-            // Blue under-glow beneath the car's wheels.
             val gy = carY.toPx() + carH.toPx() * 0.93f
             val gx = carX.toPx() + carW.toPx() * 0.47f
-            val gw = carW.toPx() * 0.62f
-            drawOval(
-                Brush.horizontalGradient(
-                    listOf(Color.Transparent, MmiCyan.copy(alpha = 0.35f), Color.Transparent),
-                    startX = gx - gw, endX = gx + gw,
-                ),
-                topLeft = Offset(gx - gw, gy - size.height * 0.03f), size = Size(gw * 2, size.height * 0.06f),
-            )
-            drawOval(
-                Brush.horizontalGradient(
-                    listOf(Color.Transparent, MmiCyan, Color(0xFFBFF1FF), MmiCyan, Color.Transparent),
-                    startX = gx - gw * 0.85f, endX = gx + gw * 0.85f,
-                ),
-                topLeft = Offset(gx - gw * 0.85f, gy - size.height * 0.007f), size = Size(gw * 1.7f, size.height * 0.014f),
-            )
+            val gw = carW.toPx() * 0.62f * intro.value
+            if (gw > 1f) {
+                drawOval(
+                    Brush.horizontalGradient(
+                        listOf(Color.Transparent, MmiCyan.copy(alpha = 0.35f), Color.Transparent),
+                        startX = gx - gw, endX = gx + gw,
+                    ),
+                    topLeft = Offset(gx - gw, gy - size.height * 0.03f), size = Size(gw * 2, size.height * 0.06f),
+                )
+                drawOval(
+                    Brush.horizontalGradient(
+                        listOf(Color.Transparent, MmiCyan, Color(0xFFBFF1FF), MmiCyan, Color.Transparent),
+                        startX = gx - gw * 0.85f, endX = gx + gw * 0.85f,
+                    ),
+                    topLeft = Offset(gx - gw * 0.85f, gy - size.height * 0.007f), size = Size(gw * 1.7f, size.height * 0.014f),
+                )
+            }
             drawOval(
                 Color(0xB0000000),
-                topLeft = Offset(gx - gw * 0.55f, gy - size.height * 0.04f), size = Size(gw * 1.1f, size.height * 0.045f),
+                topLeft = Offset(gx - carW.toPx() * 0.34f, gy - size.height * 0.04f), size = Size(carW.toPx() * 0.68f, size.height * 0.045f),
             )
         }
 
+        val slide = with(LocalDensity.current) { 60.dp.toPx() }
         Image(
             painter = painterResource(R.drawable.mmi_car),
             contentDescription = "Your car",
             contentScale = ContentScale.Fit,
-            modifier = Modifier.offset(x = carX, y = carY).size(carW, carH),
+            modifier = Modifier.offset(x = carX, y = carY).size(carW, carH).graphicsLayer {
+                alpha = intro.value
+                translationX = (1f - intro.value) * -slide
+            },
         )
 
-        ORBIT_ITEMS.forEach { item ->
+        ORBIT_ITEMS.forEachIndexed { index, item ->
             val rad = Math.toRadians(item.angle.toDouble())
             OrbitEntry(
                 label = item.label, glyph = item.glyph,
@@ -357,6 +448,7 @@ private fun Orbit(modifier: Modifier, selected: String, onSelect: (String) -> Un
                 y = cy + ry * sin(rad).toFloat() - iconSize / 2,
                 iconSize = iconSize, labelSize = labelSize,
                 selected = selected == item.key,
+                appear = { ((intro.value - 0.25f - index * 0.07f) / 0.3f).coerceIn(0f, 1f) },
                 onClick = { onSelect(item.key) },
             )
         }
@@ -365,6 +457,7 @@ private fun Orbit(modifier: Modifier, selected: String, onSelect: (String) -> Un
             x = w * 0.02f, y = h * 0.72f,
             iconSize = iconSize, labelSize = labelSize,
             selected = selected == "apps",
+            appear = { ((intro.value - 0.2f) / 0.3f).coerceIn(0f, 1f) },
             onClick = { onSelect("apps") },
         )
     }
@@ -379,11 +472,19 @@ private fun OrbitEntry(
     iconSize: Dp,
     labelSize: TextUnit,
     selected: Boolean,
+    appear: () -> Float,
     onClick: () -> Unit,
 ) {
+    val boxColor by animateColorAsState(if (selected) MmiCyan else Color.Transparent, tween(220), label = "select")
     Row(
         Modifier.offset(x = x, y = y)
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
+            .graphicsLayer {
+                val a = appear()
+                alpha = a
+                scaleX = 0.6f + 0.4f * a
+                scaleY = 0.6f + 0.4f * a
+            }
+            .pressable(onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -401,26 +502,59 @@ private fun OrbitEntry(
         Text(
             label, color = MmiInk, fontFamily = MmiFont, fontSize = labelSize,
             modifier = Modifier
-                .border(2.dp, if (selected) MmiCyan else Color.Transparent, RoundedCornerShape(4.dp))
+                .border(2.dp, boxColor, RoundedCornerShape(4.dp))
                 .padding(horizontal = 6.dp, vertical = 2.dp),
         )
     }
 }
 
-// ── Weather card ─────────────────────────────────────────────────────────────
+// ── Right-hand cards ─────────────────────────────────────────────────────────
+
+@Composable
+private fun NavCard(guidance: NavGuidance, modifier: Modifier, onClick: () -> Unit) {
+    val context = LocalContext.current
+    Column(modifier.pressable(onClick), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(
+            Modifier.fillMaxWidth().weight(1f).mmiPanel().padding(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            Text("NAVIGATION", color = MmiCyan, fontFamily = MmiFont, fontSize = 12.sp, letterSpacing = 3.sp)
+            val arrow = guidance.arrow
+            if (arrow != null) {
+                Image(
+                    bitmap = arrow.asImageBitmap(), contentDescription = null,
+                    colorFilter = ColorFilter.tint(MmiInk),
+                    modifier = Modifier.fillMaxWidth(0.45f).aspectRatio(1f),
+                )
+            } else {
+                MmiIcon(MmiGlyph.FLAG, Modifier.fillMaxWidth(0.4f).aspectRatio(1f))
+            }
+            Text(
+                guidance.instruction, color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light,
+                fontSize = 30.sp, maxLines = 2, textAlign = TextAlign.Center, overflow = TextOverflow.Ellipsis,
+            )
+            guidance.detail?.let {
+                Text(it, color = MmiDim, fontFamily = MmiFont, fontSize = 16.sp, maxLines = 2, textAlign = TextAlign.Center, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Row(Modifier.fillMaxWidth().height(48.dp).mmiPanel().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                guidance.eta ?: (context.appLabel(guidance.sourcePackage) ?: "Guidance active"),
+                color = MmiInk, fontFamily = MmiFont, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
 
 @Composable
 private fun WeatherCard(weather: WeatherState?, placeName: String?, metric: Boolean, modifier: Modifier) {
     fun shown(c: Double) = (if (metric) c else c * 9.0 / 5.0 + 32.0).roundToInt()
     val unit = if (metric) "°C" else "°F"
-    val panelShape = RoundedCornerShape(3.dp)
-    val panel = Modifier.fillMaxWidth().clip(panelShape)
-        .background(Brush.verticalGradient(listOf(Color(0xFF17191C), Color(0xFF0E0F12))))
-        .border(1.dp, Color(0xFF25282D), panelShape)
     val temps = weather?.hourlyForecast?.take(24)?.map { it.temperatureCelsius }.orEmpty()
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Box(panel.weight(1f).padding(12.dp)) {
+        Box(Modifier.fillMaxWidth().weight(1f).mmiPanel().padding(12.dp)) {
             Row(Modifier.align(Alignment.TopStart)) {
                 Text(
                     weather?.let { shown(it.temperatureCelsius).toString() } ?: "--",
@@ -446,9 +580,9 @@ private fun WeatherCard(weather: WeatherState?, placeName: String?, metric: Bool
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
-        WeatherRow(panel, Icons.Default.Air, weather?.windspeedDisplay(metric) ?: "--")
-        WeatherRow(panel, Icons.Default.Thermostat, weather?.let { "Feels ${it.feelsLikeDisplay(metric)}" } ?: "--")
-        WeatherRow(panel, Icons.Default.Umbrella, weather?.hourlyForecast?.firstOrNull()?.let { "${it.precipitationChance}%" } ?: "--")
+        WeatherRow(MmiLine.WIND, weather?.windspeedDisplay(metric) ?: "--")
+        WeatherRow(MmiLine.THERMO, weather?.let { "Feels ${it.feelsLikeDisplay(metric)}" } ?: "--")
+        WeatherRow(MmiLine.DROP, weather?.hourlyForecast?.firstOrNull()?.let { "${it.precipitationChance}%" } ?: "--")
         Text(
             placeName ?: "",
             color = MmiInk, fontFamily = MmiFont, fontSize = 19.sp, maxLines = 1,
@@ -459,13 +593,13 @@ private fun WeatherCard(weather: WeatherState?, placeName: String?, metric: Bool
 }
 
 @Composable
-private fun WeatherRow(panel: Modifier, icon: ImageVector, value: String) {
+private fun WeatherRow(icon: MmiLine, value: String) {
     Row(
-        panel.height(40.dp).padding(horizontal = 16.dp),
+        Modifier.fillMaxWidth().height(40.dp).mmiPanel().padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
-        Icon(icon, null, tint = MmiInk, modifier = Modifier.size(22.dp))
+        MmiLineIcon(icon, MmiInk, Modifier.size(22.dp))
         Spacer(Modifier.width(18.dp))
         Text(value, color = MmiInk, fontFamily = MmiFont, fontSize = 16.sp)
     }
@@ -516,27 +650,26 @@ private fun SettingsPanel(onOpenLauncherSettings: () -> Unit) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 rows.forEach { (label, action) ->
                     Row(
-                        Modifier.fillMaxWidth().height(rowHeight).clickable(onClick = action)
+                        Modifier.fillMaxWidth().height(rowHeight).pressable(action)
                             .padding(start = panelWidth * 0.1f, end = panelWidth * 0.28f),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(label, color = MmiInk, fontFamily = MmiFont, fontSize = labelSize)
                         Spacer(Modifier.weight(1f))
-                        Icon(Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(rowHeight * 0.5f))
+                        MmiLineIcon(MmiLine.ARROW, Color.White, Modifier.size(rowHeight * 0.42f))
                     }
                 }
             }
         }
-        // Silver pull tab on the left edge, as on the MMI list screens.
         Box(
             Modifier.align(Alignment.CenterStart).offset(x = (-14).dp)
                 .size(width = 40.dp, height = maxHeight * 0.24f)
                 .clip(RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp))
                 .background(Brush.horizontalGradient(listOf(Color(0xFF8E959E), Color(0xFFE9ECEF), Color(0xFFB4BAC2))))
-                .clickable(onClick = onOpenLauncherSettings),
+                .pressable(onOpenLauncherSettings),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Default.Menu, "Launcher settings", tint = Color(0xFF3A3F46))
+            MmiLineIcon(MmiLine.MENU, Color(0xFF3A3F46), Modifier.size(24.dp))
         }
     }
 }
@@ -573,37 +706,18 @@ private fun RotaryDial(modifier: Modifier) {
 
 // ── Intents ──────────────────────────────────────────────────────────────────
 
-private fun Context.launchFirst(vararg intents: Intent): Boolean {
-    for (intent in intents) {
-        try {
-            startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            return true
-        } catch (_: ActivityNotFoundException) {
-        } catch (_: SecurityException) {
-        }
-    }
-    return false
-}
-
 private val NAV_PACKAGES = listOf("com.google.android.apps.maps", "com.waze", "com.here.app.maps")
 private val VIDEO_PACKAGES = listOf("org.videolan.vlc", "com.mxtech.videoplayer.ad", "com.google.android.youtube")
 
-private fun Context.openNavigation() {
-    val launch = NAV_PACKAGES.firstNotNullOfOrNull { packageManager.getLaunchIntentForPackage(it) }
-    if (launch == null || !launchFirst(launch)) launchFirst(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0")))
+private fun Context.openNavigation(guidance: NavGuidance?) {
+    if (guidance != null && launchPackage(guidance.sourcePackage)) return
+    if (NAV_PACKAGES.any { launchPackage(it) }) return
+    launchFirst(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0")))
 }
 
-private fun Context.openMusic(nowPlayingPackage: String?, onLaunchPackage: (String) -> Unit, onOpenApps: () -> Unit) {
-    when {
-        !nowPlayingPackage.isNullOrEmpty() -> onLaunchPackage(nowPlayingPackage)
-        launchFirst(Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_MUSIC)) -> Unit
-        else -> onOpenApps()
-    }
-}
-
-private fun Context.openVideo() {
-    val launch = VIDEO_PACKAGES.firstNotNullOfOrNull { packageManager.getLaunchIntentForPackage(it) }
-    if (launch == null || !launchFirst(launch)) {
-        launchFirst(Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_GALLERY))
-    }
+private fun Context.openVideo(apps: List<AppInfo>, onLaunchPackage: (String) -> Unit) {
+    if (VIDEO_PACKAGES.any { launchPackage(it) }) return
+    val video = apps.findByLabel("video", "movie")
+    if (video != null) onLaunchPackage(video.packageName)
+    else launchFirst(Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_GALLERY))
 }
