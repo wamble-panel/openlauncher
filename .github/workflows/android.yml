@@ -37,10 +37,18 @@ jobs:
       - name: Unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
 
-      - name: Assemble debug APK
-        run: ./gradlew --no-daemon assembleDebug
+      - name: Assemble APKs
+        run: ./gradlew --no-daemon assembleDebug assembleRelease
 
-      - name: Upload APK
+      # Install this one on the car: optimised, not debuggable, much smoother.
+      - name: Upload fast APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: openlauncher-INSTALL-THIS-${{ github.sha }}
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: openlauncher-debug-${{ github.sha }}

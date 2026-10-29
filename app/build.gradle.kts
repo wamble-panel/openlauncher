@@ -23,6 +23,10 @@ android {
         }
         release {
             isMinifyEnabled = false
+            // Sideload builds: sign with the debug key so the optimised (non-debuggable)
+            // APK installs without a separate release keystore. Compose runs far
+            // faster when not debuggable, which matters on low-end head units.
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
