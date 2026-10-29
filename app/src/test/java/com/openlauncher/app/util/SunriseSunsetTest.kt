@@ -1,9 +1,27 @@
 package com.openlauncher.app.util
 
+import org.junit.After
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
+import java.util.TimeZone
 
 class SunriseSunsetTest {
+
+    // SunriseSunset reports minutes in the JVM's default zone; the expected ranges
+    // below are Singapore-local, so pin the zone (CI runners default to UTC).
+    private lateinit var originalZone: TimeZone
+
+    @Before
+    fun pinSingaporeZone() {
+        originalZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("Asia/Singapore"))
+    }
+
+    @After
+    fun restoreZone() {
+        TimeZone.setDefault(originalZone)
+    }
 
     // Singapore is near-equatorial, so sunrise/sunset barely drift across the
     // year (observed on-device: 07:04 / 19:14) — a tolerant range is robust
