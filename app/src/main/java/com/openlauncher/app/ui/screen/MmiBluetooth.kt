@@ -268,7 +268,7 @@ internal fun MmiBluetoothPage(apps: List<AppInfo>, onLaunchPackage: (String) -> 
 }
 
 @Composable
-private fun PairingPanel(bt: BluetoothState, onClose: () -> Unit) {
+private fun ColumnScope.PairingPanel(bt: BluetoothState, onClose: () -> Unit) {
     // Discovery stops on its own after ~12 s; keep searching while this panel is open.
     LaunchedEffect(Unit) {
         while (true) {
