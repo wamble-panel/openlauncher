@@ -485,7 +485,9 @@ private fun SettingsPanel(onOpenLauncherSettings: () -> Unit) {
         "Launcher" to onOpenLauncherSettings,
     )
     BoxWithConstraints(Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, bottom = 8.dp)) {
-        val rowHeight = maxHeight / 6
+        val panelHeight = maxHeight
+        val panelWidth = maxWidth
+        val rowHeight = panelHeight / 6
         val labelSize = with(LocalDensity.current) { (rowHeight * 0.36f).toSp() }
         val frameShape = RoundedCornerShape(6.dp)
         Box(
@@ -497,12 +499,12 @@ private fun SettingsPanel(onOpenLauncherSettings: () -> Unit) {
                     frameShape,
                 ),
         ) {
-            RotaryDial(Modifier.align(Alignment.CenterEnd).padding(end = 24.dp).size(maxHeight * 0.85f))
+            RotaryDial(Modifier.align(Alignment.CenterEnd).padding(end = 24.dp).size(panelHeight * 0.85f))
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 rows.forEach { (label, action) ->
                     Row(
                         Modifier.fillMaxWidth().height(rowHeight).clickable(onClick = action)
-                            .padding(start = maxWidth * 0.1f, end = maxWidth * 0.28f),
+                            .padding(start = panelWidth * 0.1f, end = panelWidth * 0.28f),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(label, color = MmiInk, fontFamily = MmiFont, fontSize = labelSize)
