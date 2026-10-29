@@ -84,9 +84,9 @@ import kotlin.math.sin
 
 private enum class MmiPage(val title: String?, val inSettings: Boolean = false) {
     HOME(null), DASHBOARD("Dashboard"), SETTINGS("Settings"),
-    MUSIC("Music"), RADIO("Radio"), PHONE("Phone"), APPS("Apps"),
+    MUSIC("Music"), RADIO("Radio"), BT_HUB("Bluetooth"), PHONE("Telephone"), APPS("Apps"),
     NAV("Navigation"), SYSTEM("System check", true),
-    DISPLAY("Display", true), SOUND("Sound", true), BLUETOOTH("Bluetooth", true), NAV_SETTINGS("Navigation settings", true),
+    DISPLAY("Display", true), SOUND("Sound", true), BLUETOOTH("Bluetooth devices", true), NAV_SETTINGS("Navigation settings", true),
 }
 
 /**
@@ -121,9 +121,11 @@ fun MmiHomeScreen(
     var selected by rememberSaveable { mutableStateOf("nav") }
     // Bluetooth is reached from Settings or from the Phone page; Back returns to whichever.
     var bluetoothFrom by rememberSaveable { mutableStateOf(MmiPage.SETTINGS) }
+    var pairOnOpen by rememberSaveable { mutableStateOf(false) }
     val back = {
         page = when {
             page == MmiPage.BLUETOOTH -> bluetoothFrom
+            page == MmiPage.PHONE -> MmiPage.BT_HUB
             page.inSettings -> MmiPage.SETTINGS
             else -> MmiPage.HOME
         }
@@ -194,7 +196,7 @@ fun MmiHomeScreen(
                                     "settings" -> page = MmiPage.SETTINGS
                                     "music" -> page = MmiPage.MUSIC
                                     "radio" -> page = MmiPage.RADIO
-                                    "phone" -> page = MmiPage.PHONE
+                                    "phone" -> page = MmiPage.BT_HUB
                                     "nav" -> page = MmiPage.NAV
                                     "apps" -> page = MmiPage.APPS
                                     else -> Unit
@@ -214,12 +216,22 @@ fun MmiHomeScreen(
                     }
                     MmiPage.DASHBOARD -> MmiDashboardPage(location, bearing, voltage, metric)
                     MmiPage.SETTINGS -> SettingsPanel(metric, onSetMetric) {
-                        if (it == MmiPage.BLUETOOTH) bluetoothFrom = MmiPage.SETTINGS
+                        if (it == MmiPage.BLUETOOTH) {
+                            bluetoothFrom = MmiPage.SETTINGS
+                            pairOnOpen = false
+                        }
                         page = it
                     }
                     MmiPage.DISPLAY -> MmiDisplayPage()
                     MmiPage.SOUND -> MmiSoundPage(apps, onLaunchPackage)
-                    MmiPage.BLUETOOTH -> MmiBluetoothPage(apps, onLaunchPackage)
+                    MmiPage.BLUETOOTH -> MmiBluetoothPage(apps, onLaunchPackage, startPairing = pairOnOpen)
+                    MmiPage.BT_HUB -> MmiBluetoothHub(
+                        onTelephone = { page = MmiPage.PHONE },
+                        onMusic = { page = MmiPage.MUSIC },
+                        onContacts = { context.launchFirst(Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)) },
+                        onDevices = { pairOnOpen = false; bluetoothFrom = MmiPage.BT_HUB; page = MmiPage.BLUETOOTH },
+                        onConnectNew = { pairOnOpen = true; bluetoothFrom = MmiPage.BT_HUB; page = MmiPage.BLUETOOTH },
+                    )
                     MmiPage.NAV_SETTINGS -> MmiNavSettingsPage(metric, onSetMetric)
                     MmiPage.NAV -> MmiNavigationPage(location, metric)
                     MmiPage.SYSTEM -> MmiSystemCheckPage(apps, location)
@@ -237,6 +249,7 @@ fun MmiHomeScreen(
                     )
                     MmiPage.PHONE -> MmiPhonePage(apps) {
                         bluetoothFrom = MmiPage.PHONE
+                        pairOnOpen = false
                         page = MmiPage.BLUETOOTH
                     }
                     MmiPage.APPS -> {
@@ -400,7 +413,7 @@ private val ORBIT_ITEMS = listOf(
     OrbitItem("settings", "Settings", MmiGlyph.GEARS, -38f),
     OrbitItem("music", "Music", MmiGlyph.NOTE, -2f),
     OrbitItem("radio", "Radio", MmiGlyph.RADIO, 34f),
-    OrbitItem("phone", "Phone", MmiGlyph.HANDSET, 70f),
+    OrbitItem("phone", "Bluetooth", MmiGlyph.HANDSET, 70f),
     OrbitItem("nav", "Navigation", MmiGlyph.FLAG, 108f),
 )
 

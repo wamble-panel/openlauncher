@@ -39,6 +39,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.openlauncher.app.model.AppInfo
+import com.openlauncher.app.util.BtConnect
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.style.TextAlign
 import kotlinx.coroutines.delay
 
 internal data class BtDevice(val address: String, val name: String, val isPhone: Boolean, val connected: Boolean, val bonding: Boolean)
@@ -172,7 +176,7 @@ internal fun rememberBluetooth(): BluetoothState {
  * "Pair new phone" mode that makes the car visible and lists nearby phones.
  */
 @Composable
-internal fun MmiBluetoothPage(apps: List<AppInfo>, onLaunchPackage: (String) -> Unit) {
+internal fun MmiBluetoothPage(apps: List<AppInfo>, onLaunchPackage: (String) -> Unit, startPairing: Boolean = false) {
     val context = LocalContext.current
     val bt = rememberBluetooth()
     var granted by remember { mutableStateOf(hasPermissions(context)) }
@@ -181,7 +185,14 @@ internal fun MmiBluetoothPage(apps: List<AppInfo>, onLaunchPackage: (String) -> 
         bt.refresh()
     }
     LaunchedEffect(Unit) { if (!granted) ask.launch(bluetoothPermissions()) }
-    var pairing by remember { mutableStateOf(false) }
+    var pairing by remember { mutableStateOf(startPairing) }
+    LaunchedEffect(startPairing) {
+        if (startPairing && bt.adapter != null) {
+            if (!bt.enabled) bt.requestOn()
+            bt.makeDiscoverable()
+            bt.startScan()
+        }
+    }
     var selected by remember { mutableStateOf<String?>(null) }
     val vendorApp = remember(apps) { apps.findByLabel("bluetooth", "bt phone", "bt music") }
 
@@ -229,7 +240,12 @@ internal fun MmiBluetoothPage(apps: List<AppInfo>, onLaunchPackage: (String) -> 
                 }
                 items(bt.paired, key = { it.address }) { d ->
                     DeviceRow(d, selected = selected == d.address, onClick = { selected = if (selected == d.address) null else d.address }) {
-                        if (selected == d.address) ChromePill("Forget", { bt.forget(d.address); selected = null })
+                        if (selected == d.address) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (!d.connected) ChromePill("Connect", { BtConnect.connect(d.address); selected = null })
+                                ChromePill("Forget", { bt.forget(d.address); selected = null })
+                            }
+                        }
                     }
                 }
             }
@@ -343,4 +359,121 @@ private fun SearchingDots() {
 internal fun rememberConnectedPhone(): String? {
     val bt = rememberBluetooth()
     return bt.paired.firstOrNull { it.connected }?.name
+}
+
+/**
+ * The ring's Bluetooth entry, as in the Audi MMI: with no phone connected it
+ * names this MMI and offers "Connect mobile device" plus saved phones; once a
+ * phone is connected it opens telephone, Bluetooth audio, contacts and devices.
+ */
+@Composable
+internal fun MmiBluetoothHub(
+    onTelephone: () -> Unit,
+    onMusic: () -> Unit,
+    onContacts: () -> Unit,
+    onDevices: () -> Unit,
+    onConnectNew: () -> Unit,
+) {
+    val bt = rememberBluetooth()
+    val connectedPhone = bt.paired.firstOrNull { it.connected }
+    var connecting by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(connecting) {
+        if (connecting != null) {
+            delay(12_000)
+            connecting = null
+        }
+    }
+
+    if (connectedPhone != null) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                MmiLineIcon(MmiLine.BLUETOOTH, MmiCyan, Modifier.size(28.dp))
+                Spacer(Modifier.width(12.dp))
+                Text(connectedPhone.name, color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 30.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.width(12.dp))
+                Text("connected", color = MmiCyan, fontFamily = MmiFont, fontSize = 16.sp)
+            }
+            Spacer(Modifier.height(24.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                HubTile("Telephone", MmiLine.CALL, Modifier.weight(1f), onTelephone)
+                HubTile("Bluetooth audio", MmiLine.NOTE, Modifier.weight(1f), onMusic)
+                HubTile("Contacts", MmiLine.CONTACTS, Modifier.weight(1f), onContacts)
+                HubTile("Devices", MmiLine.BLUETOOTH, Modifier.weight(1f), onDevices)
+            }
+        }
+        return
+    }
+
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 120.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            "No device is connected to the MMI yet. Please select the following function.",
+            color = MmiInk, fontFamily = MmiFont, fontSize = 22.sp, textAlign = TextAlign.Center,
+        )
+        Text(
+            "MMI name: ${bt.name.ifEmpty { "this car" }}",
+            color = MmiInk, fontFamily = MmiFont, fontSize = 22.sp, textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Spacer(Modifier.height(18.dp))
+        HubRow("Connect mobile device", highlighted = true, onClick = onConnectNew)
+        val saved = bt.paired
+        if (saved.isNotEmpty()) {
+            Text(
+                "SAVED DEVICES", color = MmiCyan, fontFamily = MmiFont, fontSize = 13.sp, letterSpacing = 2.sp,
+                modifier = Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 4.dp),
+            )
+            LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
+                items(saved, key = { it.address }) { d ->
+                    HubRow(
+                        if (connecting == d.address) "${d.name} — connecting…" else d.name,
+                        highlighted = false,
+                        onClick = {
+                            connecting = d.address
+                            if (!BtConnect.connect(d.address)) connecting = null
+                        },
+                    )
+                }
+            }
+            Text(
+                "Tap a saved phone to connect, or connect from the phone's Bluetooth menu.",
+                color = MmiDim, fontFamily = MmiFont, fontSize = 14.sp, modifier = Modifier.padding(vertical = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun HubRow(label: String, highlighted: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(3.dp)
+    Row(
+        Modifier.fillMaxWidth().height(56.dp).padding(vertical = 3.dp).pressable(onClick)
+            .clip(shape)
+            .background(Color(0xFF111316))
+            .border(if (highlighted) 2.dp else 1.dp, if (highlighted) MmiCyan else Color(0xFF2A2E34), shape)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, color = MmiInk, fontFamily = MmiFont, fontSize = 20.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        MmiLineIcon(MmiLine.ARROW, MmiDim, Modifier.size(18.dp))
+    }
+}
+
+@Composable
+private fun HubTile(label: String, icon: MmiLine, modifier: Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(3.dp)
+    Column(
+        modifier.height(150.dp).pressable(onClick).clip(shape)
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF111316), Color(0xFF16191D))))
+            .border(1.dp, androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF2A2E34), Color(0xFFB8BEC6))), shape)
+            .padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        MmiLineIcon(icon, MmiInk, Modifier.size(44.dp))
+        Spacer(Modifier.height(12.dp))
+        Text(label, color = MmiInk, fontFamily = MmiFont, fontSize = 18.sp, textAlign = TextAlign.Center)
+    }
 }
