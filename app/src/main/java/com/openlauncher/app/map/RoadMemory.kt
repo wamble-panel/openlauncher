@@ -105,6 +105,9 @@ object RoadMemory {
 
     var car: CarProfile = CarProfile.SUNNY
         private set
+    private val _carState = MutableStateFlow(CarProfile.SUNNY)
+    /** Which car this unit is in (home-screen picture, wheelbase). */
+    val carState: StateFlow<CarProfile> = _carState
     var warnings: Boolean = true
         private set
 
@@ -119,6 +122,7 @@ object RoadMemory {
         app = ctx
         val prefs = ctx.getSharedPreferences("mmi_road", Context.MODE_PRIVATE)
         car = runCatching { CarProfile.valueOf(prefs.getString("car", CarProfile.SUNNY.name)!!) }.getOrDefault(CarProfile.SUNNY)
+        _carState.value = car
         warnings = prefs.getBoolean("warnings", true)
         val sm = ctx.getSystemService(Context.SENSOR_SERVICE) as SensorManager
         _stats.value = _stats.value.copy(sensor = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) != null)
@@ -139,6 +143,7 @@ object RoadMemory {
 
     fun setCar(profile: CarProfile) {
         car = profile
+        _carState.value = profile
         app?.getSharedPreferences("mmi_road", Context.MODE_PRIVATE)?.edit()?.putString("car", profile.name)?.apply()
     }
 

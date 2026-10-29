@@ -79,6 +79,7 @@ import com.openlauncher.app.service.NavGuidance
 import com.openlauncher.app.map.NavigationEngine
 import com.openlauncher.app.service.NavigationTracker
 import com.openlauncher.app.util.BtConnect
+import com.openlauncher.app.util.CarPicture
 import com.openlauncher.app.util.IntroVideo
 import com.openlauncher.app.util.LocationData
 import kotlinx.coroutines.launch
@@ -570,7 +571,14 @@ private fun Orbit(modifier: Modifier, selected: String, onSelect: (String) -> Un
         val carX = w * 0.03f
         val carY = h * 0.15f
         val carW = w * 0.46f
-        val carH = carW * (473f / 900f)
+        // The owner's own photo of the selected car (imported in Settings), else the built-in one.
+        val carProfile by RoadMemory.carState.collectAsStateWithLifecycle()
+        val pictureVersion by CarPicture.version.collectAsStateWithLifecycle()
+        val pictureContext = LocalContext.current
+        val ownPicture by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, carProfile, pictureVersion) {
+            value = CarPicture.load(pictureContext, carProfile)?.asImageBitmap()
+        }
+        val carH = carW * (ownPicture?.let { it.height.toFloat() / it.width } ?: (473f / 900f))
 
         Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = (intro.value * 1.6f).coerceAtMost(1f) }) {
             val c = Offset(cx.toPx(), cy.toPx())
@@ -642,15 +650,16 @@ private fun Orbit(modifier: Modifier, selected: String, onSelect: (String) -> Un
         }
 
         val slide = with(LocalDensity.current) { 60.dp.toPx() }
-        Image(
-            painter = painterResource(R.drawable.mmi_car),
-            contentDescription = "Your car",
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.offset(x = carX, y = carY).size(carW, carH).graphicsLayer {
-                alpha = intro.value
-                translationX = (1f - intro.value) * -slide
-            },
-        )
+        val carModifier = Modifier.offset(x = carX, y = carY).size(carW, carH).graphicsLayer {
+            alpha = intro.value
+            translationX = (1f - intro.value) * -slide
+        }
+        val picture = ownPicture
+        if (picture != null) {
+            Image(picture, contentDescription = "Your car", contentScale = ContentScale.Fit, modifier = carModifier)
+        } else {
+            Image(painterResource(R.drawable.mmi_car), contentDescription = "Your car", contentScale = ContentScale.Fit, modifier = carModifier)
+        }
 
         ORBIT_ITEMS.forEachIndexed { index, item ->
             val rad = Math.toRadians(item.angle.toDouble())
@@ -873,7 +882,21 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
         if (uri != null) scope.launch { introSet = IntroVideo.import(context, uri) }
     }
     val openSystem = { context.launchFirst(Intent(Settings.ACTION_SETTINGS)); Unit }
+    val carProfile = RoadMemory.carState.collectAsStateWithLifecycle().value
+    val carName = carProfile.label
+    val pictureVersion by CarPicture.version.collectAsStateWithLifecycle()
+    val hasPicture = remember(carProfile, pictureVersion) { CarPicture.has(context, carProfile) }
+    val pickPicture = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch { CarPicture.import(context, uri, carProfile) }
+    }
     val rows: List<Pair<String, () -> Unit>> = listOf(
+        "Car: ${carName}" to {
+            val next = com.openlauncher.app.map.CarProfile.entries[(RoadMemory.car.ordinal + 1) % com.openlauncher.app.map.CarProfile.entries.size]
+            RoadMemory.setCar(next)
+        },
+        (if (hasPicture) "Car picture: yours (tap to remove)" else "Car picture: import from USB") to {
+            if (hasPicture) CarPicture.remove(context, carProfile) else pickPicture.launch(arrayOf("image/*"))
+        },
         "Display" to { onOpen(MmiPage.DISPLAY) },
         "Sound" to { onOpen(MmiPage.SOUND) },
         "Bluetooth" to { onOpen(MmiPage.BLUETOOTH) },
