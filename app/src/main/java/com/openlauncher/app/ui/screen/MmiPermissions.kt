@@ -68,8 +68,6 @@ internal fun Context.allPermissionsGranted(): Boolean =
         (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.System.canWrite(this)) &&
         isDefaultHome()
 
-private fun hasRoot(): Boolean =
-    listOf("/system/bin/su", "/system/xbin/su", "/sbin/su", "/su/bin/su", "/system/sbin/su", "/vendor/bin/su").any { File(it).exists() }
 
 /** Shell commands that grant everything; used with root here and by tools/setup for ADB. */
 internal fun grantCommands(context: Context): List<String> {
@@ -87,11 +85,8 @@ internal fun grantCommands(context: Context): List<String> {
 }
 
 private suspend fun grantWithRoot(context: Context): Boolean = withContext(Dispatchers.IO) {
-    runCatching {
-        val script = grantCommands(context).joinToString("; ") { "$it >/dev/null 2>&1" }
-        val p = Runtime.getRuntime().exec(arrayOf("su", "-c", script))
-        p.waitFor() == 0
-    }.getOrDefault(false)
+    // Some commands don't exist on every Android version; the grant counts if root ran the script.
+    com.openlauncher.app.util.Root.run(grantCommands(context).joinToString("; ") { "$it >/dev/null 2>&1" }, requireSuccess = false) != null
 }
 
 /**
@@ -105,7 +100,7 @@ internal fun MmiPermissionsPage() {
     var refresh by remember { mutableIntStateOf(0) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh++ }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { refresh++ }
-    val root = remember { hasRoot() }
+    val root = remember { com.openlauncher.app.util.Root.available() }
     var rootResult by remember { mutableStateOf<String?>(null) }
 
     val items = remember(refresh) {

@@ -396,9 +396,9 @@ private fun HomeAppPrompt() {
  */
 @Composable
 private fun PerfReadout(modifier: Modifier) {
-    val on by com.openlauncher.app.util.PerfOverlay.enabled.collectAsStateWithLifecycle()
-    if (!on) return
     val context = LocalContext.current
+    val on by CarPrefs.get(context).perfOverlay.collectAsStateWithLifecycle()
+    if (!on) return
     var text by remember { mutableStateOf("…") }
     LaunchedEffect(Unit) {
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager

@@ -38,31 +38,38 @@ object UnitCleanup {
         "com.google.android.tts", "com.svox.pico", "com.android.keychain", "com.android.certinstaller",
         "com.android.inputdevices", "com.android.statementservice", "com.android.se", "com.android.nfc",
         "com.android.media.module", "com.android.mtp", "com.android.vpndialogs", "com.android.wallpaperbackup",
+        // Fallback home screen (if MMI ever crashes) and, on Android 10+, the Recents screen.
+        "com.android.launcher3", "com.android.quickstep", "com.google.android.apps.nexuslauncher",
     )
     private val KEEP_PREFIX = listOf(
         "com.android.providers.", "com.android.inputmethod", "com.google.android.inputmethod", "com.android.server.",
         "android.ext.", "com.android.networkstack", "com.android.wifi", "com.android.bluetooth", "com.mediatek.ims",
         "com.android.cellbroadcast", "com.android.carrierconfig", "com.android.overlay", "android.overlay",
     )
-    /** Words that mark the vendor's car software: MCU bridge, CAN box, radio, keys, camera, sound. */
-    private val CAR_WORDS = listOf(
+    /** The vendor's car hardware software (MCU bridge, CAN box, radio, keys, camera): always kept. */
+    private val CAR_HARDWARE_WORDS = listOf(
         "mcu", "canbus", "can_", ".can.", "carservice", "car.service", "carinfo", "radio", "fmradio", "tuner",
-        "steer", "swc", "wheelkey", "keylearn", "bt", "bluetooth", "btphone", "dial", "camera", "avm", "reverse",
-        "backcar", "rearview", "amp", "eq", "dsp", "sound", "audio", "factory", "setting", "mcuupdate", "ime",
-        "input", "launcher.provider", "systemservice", "eventcenter", "szchoiceway", "service",
+        "steer", "swc", "wheelkey", "keylearn", "bluetooth", "btphone", "avm", "reverse", "backcar", "rearview",
+        "eventcenter", "szchoiceway", "factory", "mcuupdate",
+    )
+    /** Weaker hints of car software: kept as "unsure" rather than switched off. */
+    private val CAR_WORDS = listOf(
+        "bt", "dial", "camera", "amp", "eq", "dsp", "sound", "audio", "setting", "ime", "input",
+        "launcher.provider", "systemservice", "service",
     )
     /** Things a car screen never needs. */
     private val OFF_WORDS = listOf(
         "browser", "email", "calendar", "gallery", "gallery3d", "video", "player", "movie", "camera2", "photos",
         "youtube", "game", "demo", "wallpaper", "livewallpaper", "theme", "news", "weather", "clock", "deskclock",
         "calculator", "notes", "recorder", "soundrecorder", "mtklogger", "logger", "log.", "feedback", "analytics",
-        "stk", "launcher", "facebook", "instagram", "tiktok", "store", "market", "printspooler", "bookmark",
+        "stk", "facebook", "instagram", "tiktok", "store", "market", "printspooler", "bookmark",
         "partnerbookmarks", "dreams", "screensaver", "magnifier", "easter", "chrome",
     )
     /** Decide case by case: may be in use (phone projection, Google services, file transfer). */
     private val UNSURE_WORDS = listOf(
         "zlink", "carplay", "androidauto", "autolink", "projection", "gms", "gsf", "vending", "googlequicksearchbox",
         "maps", "sendfile", "tv", "update", "ota", "music", "media", "lion", "speech", "assistant", "voice",
+        "launcher",
     )
 
     private fun classify(pkg: String, label: String, system: Boolean, own: String): Pair<Verdict, String> {
@@ -71,19 +78,18 @@ object UnitCleanup {
         fun any(words: List<String>) = words.firstOrNull { it in p || it in l }
         if (pkg == own) return Verdict.KEEP to "MMI itself"
         if (pkg in KEEP_EXACT || KEEP_PREFIX.any { p.startsWith(it) }) return Verdict.KEEP to "Core Android"
-        // Car words win over "launcher"/"player" etc. (e.g. "bt music player", "radio launcher").
-        any(listOf("mcu", "canbus", "can_", ".can.", "carservice", "car.service", "radio", "tuner", "steer", "swc",
-            "keylearn", "bluetooth", "btphone", "avm", "reverse", "backcar", "rearview", "eventcenter", "szchoiceway", "factory"))
-            ?.let { return Verdict.KEEP to "Car hardware ($it)" }
-        any(UNSURE_WORDS)?.let { return Verdict.UNSURE to "Might be in use ($it)" }
+        // Car hardware wins over "launcher"/"player" etc. (e.g. "bt music player", "radio launcher").
+        any(CAR_HARDWARE_WORDS)?.let { return Verdict.KEEP to "Car hardware ($it)" }
+        any(UNSURE_WORDS)?.let { return Verdict.UNSURE to if (it == "launcher") "Spare home screen — keep one" else "Might be in use ($it)" }
         any(OFF_WORDS)?.let { return Verdict.OFF to "Not needed in a car ($it)" }
         any(CAR_WORDS)?.let { return Verdict.UNSURE to "Possibly car-related ($it)" }
-        return if (system) Verdict.UNSURE to "System app, unknown purpose" else Verdict.OFF to "Installed app, not needed in a car"
+        // Apps the owner installed (Waze, Torque, ...) are never pre-ticked.
+        return Verdict.UNSURE to if (system) "System app, unknown purpose" else "Installed by you"
     }
 
     suspend fun scan(context: Context): List<UnitApp> = withContext(Dispatchers.IO) {
         val pm = context.packageManager
-        val memory = if (Root.available()) memoryByPackage() else emptyMap()
+        val memory = if (Root.available()) cachedMemory() else emptyMap()
         @Suppress("DEPRECATION")
         val flags = PackageManager.GET_DISABLED_COMPONENTS or PackageManager.GET_UNINSTALLED_PACKAGES
         pm.getInstalledApplications(flags).map { ai ->
@@ -94,13 +100,27 @@ object UnitCleanup {
         }.sortedWith(compareBy<UnitApp> { it.verdict.ordinal }.thenByDescending { it.memoryMb ?: 0 }.thenBy { it.label.lowercase() })
     }
 
-    /** Resident memory per package from `dumpsys meminfo` (needs root). */
+    @Volatile private var memoryCache: Pair<Long, Map<String, Int>>? = null
+
+    /** Memory per app, fetched as root at most every 5 minutes (dumpsys is slow and shows a root toast). */
+    private fun cachedMemory(): Map<String, Int> {
+        val now = System.currentTimeMillis()
+        memoryCache?.let { (at, map) -> if (now - at < 300_000) return map }
+        return memoryByPackage().also { memoryCache = now to it }
+    }
+
+    /** PSS per package from the "Total PSS by process" section of `dumpsys meminfo` (needs root). */
     private fun memoryByPackage(): Map<String, Int> {
         val out = Root.run("dumpsys meminfo") ?: return emptyMap()
         val map = HashMap<String, Int>()
-        // Lines like: "   123,456K: com.vendor.app (pid 1234)"
+        // Lines like: "   123,456K: com.vendor.app (pid 1234)". Each process is listed again under
+        // other sections (by OOM adjustment, RSS), so only this one section is counted.
         val re = Regex("""^\s*([\d,]+)K: ([\w.]+)(?::\w+)? \(pid""")
+        var inSection = false
         for (line in out.lineSequence()) {
+            if (line.startsWith("Total PSS by process")) { inSection = true; continue }
+            if (!inSection) continue
+            if (line.isNotEmpty() && !line[0].isWhitespace()) break // next section header
             val m = re.find(line) ?: continue
             val kb = m.groupValues[1].replace(",", "").toIntOrNull() ?: continue
             val pkg = m.groupValues[2]
@@ -114,21 +134,30 @@ object UnitCleanup {
     /** Packages MMI switched off, so "undo" restores exactly those. */
     fun switchedOff(context: Context): Set<String> = prefs(context).getStringSet("off", emptySet())!!.toSet()
 
-    /** Switches packages off with root and remembers them for undo. */
-    suspend fun applyWithRoot(context: Context, off: List<String>): Boolean = withContext(Dispatchers.IO) {
-        if (off.isEmpty()) return@withContext true
-        val ok = Root.run(off.joinToString("; ") { "pm disable-user --user 0 $it >/dev/null 2>&1" }) != null
-        if (ok) prefs(context).edit().putStringSet("off", switchedOff(context) + off).apply()
-        ok
+    /** Runs [command] for each package in one root shell; returns the packages it succeeded for. */
+    private fun forEachPackage(command: String, packages: Collection<String>): Set<String>? {
+        if (packages.isEmpty()) return emptySet()
+        val script = packages.joinToString("; ") { "$command $it >/dev/null 2>&1 && echo OK:$it" }
+        // The last command's exit code says nothing about the others, so read each OK line.
+        val out = Root.run(script, requireSuccess = false) ?: return null
+        return out.lineSequence().filter { it.startsWith("OK:") }.map { it.removePrefix("OK:").trim() }.toSet()
     }
 
-    /** Turns back on everything MMI switched off. */
-    suspend fun undoWithRoot(context: Context): Boolean = withContext(Dispatchers.IO) {
+    data class RootResult(val done: Int, val failed: List<String>)
+
+    /** Switches packages off with root and remembers exactly the ones that went off, for undo. */
+    suspend fun applyWithRoot(context: Context, off: List<String>): RootResult? = withContext(Dispatchers.IO) {
+        val done = forEachPackage("pm disable-user --user 0", off) ?: return@withContext null
+        if (done.isNotEmpty()) prefs(context).edit().putStringSet("off", switchedOff(context) + done).apply()
+        RootResult(done.size, off.filter { it !in done })
+    }
+
+    /** Turns back on everything MMI switched off; anything that fails stays listed for another try. */
+    suspend fun undoWithRoot(context: Context): RootResult? = withContext(Dispatchers.IO) {
         val off = switchedOff(context)
-        if (off.isEmpty()) return@withContext true
-        val ok = Root.run(off.joinToString("; ") { "pm enable $it >/dev/null 2>&1" }) != null
-        if (ok) prefs(context).edit().remove("off").apply()
-        ok
+        val done = forEachPackage("pm enable", off) ?: return@withContext null
+        prefs(context).edit().putStringSet("off", off - done).apply()
+        RootResult(done.size, off.filter { it !in done })
     }
 
     /**
@@ -139,6 +168,7 @@ object UnitCleanup {
         runCatching {
             val dl = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).apply { mkdirs() }
             val tweaks = speedTweakCommands(context.packageName)
+            val revert = revertCommands(context)
             val bat = buildString {
                 appendLine("@echo off")
                 appendLine("rem MMI unit cleanup: switches off apps a car does not need (nothing is deleted).")
@@ -152,7 +182,7 @@ object UnitCleanup {
             val sh = "#!/bin/sh\n# MMI unit cleanup (nothing is deleted). Undo: mmi-cleanup-undo.sh\nadb devices\n" +
                 off.joinToString("") { "adb shell pm disable-user --user 0 $it\n" } +
                 tweaks.joinToString("") { "adb shell $it\n" } + "echo Done. Restart the unit.\n"
-            val undo = off.joinToString("") { "adb shell pm enable $it\n" }
+            val undo = off.joinToString("") { "adb shell pm enable $it\n" } + revert.joinToString("") { "adb shell $it\n" }
             File(dl, "mmi-cleanup.bat").writeText(bat.replace("\n", "\r\n"))
             File(dl, "mmi-cleanup.sh").writeText(sh)
             File(dl, "mmi-cleanup-undo.bat").writeText(("@echo off\nadb devices\n" + undo + "pause\n").replace("\n", "\r\n"))
@@ -164,30 +194,67 @@ object UnitCleanup {
         }.getOrNull()
     }
 
-    /** System speed settings: snappier animations, no idle Wi-Fi/BLE scanning, MMI kept awake. */
-    fun speedTweakCommands(pkg: String): List<String> = listOf(
-        "settings put global window_animation_scale 0.5",
-        "settings put global transition_animation_scale 0.5",
-        "settings put global animator_duration_scale 0.5",
-        "settings put global wifi_scan_always_enabled 0",
-        "settings put global ble_scan_always_enabled 0",
-        "settings put global package_verifier_enable 0",
-        "dumpsys deviceidle whitelist +$pkg",
-        "pm grant $pkg android.permission.WRITE_SECURE_SETTINGS",
+    /** Settings changed by the speed tweaks, with the value applied. */
+    private val SPEED_SETTINGS = listOf(
+        "window_animation_scale" to "0.5",
+        "transition_animation_scale" to "0.5",
+        "animator_duration_scale" to "0.5",
+        "wifi_scan_always_enabled" to "0",
+        "ble_scan_always_enabled" to "0",
     )
+
+    /** System speed settings: snappier animations, no idle Wi-Fi/BLE scanning, MMI kept awake. */
+    fun speedTweakCommands(pkg: String): List<String> =
+        SPEED_SETTINGS.map { (key, value) -> "settings put global $key $value" } + listOf(
+            "dumpsys deviceidle whitelist +$pkg",
+            "pm grant $pkg android.permission.WRITE_SECURE_SETTINGS",
+        )
+
+    /** Commands that put the speed settings back to what they were before MMI changed them. */
+    private fun revertCommands(context: Context): List<String> {
+        val saved = prefs(context)
+        return SPEED_SETTINGS.map { (key, _) ->
+            val before = saved.getString("before_$key", null)
+                ?: runCatching { android.provider.Settings.Global.getString(context.contentResolver, key) }.getOrNull()
+            if (before == null) "settings delete global $key" else "settings put global $key $before"
+        }
+    }
+
+    /** Remembers the current values once, so "off" can restore them exactly. */
+    private fun rememberBefore(context: Context) {
+        val saved = prefs(context)
+        if (saved.getBoolean("speed_saved", false)) return
+        val edit = saved.edit().putBoolean("speed_saved", true)
+        SPEED_SETTINGS.forEach { (key, _) ->
+            runCatching { android.provider.Settings.Global.getString(context.contentResolver, key) }.getOrNull()
+                ?.let { edit.putString("before_$key", it) }
+        }
+        edit.apply()
+    }
 
     /** Applies the speed settings from MMI itself (root, or WRITE_SECURE_SETTINGS granted over ADB). */
     suspend fun applySpeedTweaks(context: Context): Boolean = withContext(Dispatchers.IO) {
+        rememberBefore(context)
         if (Root.available()) return@withContext Root.run(speedTweakCommands(context.packageName).joinToString("; ")) != null
         runCatching {
-            val cr = context.contentResolver
-            listOf("window_animation_scale", "transition_animation_scale", "animator_duration_scale").forEach {
-                android.provider.Settings.Global.putFloat(cr, it, 0.5f)
-            }
-            android.provider.Settings.Global.putInt(cr, "wifi_scan_always_enabled", 0)
-            android.provider.Settings.Global.putInt(cr, "ble_scan_always_enabled", 0)
+            SPEED_SETTINGS.forEach { (key, value) -> android.provider.Settings.Global.putString(context.contentResolver, key, value) }
             true
         }.getOrDefault(false)
+    }
+
+    /** Puts the speed settings back to their previous values. */
+    suspend fun revertSpeedTweaks(context: Context): Boolean = withContext(Dispatchers.IO) {
+        val saved = prefs(context)
+        val ok = if (Root.available()) {
+            Root.run(revertCommands(context).joinToString("; ")) != null
+        } else runCatching {
+            SPEED_SETTINGS.forEach { (key, _) ->
+                android.provider.Settings.Global.putString(context.contentResolver, key, saved.getString("before_$key", null) ?: if (key.endsWith("scale")) "1.0" else "1")
+            }
+            true
+        }.getOrDefault(false)
+        if (ok) saved.edit().remove("speed_saved").apply { SPEED_SETTINGS.forEach { remove("before_${it.first}") } }.apply()
+        ok
     }
 
     fun speedTweaksApplied(context: Context): Boolean = runCatching {
@@ -195,16 +262,34 @@ object UnitCleanup {
     }.getOrDefault(false)
 }
 
-/** Minimal su helper. */
+/** The one place that knows how to find and use su. */
 object Root {
-    private val SU_PATHS = listOf("/system/bin/su", "/system/xbin/su", "/sbin/su", "/su/bin/su", "/system/sbin/su", "/vendor/bin/su")
+    private val SU_PATHS = listOf(
+        "/system/bin/su", "/system/xbin/su", "/sbin/su", "/su/bin/su", "/system/sbin/su", "/vendor/bin/su",
+        "/debug_ramdisk/su", // Magisk on newer Android
+    )
 
-    fun available(): Boolean = SU_PATHS.any { File(it).exists() }
+    /** Path of the su binary, if any. */
+    fun path(): String? = SU_PATHS.firstOrNull { File(it).exists() }
 
-    /** Runs a shell command as root; returns its output, or null if root was refused or failed. */
-    fun run(command: String): String? = runCatching {
-        val p = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
+    fun available(): Boolean = path() != null
+
+    /**
+     * Runs a shell command as root and returns its output (stderr merged in, so a
+     * chatty command can't fill an unread pipe and hang). With [requireSuccess],
+     * a non-zero exit code returns null.
+     */
+    fun run(command: String, requireSuccess: Boolean = true): String? = runCatching {
+        // The marker only prints if the root shell really ran, so a refused prompt is never "success".
+        val p = ProcessBuilder("su", "-c", "$command; echo $MARKER").redirectErrorStream(true).start()
         val out = p.inputStream.bufferedReader().readText()
-        if (p.waitFor() == 0) out else null
+        val code = p.waitFor()
+        when {
+            MARKER !in out -> null
+            requireSuccess && code != 0 -> null
+            else -> out.replace(MARKER, "").trimEnd()
+        }
     }.getOrNull()
+
+    private const val MARKER = "__MMI_ROOT_OK__"
 }

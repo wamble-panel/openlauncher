@@ -15,7 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.openlauncher.app.util.PerfOverlay
+import com.openlauncher.app.data.CarPrefs
 import com.openlauncher.app.util.Root
 import com.openlauncher.app.util.UnitApp
 import com.openlauncher.app.util.UnitCleanup
@@ -37,7 +37,8 @@ internal fun MmiCleanupPage() {
     var refresh by remember { mutableIntStateOf(0) }
     val root = remember { Root.available() }
     var tweaks by remember { mutableStateOf(UnitCleanup.speedTweaksApplied(context)) }
-    val overlay by PerfOverlay.enabled.collectAsState()
+    val prefs = remember(context) { CarPrefs.get(context) }
+    val overlay by prefs.perfOverlay.collectAsState()
 
     LaunchedEffect(refresh) {
         val list = UnitCleanup.scan(context)
@@ -61,16 +62,19 @@ internal fun MmiCleanupPage() {
                 ChromePill("Switch off ticked (root)", {
                     scope.launch {
                         val off = selected.filter { p -> list.any { it.pkg == p && it.enabled } }
-                        message = if (UnitCleanup.applyWithRoot(context, off)) {
-                            "Done — restart the unit to feel the difference."
-                        } else "Root refused the change."
+                        message = UnitCleanup.applyWithRoot(context, off)?.let { r ->
+                            "Switched off ${r.done}." + (if (r.failed.isNotEmpty()) " Couldn't switch off: ${r.failed.joinToString()}." else "") +
+                                " Restart the unit to feel the difference."
+                        } ?: "Root refused the change."
                         refresh++
                     }
                 }, MmiLine.CLOSE, Modifier.fillMaxWidth())
                 if (UnitCleanup.switchedOff(context).isNotEmpty()) {
                     ChromePill("Undo: turn everything back on", {
                         scope.launch {
-                            message = if (UnitCleanup.undoWithRoot(context)) "Everything MMI switched off is back on." else "Root refused the change."
+                            message = UnitCleanup.undoWithRoot(context)?.let { r ->
+                                "Turned ${r.done} back on." + (if (r.failed.isNotEmpty()) " Still off: ${r.failed.joinToString()}." else "")
+                            } ?: "Root refused the change."
                             refresh++
                         }
                     }, MmiLine.HISTORY, Modifier.fillMaxWidth())
@@ -83,14 +87,19 @@ internal fun MmiCleanupPage() {
                     } ?: "Couldn't write to Download — allow file access in Permissions."
                 }
             }, MmiLine.OPEN, Modifier.fillMaxWidth())
-            ChromePill(if (tweaks) "Speed settings: on" else "Apply speed settings", {
+            ChromePill(if (tweaks) "Speed settings: on (tap to undo)" else "Apply speed settings", {
                 scope.launch {
-                    tweaks = UnitCleanup.applySpeedTweaks(context) && UnitCleanup.speedTweaksApplied(context)
-                    if (!tweaks) message = "Needs root, or run the PC script once (it grants MMI the right to do this)."
+                    if (tweaks) {
+                        tweaks = !UnitCleanup.revertSpeedTweaks(context) || UnitCleanup.speedTweaksApplied(context)
+                        message = if (!tweaks) "Speed settings restored to how they were." else "Couldn't restore — needs root or the PC script grant."
+                    } else {
+                        tweaks = UnitCleanup.applySpeedTweaks(context) && UnitCleanup.speedTweaksApplied(context)
+                        if (!tweaks) message = "Needs root, or run the PC script once (it grants MMI the right to do this)."
+                    }
                 }
             }, MmiLine.STAR, Modifier.fillMaxWidth())
             ChromePill(if (overlay) "Performance readout: on" else "Performance readout: off", {
-                PerfOverlay.setEnabled(context, !overlay)
+                prefs.setPerfOverlay(!overlay)
             }, MmiLine.HISTORY, Modifier.fillMaxWidth())
             message?.let { Text(it, color = MmiCyan, fontFamily = MmiFont, fontSize = 14.sp) }
             Spacer(Modifier.weight(1f))

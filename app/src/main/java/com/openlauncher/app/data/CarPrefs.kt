@@ -18,6 +18,10 @@ class CarPrefs private constructor(context: Context) {
     private val _hiddenApps = MutableStateFlow(prefs.getStringSet("hidden_apps", emptySet())!!.toSet())
     val hiddenApps: StateFlow<Set<String>> = _hiddenApps
 
+    private val _perfOverlay = MutableStateFlow(prefs.getBoolean("perf_overlay", false))
+    /** On-screen performance readout (Unit cleanup & speed). */
+    val perfOverlay: StateFlow<Boolean> = _perfOverlay
+
     /** Package of the vendor radio app; empty = detect automatically. */
     val radioPackage: String get() = prefs.getString("radio_package", "")!!
 
@@ -29,6 +33,11 @@ class CarPrefs private constructor(context: Context) {
     fun setClock24(on: Boolean) {
         prefs.edit().putBoolean("clock24", on).apply()
         _clock24.value = on
+    }
+
+    fun setPerfOverlay(on: Boolean) {
+        prefs.edit().putBoolean("perf_overlay", on).apply()
+        _perfOverlay.value = on
     }
 
     fun toggleHidden(pkg: String) {

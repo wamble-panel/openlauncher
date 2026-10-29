@@ -94,8 +94,7 @@ private suspend fun runChecks(context: Context, apps: List<AppInfo>, location: L
     out += Check("Memory", "%.1f GB total, %.1f GB free".format(mem.totalMem / 1e9, mem.availMem / 1e9), Level.INFO)
     out += Check("OpenGL ES", am.deviceConfigurationInfo.glEsVersion, Level.INFO)
 
-    val suPaths = listOf("/system/bin/su", "/system/xbin/su", "/sbin/su", "/su/bin/su", "/system/sbin/su", "/vendor/bin/su")
-    val su = suPaths.firstOrNull { File(it).exists() }
+    val su = com.openlauncher.app.util.Root.path()
     out += Check(
         "Root",
         su?.let { "su found at $it" } ?: ("not rooted" + if (Build.TAGS?.contains("test-keys") == true) " (test-keys build)" else ""),
