@@ -20,6 +20,11 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
@@ -99,10 +104,77 @@ private val POI_CATEGORIES = listOf(
     PoiCategory("Mosque", MmiLine.PIN, listOf("amenity:place_of_worship")),
 )
 
-/** Holds the map so Compose buttons can drive it without recomposing the view. */
-private class MapHolder {
+/**
+ * One map for the whole session. Creating MapLibre and loading the style and
+ * tiles is the slow part, so the view is kept (paused) when you leave
+ * Navigation and is back instantly next time.
+ */
+internal object PersistentMap {
+    private var view: MapView? = null
     var map: MapLibreMap? = null
+        private set
     var style by mutableStateOf<Style?>(null)
+        private set
+    /** True once the first frame with the style is on screen. */
+    var ready by mutableStateOf(false)
+        private set
+    var onUserGesture: (() -> Unit)? = null
+    /** Bumped by [destroy] so the screen builds a fresh map. */
+    var generation by mutableIntStateOf(0)
+        private set
+
+    fun obtain(context: android.content.Context): MapView {
+        view?.let { return it }
+        MapLibre.getInstance(context.applicationContext)
+        // SurfaceView rendering (faster than TextureView on Mali/PowerVR head units), capped
+        // at 30 fps so the map leaves CPU for audio, GPS and the rest of the UI.
+        val v = MapView(context, MapLibreMapOptions.createFromAttributes(context, null).textureMode(false)).apply {
+            onCreate(null)
+            setMaximumFps(30)
+        }
+        view = v
+        v.addOnDidFinishRenderingMapListener { if (style != null) ready = true }
+        v.getMapAsync { m ->
+            map = m
+            m.uiSettings.isLogoEnabled = false
+            m.uiSettings.isAttributionEnabled = false
+            m.uiSettings.isCompassEnabled = false
+            m.cameraPosition = CameraPosition.Builder().target(CAIRO).zoom(11.0).build()
+            m.addOnCameraMoveStartedListener { reason ->
+                if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) onUserGesture?.invoke()
+            }
+            val json = context.assets.open("map/mmi-style.json").bufferedReader().use { it.readText() }
+                .replace("{{TILES}}", "mbtiles://" + MapData.tiles(context).absolutePath)
+            m.setStyle(Style.Builder().fromJson(json)) { s ->
+                s.addImage("vehicle", vehicleBitmap(context.resources.displayMetrics.density))
+                s.addSource(GeoJsonSource("vehicle"))
+                s.addLayer(
+                    SymbolLayer("vehicle", "vehicle").withProperties(
+                        PropertyFactory.iconImage("vehicle"),
+                        PropertyFactory.iconAllowOverlap(true),
+                        PropertyFactory.iconIgnorePlacement(true),
+                        PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+                        PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_MAP),
+                    )
+                )
+                style = s
+                // Reveal even if the renderer never reports idle (slow tiles).
+                v.postDelayed({ ready = true }, 1500)
+            }
+        }
+        return v
+    }
+
+    /** Drops the map (new map files imported, or the activity is going away). */
+    fun destroy() {
+        runCatching { view?.onDestroy() }
+        view = null
+        map = null
+        style = null
+        ready = false
+        onUserGesture = null
+        generation++
+    }
 }
 
 /**
@@ -147,7 +219,7 @@ internal fun MmiNavigationPage(location: LocationData?, metric: Boolean) {
     }
 
     Box(Modifier.fillMaxSize()) {
-        if (installed) {
+        if (installed) key(PersistentMap.generation) {
             NavMap(
                 here = here,
                 nav = nav,
@@ -167,6 +239,7 @@ internal fun MmiNavigationPage(location: LocationData?, metric: Boolean) {
                     onBack = if (installed) ({ screen = NavScreen.DESTINATION }) else null,
                 ) {
                     installed = true
+                    PersistentMap.destroy()
                     NavigationEngine.reloadData()
                     screen = NavScreen.MAP
                 }
@@ -238,12 +311,13 @@ private fun NavMap(
     onEnd: () -> Unit,
 ) {
     val context = LocalContext.current
-    val holder = remember { MapHolder() }
+    val holder = PersistentMap
     var following by remember { mutableStateOf(true) }
     var toast by remember { mutableStateOf<String?>(null) }
     val course = nav.course
     val destination = nav.destination
     val route = nav.route
+    val density = context.resources.displayMetrics.density
 
     LaunchedEffect(toast) {
         if (toast != null) {
@@ -252,17 +326,11 @@ private fun NavMap(
         }
     }
 
-    val mapView = remember {
-        MapLibre.getInstance(context)
-        // SurfaceView rendering (faster than TextureView on Mali/PowerVR head units), capped
-        // at 30 fps so the map leaves CPU for audio, GPS and the rest of the UI.
-        MapView(context, MapLibreMapOptions.createFromAttributes(context, null).textureMode(false)).apply {
-            onCreate(null)
-            setMaximumFps(30)
-        }
-    }
+    val mapView = remember { holder.obtain(context) }
+    holder.onUserGesture = { following = false }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle, mapView) {
+        // Adding the observer replays ON_START/ON_RESUME, so the map wakes up at once.
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> mapView.onStart()
@@ -275,66 +343,75 @@ private fun NavMap(
         lifecycle.addObserver(observer)
         onDispose {
             lifecycle.removeObserver(observer)
+            // Paused, not destroyed: style and tiles stay loaded for the next visit.
             mapView.onPause()
             mapView.onStop()
-            mapView.onDestroy()
         }
     }
 
-    LaunchedEffect(mapView) {
-        mapView.getMapAsync { map ->
-            holder.map = map
-            map.uiSettings.isLogoEnabled = false
-            map.uiSettings.isAttributionEnabled = false
-            map.uiSettings.isCompassEnabled = false
-            map.cameraPosition = CameraPosition.Builder().target(CAIRO).zoom(11.0).build()
-            map.addOnCameraMoveStartedListener { reason ->
-                if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) following = false
-            }
-            val json = context.assets.open("map/mmi-style.json").bufferedReader().use { it.readText() }
-                .replace("{{TILES}}", "mbtiles://" + MapData.tiles(context).absolutePath)
-            map.setStyle(Style.Builder().fromJson(json)) { style ->
-                style.addImage("vehicle", vehicleBitmap(context.resources.displayMetrics.density))
-                style.addSource(GeoJsonSource("vehicle"))
-                style.addLayer(
-                    SymbolLayer("vehicle", "vehicle").withProperties(
-                        PropertyFactory.iconImage("vehicle"),
-                        PropertyFactory.iconAllowOverlap(true),
-                        PropertyFactory.iconIgnorePlacement(true),
-                        PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
-                        PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_MAP),
-                    )
-                )
-                holder.style = style
-            }
-        }
-    }
-
-    // Vehicle marker + camera follow. Zooms out a little at speed so the next turn stays in view.
+    // ── Smooth follow ────────────────────────────────────────────────────────
+    // GPS gives a fix about twice a second. Instead of jumping, the camera glides
+    // from the shown position to each new fix over the time between fixes, and
+    // the car arrow is drawn at the camera's focus point so it never wobbles.
+    val shown = remember { doubleArrayOf(Double.NaN, Double.NaN, 0.0) } // lat, lon, bearing
+    val from = remember { doubleArrayOf(0.0, 0.0, 0.0) }
+    val to = remember { doubleArrayOf(0.0, 0.0, 0.0) }
+    val progress = remember { Animatable(1f) }
+    var lastFixAt by remember { mutableLongStateOf(0L) }
     val zoomBand = when {
         nav.speedKmh > 90f -> 0
         nav.speedKmh > 50f -> 1
         else -> 2
     }
-    LaunchedEffect(holder.style, here, course, following, zoomBand) {
-        val style = holder.style ?: return@LaunchedEffect
+    val zoom = remember { Animatable(16f) }
+    var zoomOffset by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(zoomBand) { zoom.animateTo(15f + zoomBand * 0.5f, tween(1500)) }
+
+    LaunchedEffect(here, course) {
+        val pos = here ?: return@LaunchedEffect
+        val now = System.currentTimeMillis()
+        val gap = if (lastFixAt == 0L) 0L else (now - lastFixAt).coerceIn(300L, 1500L)
+        lastFixAt = now
+        if (shown[0].isNaN()) {
+            shown[0] = pos.latitude; shown[1] = pos.longitude; shown[2] = course.toDouble()
+        }
+        from[0] = shown[0]; from[1] = shown[1]; from[2] = shown[2]
+        to[0] = pos.latitude; to[1] = pos.longitude
+        // Turn the short way round.
+        to[2] = from[2] + ((course - from[2] + 540.0) % 360.0 - 180.0)
+        progress.snapTo(0f)
+        progress.animateTo(1f, tween(gap.toInt().coerceAtLeast(1), easing = LinearEasing))
+    }
+
+    LaunchedEffect(holder.style, following) {
         val map = holder.map ?: return@LaunchedEffect
+        val style = holder.style ?: return@LaunchedEffect
+        (style.getLayer("vehicle") as? SymbolLayer)?.setProperties(
+            PropertyFactory.visibility(if (following) Property.NONE else Property.VISIBLE)
+        )
+        if (!following) return@LaunchedEffect
+        snapshotFlow { Triple(progress.value, zoom.value, zoomOffset) }.collect { (t, zBase, zOff) ->
+            val z = (zBase + zOff).coerceIn(10f, 19f)
+            if (from[0] == 0.0 && to[0] == 0.0) return@collect
+            shown[0] = from[0] + (to[0] - from[0]) * t
+            shown[1] = from[1] + (to[1] - from[1]) * t
+            shown[2] = from[2] + (to[2] - from[2]) * t
+            map.moveCamera(
+                CameraUpdateFactory.newCameraPosition(
+                    CameraPosition.Builder().target(LatLng(shown[0], shown[1]))
+                        .zoom(z.toDouble()).tilt(0.0).bearing((shown[2] % 360.0 + 360.0) % 360.0).build()
+                )
+            )
+        }
+    }
+
+    // When the driver pans away, the arrow is a map symbol updated per fix.
+    LaunchedEffect(holder.style, here, course, following) {
+        if (following) return@LaunchedEffect
+        val style = holder.style ?: return@LaunchedEffect
         val pos = here ?: return@LaunchedEffect
         style.getSourceAs<GeoJsonSource>("vehicle")?.setGeoJson(Point.fromLngLat(pos.longitude, pos.latitude))
         (style.getLayer("vehicle") as? SymbolLayer)?.setProperties(PropertyFactory.iconRotate(course))
-        if (following) {
-            val zoom = 15.0 + zoomBand * 0.5
-            map.animateCamera(
-                CameraUpdateFactory.newCameraPosition(
-                    CameraPosition.Builder().target(pos)
-                        .zoom(zoom)
-                        .tilt(0.0)
-                        .bearing(course.toDouble())
-                        .build()
-                ),
-                900,
-            )
-        }
     }
 
     // Road route from the offline router; a direct line when there is none yet.
@@ -359,8 +436,19 @@ private fun NavMap(
         else routeSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
     }
 
+    // Fade the map in once its first frame is drawn, instead of showing tiles popping in.
+    val reveal by animateFloatAsState(if (holder.ready) 0f else 1f, tween(450), label = "map_reveal")
+    val vehicle = remember(density) { vehicleBitmap(density).asImageBitmap() }
+
     Box(Modifier.fillMaxSize()) {
-        AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
+        AndroidView(
+            factory = { (mapView.parent as? android.view.ViewGroup)?.removeView(mapView); mapView },
+            modifier = Modifier.fillMaxSize(),
+        )
+        if (following && here != null) {
+            Image(vehicle, contentDescription = null, modifier = Modifier.align(Alignment.Center).size(44.dp))
+        }
+        if (reveal > 0f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = reveal }.background(MmiPageBg))
 
         if (destination != null) {
             Column(Modifier.align(Alignment.TopStart).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -407,8 +495,14 @@ private fun NavMap(
             Modifier.align(Alignment.CenterEnd).padding(end = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            ChromeButton(MmiLine.PLUS, 46.dp, { holder.map?.animateCamera(CameraUpdateFactory.zoomIn(), 250) })
-            ChromeButton(MmiLine.MINUS, 46.dp, { holder.map?.animateCamera(CameraUpdateFactory.zoomOut(), 250) })
+            ChromeButton(MmiLine.PLUS, 46.dp, {
+                if (following) zoomOffset = (zoomOffset + 1f).coerceAtMost(3f)
+                else holder.map?.animateCamera(CameraUpdateFactory.zoomIn(), 250)
+            })
+            ChromeButton(MmiLine.MINUS, 46.dp, {
+                if (following) zoomOffset = (zoomOffset - 1f).coerceAtLeast(-4f)
+                else holder.map?.animateCamera(CameraUpdateFactory.zoomOut(), 250)
+            })
             ChromeButton(MmiLine.LOCATE, 46.dp, { following = true }, highlighted = !following)
             ChromeButton(if (nav.voiceOn) MmiLine.SPEAKER else MmiLine.MUTE, 46.dp, { NavigationEngine.setVoice(!nav.voiceOn) })
             ChromeButton(MmiLine.CAMERA, 46.dp, {
@@ -416,22 +510,28 @@ private fun NavMap(
             })
         }
 
-        // Speed limit sign with the current speed underneath.
+        // Speed limit sign with the current speed, bottom-left above the trip bar.
         if (here != null) {
             Column(
-                Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 26.dp),
+                Modifier.align(Alignment.BottomStart).padding(start = 20.dp, bottom = if (destination != null) 84.dp else 18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (nav.speedLimit > 0) {
-                    SpeedLimitSign(nav.speedLimit, Modifier.size(64.dp))
-                    Spacer(Modifier.height(6.dp))
+                    SpeedLimitSign(nav.speedLimit, Modifier.size(60.dp))
+                    Spacer(Modifier.height(4.dp))
                 }
                 val speed = if (metric) nav.speedKmh else nav.speedKmh / 1.609f
-                Text(
-                    "${speed.roundToInt()}", color = if (nav.overspeed) Color(0xFFFF5252) else MmiInk,
-                    fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 30.sp,
-                )
-                Text(if (metric) "km/h" else "mph", color = MmiDim, fontFamily = MmiFont, fontSize = 12.sp)
+                Row(
+                    Modifier.mmiPanel().padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    Text(
+                        "${speed.roundToInt()}", color = if (nav.overspeed) Color(0xFFFF5252) else MmiInk,
+                        fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 26.sp,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(if (metric) "km/h" else "mph", color = MmiDim, fontFamily = MmiFont, fontSize = 12.sp, modifier = Modifier.padding(bottom = 5.dp))
+                }
             }
         }
 
@@ -439,10 +539,6 @@ private fun NavMap(
             if (destination == null) "Select destination" else "Destination",
             onOpenDestination, MmiLine.SEARCH,
             Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp),
-        )
-        Text(
-            "© OpenStreetMap", color = MmiDim.copy(alpha = 0.6f), fontFamily = MmiFont, fontSize = 10.sp,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
         )
         if (here == null) {
             Text(
@@ -792,6 +888,8 @@ private fun SearchPanel(
                 onKey = { query += it },
                 onBackspace = { query = query.dropLast(1) },
                 onClose = { keyboard = false },
+                // Go: open the best match, or hide the keyboard to show the whole list.
+                onGo = { results.firstOrNull()?.let(onPick) ?: run { keyboard = false } },
                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
             )
         }
@@ -812,7 +910,7 @@ private val KEYS_AR = listOf(
 )
 
 @Composable
-private fun MmiKeyboard(onKey: (String) -> Unit, onBackspace: () -> Unit, onClose: () -> Unit, modifier: Modifier) {
+private fun MmiKeyboard(onKey: (String) -> Unit, onBackspace: () -> Unit, onClose: () -> Unit, onGo: () -> Unit, modifier: Modifier) {
     var arabic by remember { mutableStateOf(false) }
     val rows = if (arabic) KEYS_AR else KEYS_EN
     Column(
@@ -828,8 +926,14 @@ private fun MmiKeyboard(onKey: (String) -> Unit, onBackspace: () -> Unit, onClos
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Key(Modifier.weight(1.4f), onClick = { arabic = !arabic }) { KeyText(if (arabic) "EN" else "ع") }
-            Key(Modifier.weight(6f), onClick = { onKey(" ") }) { KeyText(if (arabic) "مسافة" else "space") }
-            Key(Modifier.weight(1.4f), onClick = { onKey("-") }) { KeyText("-") }
+            Key(Modifier.weight(1f), onClick = { onKey("-") }) { KeyText("-") }
+            Key(Modifier.weight(5f), onClick = { onKey(" ") }) { KeyText(if (arabic) "مسافة" else "space") }
+            Box(
+                Modifier.weight(2f).height(42.dp).pressable(onGo)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(Brush.verticalGradient(listOf(Color(0xFF1C8FB8), Color(0xFF136585)))),
+                contentAlignment = Alignment.Center,
+            ) { Text(if (arabic) "بحث" else "GO", color = Color.White, fontFamily = MmiFont, fontSize = 18.sp) }
         }
     }
 }

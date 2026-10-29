@@ -133,6 +133,11 @@ class MainActivity : ComponentActivity() {
         vm.refreshMedia()
     }
 
+    override fun onDestroy() {
+        com.openlauncher.app.ui.screen.PersistentMap.destroy()
+        super.onDestroy()
+    }
+
     override fun onStop() {
         super.onStop()
         CarLocation.release(HOLDER)

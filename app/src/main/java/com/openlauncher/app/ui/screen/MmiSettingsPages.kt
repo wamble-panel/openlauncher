@@ -295,5 +295,10 @@ internal fun MmiNavSettingsPage(metric: Boolean, onSetMetric: (Boolean) -> Unit)
         ToggleRow("Metric units (km, km/h)", metric, onSetMetric)
         SettingRow("Map data", if (MapData.isInstalled(context)) "Egypt, offline" else "not imported")
         SettingRow("Turn-by-turn data", if (MapData.routing(context).exists()) "installed" else "not imported")
+        SectionTitle("About the map")
+        Text(
+            "Map data © OpenStreetMap contributors, available under the Open Database License (openstreetmap.org/copyright).",
+            color = MmiDim, fontFamily = MmiFont, fontSize = 14.sp, modifier = Modifier.padding(8.dp),
+        )
     }
 }
