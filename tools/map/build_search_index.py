@@ -115,6 +115,7 @@ def main(pbf: str, out: str) -> None:
     )
     collector = Collector(db)
     collector.apply_file(pbf, locations=True, idx="flex_mem")
+    db.execute("CREATE INDEX places_kind ON places(kind, lat, lon)")
     db.execute("INSERT INTO places_fts(places_fts) VALUES('optimize')")
     db.commit()
     db.execute("VACUUM")

@@ -328,6 +328,7 @@ private fun DrawScope.cloud(s: Float, alpha: Float) {
 enum class MmiLine {
     WIND, THERMO, DROP, CHEVRON_LEFT, ARROW, MENU, PREV, NEXT, PLAY, PAUSE,
     CALL, BACKSPACE, OPEN, WIDGETS, BLUETOOTH, CONTACTS, NOTE,
+    PLUS, MINUS, LOCATE, SEARCH, STAR, STAR_FILLED, HISTORY, PIN, FUEL, CLOSE, HOME, FLAG, CARD, GLOBE,
 }
 
 @Composable
@@ -396,6 +397,61 @@ private fun linePaths(kind: MmiLine, s: Float): Pair<List<Path>, List<Path>> = w
         circle(0.5f, 0.32f, 0.17f, s),
         path(s) { moveTo(0.16f * it, 0.92f * it); cubicTo(0.16f * it, 0.58f * it, 0.84f * it, 0.58f * it, 0.84f * it, 0.92f * it); close() },
     )
+    MmiLine.PLUS -> listOf(path(s) { moveTo(0.5f * it, 0.18f * it); lineTo(0.5f * it, 0.82f * it); moveTo(0.18f * it, 0.5f * it); lineTo(0.82f * it, 0.5f * it) }) to emptyList<Path>()
+    MmiLine.MINUS -> listOf(path(s) { moveTo(0.18f * it, 0.5f * it); lineTo(0.82f * it, 0.5f * it) }) to emptyList<Path>()
+    MmiLine.CLOSE -> listOf(path(s) { moveTo(0.22f * it, 0.22f * it); lineTo(0.78f * it, 0.78f * it); moveTo(0.78f * it, 0.22f * it); lineTo(0.22f * it, 0.78f * it) }) to emptyList<Path>()
+    MmiLine.LOCATE -> listOf(
+        circle(0.5f, 0.5f, 0.26f, s),
+        path(s) {
+            moveTo(0.5f * it, 0.06f * it); lineTo(0.5f * it, 0.22f * it); moveTo(0.5f * it, 0.78f * it); lineTo(0.5f * it, 0.94f * it)
+            moveTo(0.06f * it, 0.5f * it); lineTo(0.22f * it, 0.5f * it); moveTo(0.78f * it, 0.5f * it); lineTo(0.94f * it, 0.5f * it)
+        },
+    ) to listOf(circle(0.5f, 0.5f, 0.09f, s))
+    MmiLine.SEARCH -> listOf(circle(0.42f, 0.42f, 0.26f, s), path(s) { moveTo(0.61f * it, 0.61f * it); lineTo(0.88f * it, 0.88f * it) }) to emptyList<Path>()
+    MmiLine.STAR, MmiLine.STAR_FILLED -> {
+        val star = Path().apply {
+            for (i in 0 until 10) {
+                val a = Math.toRadians(-90.0 + i * 36.0)
+                val r = if (i % 2 == 0) 0.44f else 0.19f
+                val x = (0.5f + r * cos(a).toFloat()) * s
+                val y = (0.53f + r * sin(a).toFloat()) * s
+                if (i == 0) moveTo(x, y) else lineTo(x, y)
+            }
+            close()
+        }
+        if (kind == MmiLine.STAR) listOf(star) to emptyList<Path>() else emptyList<Path>() to listOf(star)
+    }
+    MmiLine.HISTORY -> listOf(
+        path(s) { arcTo(Rect(Offset(0.5f * it, 0.5f * it), 0.38f * it), 200f, 300f, true) },
+        path(s) { moveTo(0.5f * it, 0.3f * it); lineTo(0.5f * it, 0.52f * it); lineTo(0.66f * it, 0.62f * it) },
+        path(s) { moveTo(0.06f * it, 0.30f * it); lineTo(0.15f * it, 0.43f * it); lineTo(0.28f * it, 0.33f * it) },
+    ) to emptyList<Path>()
+    MmiLine.PIN -> listOf(path(s) {
+        moveTo(0.5f * it, 0.94f * it)
+        cubicTo(0.30f * it, 0.66f * it, 0.18f * it, 0.50f * it, 0.18f * it, 0.38f * it)
+        cubicTo(0.18f * it, 0.18f * it, 0.33f * it, 0.06f * it, 0.5f * it, 0.06f * it)
+        cubicTo(0.67f * it, 0.06f * it, 0.82f * it, 0.18f * it, 0.82f * it, 0.38f * it)
+        cubicTo(0.82f * it, 0.50f * it, 0.70f * it, 0.66f * it, 0.5f * it, 0.94f * it)
+        close()
+    }) to listOf(circle(0.5f, 0.37f, 0.11f, s))
+    MmiLine.FUEL -> listOf(
+        path(s) { addRoundRect(RoundRect(Rect(0.16f * it, 0.10f * it, 0.60f * it, 0.90f * it), CornerRadius(0.06f * it))) },
+        path(s) { moveTo(0.60f * it, 0.36f * it); lineTo(0.76f * it, 0.36f * it); lineTo(0.80f * it, 0.74f * it); lineTo(0.88f * it, 0.74f * it); lineTo(0.88f * it, 0.24f * it); lineTo(0.76f * it, 0.12f * it) },
+    ) to listOf(rect(0.24f, 0.18f, 0.52f, 0.40f, s))
+    MmiLine.HOME -> listOf(path(s) {
+        moveTo(0.10f * it, 0.48f * it); lineTo(0.5f * it, 0.12f * it); lineTo(0.90f * it, 0.48f * it)
+        moveTo(0.22f * it, 0.40f * it); lineTo(0.22f * it, 0.88f * it); lineTo(0.78f * it, 0.88f * it); lineTo(0.78f * it, 0.40f * it)
+    }) to emptyList<Path>()
+    MmiLine.FLAG -> listOf(path(s) { moveTo(0.20f * it, 0.92f * it); lineTo(0.20f * it, 0.10f * it) }) to
+        listOf(poly(s, 0.20f to 0.10f, 0.84f to 0.10f, 0.70f to 0.30f, 0.84f to 0.50f, 0.20f to 0.50f))
+    MmiLine.CARD -> listOf(
+        path(s) { addRoundRect(RoundRect(Rect(0.08f * it, 0.20f * it, 0.92f * it, 0.80f * it), CornerRadius(0.06f * it))) },
+        path(s) { moveTo(0.52f * it, 0.40f * it); lineTo(0.80f * it, 0.40f * it); moveTo(0.52f * it, 0.60f * it); lineTo(0.72f * it, 0.60f * it) },
+    ) to listOf(rect(0.18f, 0.34f, 0.42f, 0.66f, s))
+    MmiLine.GLOBE -> listOf(
+        circle(0.5f, 0.5f, 0.40f, s),
+        path(s) { addOval(Rect(0.32f * it, 0.10f * it, 0.68f * it, 0.90f * it)); moveTo(0.10f * it, 0.5f * it); lineTo(0.90f * it, 0.5f * it) },
+    ) to emptyList<Path>()
     MmiLine.NOTE -> emptyList<Path>() to listOf(
         path(s) {
             addOval(Rect(0.14f * it, 0.66f * it, 0.46f * it, 0.92f * it))

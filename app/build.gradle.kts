@@ -71,6 +71,9 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.12.0")
     implementation("com.squareup.retrofit2:converter-gson:2.12.0")
 
+    // Offline vector maps (MMI navigation)
+    implementation("org.maplibre.gl:android-sdk:11.5.2")
+
     // Image loading
     implementation("io.coil-kt:coil-compose:2.7.0")
 

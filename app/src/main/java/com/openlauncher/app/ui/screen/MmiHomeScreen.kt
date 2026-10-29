@@ -75,6 +75,7 @@ import kotlin.math.sin
 private enum class MmiPage(val title: String?) {
     HOME(null), DASHBOARD("Dashboard"), WIDGETS("Widgets"), SETTINGS("Settings"),
     MUSIC("Music"), RADIO("Radio"), PHONE("Phone"), APPS("Apps"),
+    NAV("Navigation"), SYSTEM("System check"),
 }
 
 /**
@@ -163,7 +164,7 @@ fun MmiHomeScreen(
                                     "music" -> page = MmiPage.MUSIC
                                     "radio" -> page = MmiPage.RADIO
                                     "phone" -> page = MmiPage.PHONE
-                                    "nav" -> context.openNavigation(guidance)
+                                    "nav" -> page = MmiPage.NAV
                                     "apps" -> page = MmiPage.APPS
                                     else -> Unit
                                 }
@@ -180,7 +181,9 @@ fun MmiHomeScreen(
                     }
                     MmiPage.DASHBOARD -> MmiDashboardPage(location, bearing, voltage, metric) { page = MmiPage.WIDGETS }
                     MmiPage.WIDGETS -> widgets()
-                    MmiPage.SETTINGS -> SettingsPanel(onOpenLauncherSettings)
+                    MmiPage.SETTINGS -> SettingsPanel(onOpenLauncherSettings) { page = MmiPage.SYSTEM }
+                    MmiPage.NAV -> MmiNavigationPage(location, metric)
+                    MmiPage.SYSTEM -> MmiSystemCheckPage(apps, location)
                     MmiPage.MUSIC -> MmiMusicPage(
                         state = nowPlaying,
                         onPlayPause = onPlayPause, onNext = onNext, onPrev = onPrev,
@@ -608,7 +611,7 @@ private fun WeatherRow(icon: MmiLine, value: String) {
 // ── Settings page ────────────────────────────────────────────────────────────
 
 @Composable
-private fun SettingsPanel(onOpenLauncherSettings: () -> Unit) {
+private fun SettingsPanel(onOpenLauncherSettings: () -> Unit, onSystemCheck: () -> Unit) {
     val context = LocalContext.current
     val rows: List<Pair<String, () -> Unit>> = listOf(
         "System" to { context.launchFirst(Intent(Settings.ACTION_SETTINGS)); Unit },
@@ -630,6 +633,7 @@ private fun SettingsPanel(onOpenLauncherSettings: () -> Unit) {
         "Language" to { context.launchFirst(Intent(Settings.ACTION_LOCALE_SETTINGS)); Unit },
         "Time" to { context.launchFirst(Intent(Settings.ACTION_DATE_SETTINGS)); Unit },
         "Launcher" to onOpenLauncherSettings,
+        "System check" to onSystemCheck,
     )
     BoxWithConstraints(Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, bottom = 8.dp)) {
         val panelHeight = maxHeight
