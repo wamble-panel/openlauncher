@@ -8,10 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.VolumeMute
-import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -115,11 +111,10 @@ fun VolumeGestureBox(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                     ) {
-                        Icon(
-                            imageVector = if (level.current == 0) Icons.Default.VolumeMute else Icons.Default.VolumeUp,
-                            tint = ink,
-                            contentDescription = "Volume",
-                            modifier = Modifier.size(22.dp),
+                        com.openlauncher.app.ui.screen.MmiLineIcon(
+                            if (level.current == 0) com.openlauncher.app.ui.screen.MmiLine.MUTE else com.openlauncher.app.ui.screen.MmiLine.SPEAKER,
+                            ink,
+                            Modifier.size(22.dp),
                         )
                         Spacer(Modifier.height(10.dp))
                         Box(

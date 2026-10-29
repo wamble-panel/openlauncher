@@ -7,7 +7,20 @@ import android.media.MediaMetadata
 import android.net.Uri
 import android.provider.ContactsContract
 import android.provider.Settings
+import android.graphics.BitmapFactory
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -51,11 +64,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.openlauncher.app.model.AppInfo
 import com.openlauncher.app.model.NowPlayingState
 import com.openlauncher.app.util.LocationData
-import com.openlauncher.app.viewmodel.LauncherViewModel
+import com.openlauncher.app.model.HardwareRadioState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -202,14 +216,26 @@ internal fun MmiMusicPage(
                         color = MmiCyan, fontFamily = MmiFont, fontSize = 13.sp, letterSpacing = 2.sp,
                     )
                     Spacer(Modifier.height(6.dp))
-                    Text(
-                        state.title.ifBlank { "Unknown title" }, color = MmiInk, fontFamily = MmiFont,
-                        fontWeight = FontWeight.Light, fontSize = 32.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        state.artist, color = MmiDim, fontFamily = MmiFont, fontSize = 20.sp,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
+                    // New song: the old title slides out to the left, the new one slides in from the right.
+                    AnimatedContent(
+                        targetState = state.title to state.artist,
+                        transitionSpec = {
+                            (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { it / 3 } + fadeIn(tween(320, delayMillis = 90))) togetherWith
+                                (slideOutHorizontally(tween(280)) { -it / 4 } + fadeOut(tween(200)))
+                        },
+                        label = "track",
+                    ) { (title, artist) ->
+                        Column(Modifier.fillMaxWidth()) {
+                            Text(
+                                title.ifBlank { "Unknown title" }, color = MmiInk, fontFamily = MmiFont,
+                                fontWeight = FontWeight.Light, fontSize = 32.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                artist, color = MmiDim, fontFamily = MmiFont, fontSize = 20.sp,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                     Spacer(Modifier.height(24.dp))
                     MusicProgress(state)
                     Spacer(Modifier.height(24.dp))
@@ -228,32 +254,56 @@ internal fun MmiMusicPage(
     }
 }
 
+/** Album art from the source app: full-size URI when readable, else the metadata bitmap. */
 @Composable
-private fun CoverArt(state: NowPlayingState?, size: Dp) {
-    val model: Any? = state?.artUri ?: state?.albumArt
-    val frame = RoundedCornerShape(4.dp)
-    Box(
-        Modifier.size(size).clip(frame)
-            .background(Brush.linearGradient(listOf(Color(0xFF22262C), Color(0xFF0A0B0D))))
-            .border(1.5.dp, Brush.verticalGradient(ChromeRim), frame),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (model != null) {
-            AsyncImage(model = model, contentDescription = state?.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        } else {
-            MmiIcon(MmiGlyph.NOTE, Modifier.size(size * 0.45f))
+private fun rememberCover(state: NowPlayingState?): ImageBitmap? {
+    val context = LocalContext.current
+    val uri = state?.artUri
+    val fromUri by produceState<ImageBitmap?>(null, uri) {
+        value = if (uri == null) null else withContext(Dispatchers.IO) {
+            runCatching {
+                context.contentResolver.openInputStream(Uri.parse(uri))?.use { BitmapFactory.decodeStream(it) }
+                    ?.let { b -> if (b.width > 640) android.graphics.Bitmap.createScaledBitmap(b, 640, 640 * b.height / b.width, true) else b }
+                    ?.asImageBitmap()
+            }.getOrNull()
         }
     }
-    // Floor reflection: the flipped cover fading into the page background.
-    Box(Modifier.width(size).height(size * 0.22f).clipToBounds()) {
-        if (model != null) {
-            AsyncImage(
-                model = model, contentDescription = null, contentScale = ContentScale.Crop,
-                modifier = Modifier.requiredSize(size).align(Alignment.TopCenter)
-                    .graphicsLayer { scaleY = -1f; alpha = 0.28f },
-            )
+    val bitmap = state?.albumArt
+    val fromMetadata = remember(bitmap) { bitmap?.asImageBitmap() }
+    return fromUri ?: fromMetadata
+}
+
+@Composable
+private fun CoverArt(state: NowPlayingState?, size: Dp) {
+    val cover = rememberCover(state)
+    val frame = RoundedCornerShape(4.dp)
+    // Cross-fades to the new cover when the song changes.
+    Crossfade(targetState = cover, animationSpec = tween(450), label = "cover") { art ->
+        Column {
+            Box(
+                Modifier.size(size).clip(frame)
+                    .background(Brush.linearGradient(listOf(Color(0xFF22262C), Color(0xFF0A0B0D))))
+                    .border(1.5.dp, Brush.verticalGradient(ChromeRim), frame),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (art != null) {
+                    Image(art, contentDescription = state?.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                } else {
+                    MmiIcon(MmiGlyph.NOTE, Modifier.size(size * 0.45f))
+                }
+            }
+            // Floor reflection: the flipped cover fading into the page background.
+            Box(Modifier.width(size).height(size * 0.22f).clipToBounds()) {
+                if (art != null) {
+                    Image(
+                        art, contentDescription = null, contentScale = ContentScale.Crop,
+                        modifier = Modifier.requiredSize(size).align(Alignment.TopCenter)
+                            .graphicsLayer { scaleY = -1f; alpha = 0.28f },
+                    )
+                }
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(MmiPageBg.copy(alpha = 0.3f), MmiPageBg))))
+            }
         }
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(MmiPageBg.copy(alpha = 0.3f), MmiPageBg))))
     }
 }
 
@@ -293,7 +343,7 @@ private fun MusicProgress(state: NowPlayingState) {
 
 @Composable
 internal fun MmiRadioPage(
-    radio: LauncherViewModel.HardwareRadioState?,
+    radio: HardwareRadioState?,
     onOpenRadio: () -> Unit,
     onSeekUp: () -> Unit,
     onSeekDown: () -> Unit,
@@ -488,7 +538,8 @@ private fun AppCell(app: AppInfo, modifier: Modifier, onClick: () -> Unit) {
             },
             contentAlignment = Alignment.Center,
         ) {
-            AsyncImage(model = app.icon, contentDescription = app.appName, modifier = Modifier.size(56.dp))
+            val icon = remember(app.packageName) { runCatching { app.icon.toBitmap(112, 112).asImageBitmap() }.getOrNull() }
+            if (icon != null) Image(icon, contentDescription = app.appName, modifier = Modifier.size(56.dp))
         }
         Spacer(Modifier.height(6.dp))
         Text(app.appName, color = MmiInk, fontFamily = MmiFont, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -503,7 +554,6 @@ internal fun MmiDashboardPage(
     bearing: Float,
     voltage: Float?,
     metric: Boolean,
-    onOpenWidgets: () -> Unit,
 ) {
     val speed = (location?.speedMps ?: 0f) * if (metric) 3.6f else 2.237f
     val maxSpeed = if (metric) 220f else 140f
@@ -518,8 +568,6 @@ internal fun MmiDashboardPage(
                 DashStat("Altitude", location?.let { "${(if (metric) it.altitude else it.altitude * 3.281).roundToInt()} ${if (metric) "m" else "ft"}" } ?: "--")
                 DashStat("Satellites", location?.satellitesUsed?.takeIf { it >= 0 }?.toString() ?: "--")
                 DashStat("Battery", voltage?.let { "%.1f V".format(it) } ?: "--")
-                Spacer(Modifier.height(8.dp))
-                ChromePill("Widgets", onOpenWidgets, MmiLine.WIDGETS)
             }
             CompassGauge(bearing, Modifier.size(dial))
         }

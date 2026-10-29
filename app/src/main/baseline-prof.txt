@@ -1,0 +1,4 @@
+# Startup profile: pre-compile the whole MMI shell (it is small) so the first
+# launches are as smooth as later ones. Compose and MapLibre ship their own.
+HSPLcom/openlauncher/app/**;->**(**)**
+Lcom/openlauncher/app/**;

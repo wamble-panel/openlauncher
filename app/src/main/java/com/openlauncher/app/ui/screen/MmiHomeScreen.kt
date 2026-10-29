@@ -17,6 +17,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -59,12 +61,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.openlauncher.app.R
 import com.openlauncher.app.model.AppInfo
 import com.openlauncher.app.model.NowPlayingState
-import com.openlauncher.app.model.WeatherState
+import com.openlauncher.app.model.HardwareRadioState
 import com.openlauncher.app.service.NavGuidance
 import com.openlauncher.app.map.NavigationEngine
 import com.openlauncher.app.service.NavigationTracker
 import com.openlauncher.app.util.LocationData
-import com.openlauncher.app.viewmodel.LauncherViewModel
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -74,27 +75,26 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 private enum class MmiPage(val title: String?) {
-    HOME(null), DASHBOARD("Dashboard"), WIDGETS("Widgets"), SETTINGS("Settings"),
+    HOME(null), DASHBOARD("Dashboard"), SETTINGS("Settings"),
     MUSIC("Music"), RADIO("Radio"), PHONE("Phone"), APPS("Apps"),
     NAV("Navigation"), SYSTEM("System check"),
 }
 
 /**
- * Audi MMI-style shell. HOME is the car-and-ring menu with a weather card that
- * becomes a live navigation card while Maps/Waze is guiding; every other entry
+ * Audi MMI-style shell. HOME is the car-and-ring menu with a drive card that
+ * becomes a live navigation card while our guidance (or Maps/Waze) is running; every other entry
  * opens an MMI-styled page inside the same frame (chrome bar, date bar), with a
  * zoom-and-fade transition between them.
  */
 @Composable
 fun MmiHomeScreen(
-    weather: WeatherState?,
-    placeName: String?,
     metric: Boolean,
+    onSetMetric: (Boolean) -> Unit,
     nowPlaying: NowPlayingState?,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     onPrev: () -> Unit,
-    hardwareRadio: LauncherViewModel.HardwareRadioState?,
+    hardwareRadio: HardwareRadioState?,
     radioPackage: String,
     onLaunchRadio: () -> Unit,
     onRadioSeekUp: () -> Unit,
@@ -106,23 +106,18 @@ fun MmiHomeScreen(
     bearing: Float,
     voltage: Float?,
     onLaunchPackage: (String) -> Unit,
-    onOpenLauncherSettings: () -> Unit,
-    widgets: @Composable () -> Unit,
+    homeSignal: Int,
 ) {
     var page by rememberSaveable { mutableStateOf(MmiPage.HOME) }
     var selected by rememberSaveable { mutableStateOf("nav") }
     BackHandler(enabled = page != MmiPage.HOME) {
-        page = if (page == MmiPage.WIDGETS) MmiPage.DASHBOARD else MmiPage.HOME
+        page = if (page == MmiPage.SYSTEM) MmiPage.SETTINGS else MmiPage.HOME
     }
+    // Pressing the unit's Home key returns to the ring menu.
+    LaunchedEffect(homeSignal) { if (homeSignal > 0) page = MmiPage.HOME }
     val context = LocalContext.current
     val guidance by NavigationTracker.guidance.collectAsStateWithLifecycle()
     val ownNav by NavigationEngine.state.collectAsStateWithLifecycle()
-
-    // Offline guidance keeps running (and talking) on every MMI page.
-    LaunchedEffect(Unit) { NavigationEngine.init(context) }
-    LaunchedEffect(location) {
-        location?.let { NavigationEngine.onLocation(it.latitude, it.longitude, it.speedMps) }
-    }
 
     val openRadioApp = {
         if (radioPackage.isNotEmpty() || hardwareRadio != null) onLaunchRadio()
@@ -157,7 +152,7 @@ fun MmiHomeScreen(
                 height = barHeight,
                 title = page.title,
                 nowPlaying = nowPlaying,
-                onBack = { page = if (page == MmiPage.WIDGETS) MmiPage.DASHBOARD else MmiPage.HOME },
+                onBack = { page = if (page == MmiPage.SYSTEM) MmiPage.SETTINGS else MmiPage.HOME },
                 onTapNowPlaying = { page = MmiPage.MUSIC },
             )
             AnimatedContent(
@@ -197,13 +192,12 @@ fun MmiHomeScreen(
                             } else if (active != null) {
                                 NavCard(active, Modifier.fillMaxSize()) { context.openNavigation(active) }
                             } else {
-                                WeatherCard(weather, placeName, metric, Modifier.fillMaxSize())
+                                DriveCard(location, bearing, voltage, metric, Modifier.fillMaxSize())
                             }
                         }
                     }
-                    MmiPage.DASHBOARD -> MmiDashboardPage(location, bearing, voltage, metric) { page = MmiPage.WIDGETS }
-                    MmiPage.WIDGETS -> widgets()
-                    MmiPage.SETTINGS -> SettingsPanel(onOpenLauncherSettings) { page = MmiPage.SYSTEM }
+                    MmiPage.DASHBOARD -> MmiDashboardPage(location, bearing, voltage, metric)
+                    MmiPage.SETTINGS -> SettingsPanel(metric, onSetMetric) { page = MmiPage.SYSTEM }
                     MmiPage.NAV -> MmiNavigationPage(location, metric)
                     MmiPage.SYSTEM -> MmiSystemCheckPage(apps, location)
                     MmiPage.MUSIC -> MmiMusicPage(
@@ -303,10 +297,16 @@ private fun TopBar(
             ) {
                 MmiLineIcon(if (nowPlaying.isPlaying) MmiLine.NOTE else MmiLine.PAUSE, MmiCyan, Modifier.size(height * 0.3f))
                 Spacer(Modifier.width(10.dp))
-                Text(
-                    listOf(nowPlaying.title, nowPlaying.artist).filter { it.isNotBlank() }.joinToString(" – "),
-                    color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
+                AnimatedContent(
+                    targetState = listOf(nowPlaying.title, nowPlaying.artist).filter { it.isNotBlank() }.joinToString(" – "),
+                    transitionSpec = {
+                        (slideInVertically(tween(320)) { it } + fadeIn(tween(260))) togetherWith
+                            (slideOutVertically(tween(220)) { -it } + fadeOut(tween(180)))
+                    },
+                    label = "now_playing",
+                ) { text ->
+                    Text(text, color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
     }
@@ -318,7 +318,7 @@ private fun DateBar(height: Dp) {
     val now by produceState(System.currentTimeMillis()) {
         while (true) {
             value = System.currentTimeMillis()
-            delay(1000 - value % 1000)
+            delay(60_000 - value % 60_000)
         }
     }
     val dateFmt = remember { SimpleDateFormat("MMMM d, yyyy", Locale.getDefault()) }
@@ -573,59 +573,42 @@ private fun NavCard(guidance: NavGuidance, modifier: Modifier, onClick: () -> Un
 }
 
 @Composable
-private fun WeatherCard(weather: WeatherState?, placeName: String?, metric: Boolean, modifier: Modifier) {
-    fun shown(c: Double) = (if (metric) c else c * 9.0 / 5.0 + 32.0).roundToInt()
-    val unit = if (metric) "°C" else "°F"
-    val temps = weather?.hourlyForecast?.take(24)?.map { it.temperatureCelsius }.orEmpty()
-
+private fun DriveCard(location: LocationData?, bearing: Float, voltage: Float?, metric: Boolean, modifier: Modifier) {
+    val speed = (location?.speedMps ?: 0f) * if (metric) 3.6f else 2.237f
+    val heading = remember(bearing) {
+        listOf("N", "NE", "E", "SE", "S", "SW", "W", "NW")[(((bearing % 360f) + 360f) % 360f / 45f + 0.5f).toInt() % 8]
+    }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Box(Modifier.fillMaxWidth().weight(1f).mmiPanel().padding(12.dp)) {
-            Row(Modifier.align(Alignment.TopStart)) {
-                Text(
-                    weather?.let { shown(it.temperatureCelsius).toString() } ?: "--",
-                    color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 54.sp,
-                )
-                Text(unit, color = MmiInk, fontFamily = MmiFont, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
+        Column(
+            Modifier.fillMaxWidth().weight(1f).mmiPanel().padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            Text("DRIVE", color = MmiCyan, fontFamily = MmiFont, fontSize = 12.sp, letterSpacing = 3.sp)
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(speed.roundToInt().toString(), color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 64.sp)
+                Spacer(Modifier.width(6.dp))
+                Text(if (metric) "km/h" else "mph", color = MmiDim, fontFamily = MmiFont, fontSize = 16.sp, modifier = Modifier.padding(bottom = 14.dp))
             }
-            if (temps.isNotEmpty()) {
-                Text(
-                    "${shown(temps.min())}~${shown(temps.max())}$unit",
-                    color = MmiInk, fontFamily = MmiFont, fontSize = 18.sp,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp),
-                )
+            Box(Modifier.fillMaxWidth(0.5f).aspectRatio(1f), contentAlignment = Alignment.Center) {
+                MmiLineIcon(MmiLine.ARROW, MmiInk, Modifier.fillMaxSize(0.5f).graphicsLayer { rotationZ = bearing - 90f })
             }
-            WeatherGlyph(
-                code = weather?.weatherCode,
-                isDay = weather?.isDay ?: true,
-                modifier = Modifier.align(Alignment.Center).fillMaxWidth(0.62f).aspectRatio(1f),
-            )
-            Text(
-                weather?.conditionLabel ?: "No weather data",
-                color = MmiDim, fontFamily = MmiFont, fontSize = 17.sp,
-                modifier = Modifier.align(Alignment.BottomCenter),
-            )
+            Text(heading, color = MmiInk, fontFamily = MmiFont, fontSize = 20.sp)
         }
-        WeatherRow(MmiLine.WIND, weather?.windspeedDisplay(metric) ?: "--")
-        WeatherRow(MmiLine.THERMO, weather?.let { "Feels ${it.feelsLikeDisplay(metric)}" } ?: "--")
-        WeatherRow(MmiLine.DROP, weather?.hourlyForecast?.firstOrNull()?.let { "${it.precipitationChance}%" } ?: "--")
-        Text(
-            placeName ?: "",
-            color = MmiInk, fontFamily = MmiFont, fontSize = 19.sp, maxLines = 1,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        )
+        DriveRow("Altitude", location?.let { "${(if (metric) it.altitude else it.altitude * 3.281).roundToInt()} ${if (metric) "m" else "ft"}" } ?: "--")
+        DriveRow("GPS", location?.satellitesUsed?.takeIf { it >= 0 }?.let { "$it satellites" } ?: if (location != null) "Fix" else "Searching")
+        DriveRow("Battery", voltage?.let { "%.1f V".format(it) } ?: "--")
     }
 }
 
 @Composable
-private fun WeatherRow(icon: MmiLine, value: String) {
+private fun DriveRow(label: String, value: String) {
     Row(
         Modifier.fillMaxWidth().height(40.dp).mmiPanel().padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
     ) {
-        MmiLineIcon(icon, MmiInk, Modifier.size(22.dp))
-        Spacer(Modifier.width(18.dp))
+        Text(label, color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp)
+        Spacer(Modifier.weight(1f))
         Text(value, color = MmiInk, fontFamily = MmiFont, fontSize = 16.sp)
     }
 }
@@ -633,9 +616,19 @@ private fun WeatherRow(icon: MmiLine, value: String) {
 // ── Settings page ────────────────────────────────────────────────────────────
 
 @Composable
-private fun SettingsPanel(onOpenLauncherSettings: () -> Unit, onSystemCheck: () -> Unit) {
+private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onSystemCheck: () -> Unit) {
     val context = LocalContext.current
+    val openSystem = { context.launchFirst(Intent(Settings.ACTION_SETTINGS)); Unit }
     val rows: List<Pair<String, () -> Unit>> = listOf(
+        (if (metric) "Units: km/h, metres" else "Units: mph, feet") to { onSetMetric(!metric) },
+        "Media access" to {
+            context.launchFirst(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"), Intent(Settings.ACTION_SETTINGS))
+            Unit
+        },
+        "Default home screen" to {
+            context.launchFirst(Intent(Settings.ACTION_HOME_SETTINGS), Intent(Settings.ACTION_SETTINGS))
+            Unit
+        },
         "System" to { context.launchFirst(Intent(Settings.ACTION_SETTINGS)); Unit },
         "Navigation" to { context.launchFirst(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)); Unit },
         "Volume" to {
@@ -654,7 +647,6 @@ private fun SettingsPanel(onOpenLauncherSettings: () -> Unit, onSystemCheck: () 
         "Display" to { context.launchFirst(Intent(Settings.ACTION_DISPLAY_SETTINGS)); Unit },
         "Language" to { context.launchFirst(Intent(Settings.ACTION_LOCALE_SETTINGS)); Unit },
         "Time" to { context.launchFirst(Intent(Settings.ACTION_DATE_SETTINGS)); Unit },
-        "Launcher" to onOpenLauncherSettings,
         "System check" to onSystemCheck,
     )
     BoxWithConstraints(Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, bottom = 8.dp)) {
@@ -692,7 +684,7 @@ private fun SettingsPanel(onOpenLauncherSettings: () -> Unit, onSystemCheck: () 
                 .size(width = 40.dp, height = maxHeight * 0.24f)
                 .clip(RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp))
                 .background(Brush.horizontalGradient(listOf(Color(0xFF8E959E), Color(0xFFE9ECEF), Color(0xFFB4BAC2))))
-                .pressable(onOpenLauncherSettings),
+                .pressable(openSystem),
             contentAlignment = Alignment.Center,
         ) {
             MmiLineIcon(MmiLine.MENU, Color(0xFF3A3F46), Modifier.size(24.dp))

@@ -13,8 +13,11 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.openlauncher.app.service.NavigationService
+import com.openlauncher.app.util.CarLocation
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.cos
@@ -78,6 +81,11 @@ object NavigationEngine {
 
     private var tts: TextToSpeech? = null
     private var ttsReady = false
+
+    /** Voice prompt health, shown on the System check page. */
+    @Volatile
+    var voiceStatus: String = "Not started"
+        private set
     private var tone: ToneGenerator? = null
 
     fun init(ctx: Context) {
@@ -87,11 +95,22 @@ object NavigationEngine {
         val voice = app.getSharedPreferences("mmi_nav", Context.MODE_PRIVATE).getBoolean("voice", true)
         _state.update { it.copy(voiceOn = voice) }
         scope.launch(worker) { loadData() }
+        // Same GPS listener as the home screen; the navigation service keeps it
+        // running while another app is in front.
+        scope.launch(worker) {
+            CarLocation.get(app).location.filterNotNull().collect { update(it.latitude, it.longitude, it.speedMps) }
+        }
+        voiceStatus = "Starting…"
         tts = TextToSpeech(app) { status ->
-            if (status == TextToSpeech.SUCCESS) {
+            if (status != TextToSpeech.SUCCESS) {
+                voiceStatus = "No text-to-speech engine — install Speech Services by Google"
+            } else {
                 val t = tts ?: return@TextToSpeech
-                val result = t.setLanguage(Locale.US)
-                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) t.setLanguage(Locale.ENGLISH)
+                var result = t.setLanguage(Locale.US)
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) result = t.setLanguage(Locale.ENGLISH)
+                voiceStatus = if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    "Engine ${t.defaultEngine} has no English voice"
+                } else "Ready (${t.defaultEngine})"
                 t.setAudioAttributes(
                     AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
@@ -158,6 +177,7 @@ object NavigationEngine {
     }
 
     fun stop() {
+        context?.let { NavigationService.stop(it) }
         scope.launch(worker) {
             spokenStage.clear()
             arrivalSpoken = false
@@ -172,6 +192,7 @@ object NavigationEngine {
 
     /** Plans a route from the last GPS fix. Without routing data it falls back to a direct line. */
     fun navigateTo(place: Place) {
+        context?.let { NavigationService.start(it) }
         scope.launch(worker) { navigateNow(place) }
     }
 
@@ -205,10 +226,6 @@ object NavigationEngine {
         val end = g.snap(place.lat, place.lon, null, 3000.0) ?: return null
         val p = planner ?: RoutePlanner(g).also { planner = it }
         return runCatching { p.plan(start, end, heading) }.getOrNull()
-    }
-
-    fun onLocation(lat: Double, lon: Double, speedMps: Float) {
-        scope.launch(worker) { update(lat, lon, speedMps) }
     }
 
     private fun update(lat: Double, lon: Double, speedMps: Float) {

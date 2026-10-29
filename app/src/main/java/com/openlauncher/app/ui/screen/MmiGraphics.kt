@@ -219,115 +219,11 @@ private fun buildGlyph(glyph: MmiGlyph, s: Float): List<Layer> = when (glyph) {
     }
 }
 
-// ── Weather art ──────────────────────────────────────────────────────────────
-
-private enum class Sky { CLEAR, PARTLY, CLOUDY, FOG, RAIN, SNOW, STORM, NONE }
-
-private fun skyFor(code: Int?): Sky = when (code) {
-    null -> Sky.NONE
-    0 -> Sky.CLEAR
-    1, 2 -> Sky.PARTLY
-    3 -> Sky.CLOUDY
-    45, 48 -> Sky.FOG
-    in 51..67, in 80..82 -> Sky.RAIN
-    in 71..77, 85, 86 -> Sky.SNOW
-    in 95..99 -> Sky.STORM
-    else -> Sky.CLOUDY
-}
-
-@Composable
-fun WeatherGlyph(code: Int?, isDay: Boolean, modifier: Modifier) {
-    Spacer(
-        modifier.drawWithCache {
-            val s = size.minDimension
-            val ox = (size.width - s) / 2f
-            val oy = (size.height - s) / 2f
-            val sky = skyFor(code)
-            onDrawBehind {
-                translate(ox, oy) {
-                    when (sky) {
-                        Sky.CLEAR -> if (isDay) sun(Offset(0.5f * s, 0.5f * s), 0.24f * s) else moon(Offset(0.5f * s, 0.5f * s), 0.26f * s)
-                        Sky.PARTLY -> {
-                            if (isDay) sun(Offset(0.64f * s, 0.34f * s), 0.17f * s) else moon(Offset(0.66f * s, 0.32f * s), 0.18f * s)
-                            cloud(s, 1f)
-                        }
-                        Sky.CLOUDY -> cloud(s, 1f)
-                        Sky.NONE -> cloud(s, 0.35f)
-                        Sky.FOG -> {
-                            cloud(s, 1f)
-                            for (i in 0..1) {
-                                val y = (0.88f + i * 0.08f) * s
-                                drawLine(Color(0xFFB0BAC5), Offset(0.24f * s, y), Offset(0.80f * s, y), 0.04f * s, StrokeCap.Round)
-                            }
-                        }
-                        Sky.RAIN -> {
-                            cloud(s, 1f)
-                            for (i in 0..2) {
-                                val x = (0.38f + i * 0.16f) * s
-                                drawLine(Color(0xFF4FC3F7), Offset(x, 0.86f * s), Offset(x - 0.04f * s, 0.98f * s), 0.045f * s, StrokeCap.Round)
-                            }
-                        }
-                        Sky.SNOW -> {
-                            cloud(s, 1f)
-                            for (i in 0..2) drawCircle(Color.White, 0.04f * s, Offset((0.38f + i * 0.16f) * s, 0.92f * s))
-                        }
-                        Sky.STORM -> {
-                            cloud(s, 1f)
-                            drawPath(
-                                poly(s, 0.56f to 0.72f, 0.44f to 0.90f, 0.53f to 0.90f, 0.46f to 1.02f, 0.64f to 0.84f, 0.55f to 0.84f, 0.61f to 0.72f),
-                                Color(0xFFFFD54F),
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    )
-}
-
-private fun DrawScope.sun(c: Offset, r: Float) {
-    for (i in 0 until 8) {
-        val a = Math.toRadians(i * 45.0)
-        val d = Offset(cos(a).toFloat(), sin(a).toFloat())
-        drawLine(Color(0xFFFFC107), c + d * (r * 1.3f), c + d * (r * 1.65f), r * 0.2f, StrokeCap.Round)
-    }
-    drawCircle(Brush.radialGradient(listOf(Color(0xFFFFF3B0), Color(0xFFFFB300)), center = c, radius = r), r, c)
-}
-
-private fun DrawScope.moon(c: Offset, r: Float) {
-    val crescent = Path().apply {
-        op(
-            Path().apply { addOval(Rect(c, r)) },
-            Path().apply { addOval(Rect(c + Offset(r * 0.5f, -r * 0.3f), r * 0.85f)) },
-            PathOperation.Difference,
-        )
-    }
-    drawPath(crescent, Brush.radialGradient(listOf(Color(0xFFFFFDF0), Color(0xFFD9DEE6)), center = c, radius = r))
-}
-
-private fun DrawScope.cloud(s: Float, alpha: Float) {
-    drawOval(
-        Color.Black.copy(alpha = 0.3f * alpha),
-        topLeft = Offset(0.22f * s, 0.80f * s), size = Size(0.62f * s, 0.07f * s),
-    )
-    val brush = Brush.verticalGradient(
-        listOf(Color(0xFFFFFFFF), Color(0xFFC5D0DC)),
-        startY = 0.30f * s, endY = 0.80f * s,
-    )
-    drawCircle(brush, 0.17f * s, Offset(0.33f * s, 0.60f * s), alpha = alpha)
-    drawCircle(brush, 0.24f * s, Offset(0.54f * s, 0.52f * s), alpha = alpha)
-    drawCircle(brush, 0.17f * s, Offset(0.75f * s, 0.60f * s), alpha = alpha)
-    drawRoundRect(
-        brush, topLeft = Offset(0.18f * s, 0.58f * s), size = Size(0.74f * s, 0.20f * s),
-        cornerRadius = CornerRadius(0.10f * s), alpha = alpha,
-    )
-}
-
 // ── Line icons (white UI glyphs) ─────────────────────────────────────────────
 
 enum class MmiLine {
-    WIND, THERMO, DROP, CHEVRON_LEFT, ARROW, MENU, PREV, NEXT, PLAY, PAUSE,
-    CALL, BACKSPACE, OPEN, WIDGETS, BLUETOOTH, CONTACTS, NOTE,
+    CHEVRON_LEFT, ARROW, MENU, PREV, NEXT, PLAY, PAUSE,
+    CALL, BACKSPACE, OPEN, BLUETOOTH, CONTACTS, NOTE,
     PLUS, MINUS, LOCATE, SEARCH, STAR, STAR_FILLED, HISTORY, PIN, FUEL, CLOSE, HOME, FLAG, CARD, GLOBE,
     SPEAKER, MUTE, CAMERA,
 }
@@ -354,22 +250,6 @@ fun MmiLineIcon(kind: MmiLine, color: Color, modifier: Modifier) {
 private fun path(s: Float, block: Path.(Float) -> Unit) = Path().apply { block(s) }
 
 private fun linePaths(kind: MmiLine, s: Float): Pair<List<Path>, List<Path>> = when (kind) {
-    MmiLine.WIND -> listOf(
-        path(s) { moveTo(0.10f * it, 0.36f * it); lineTo(0.62f * it, 0.36f * it); cubicTo(0.84f * it, 0.36f * it, 0.84f * it, 0.10f * it, 0.64f * it, 0.14f * it) },
-        path(s) { moveTo(0.10f * it, 0.56f * it); lineTo(0.76f * it, 0.56f * it); cubicTo(0.98f * it, 0.56f * it, 0.98f * it, 0.84f * it, 0.78f * it, 0.82f * it) },
-        path(s) { moveTo(0.10f * it, 0.76f * it); lineTo(0.44f * it, 0.76f * it) },
-    ) to emptyList<Path>()
-    MmiLine.THERMO -> listOf(
-        path(s) { addRoundRect(RoundRect(Rect(0.40f * it, 0.06f * it, 0.60f * it, 0.66f * it), CornerRadius(0.10f * it))) },
-    ) to listOf(circle(0.5f, 0.78f, 0.15f, s), rect(0.465f, 0.30f, 0.535f, 0.72f, s))
-    MmiLine.DROP -> emptyList<Path>() to listOf(path(s) {
-        moveTo(0.5f * it, 0.06f * it)
-        cubicTo(0.62f * it, 0.24f * it, 0.82f * it, 0.46f * it, 0.82f * it, 0.64f * it)
-        cubicTo(0.82f * it, 0.82f * it, 0.68f * it, 0.94f * it, 0.5f * it, 0.94f * it)
-        cubicTo(0.32f * it, 0.94f * it, 0.18f * it, 0.82f * it, 0.18f * it, 0.64f * it)
-        cubicTo(0.18f * it, 0.46f * it, 0.38f * it, 0.24f * it, 0.5f * it, 0.06f * it)
-        close()
-    })
     MmiLine.CHEVRON_LEFT -> listOf(path(s) { moveTo(0.64f * it, 0.14f * it); lineTo(0.30f * it, 0.5f * it); lineTo(0.64f * it, 0.86f * it) }) to emptyList<Path>()
     MmiLine.ARROW -> emptyList<Path>() to listOf(poly(s, 0.28f to 0.14f, 0.84f to 0.5f, 0.28f to 0.86f))
     MmiLine.MENU -> listOf(0.30f, 0.50f, 0.70f).map { y -> path(s) { moveTo(0.20f * it, y * it); lineTo(0.80f * it, y * it) } } to emptyList<Path>()
@@ -387,9 +267,6 @@ private fun linePaths(kind: MmiLine, s: Float): Pair<List<Path>, List<Path>> = w
         path(s) { moveTo(0.52f * it, 0.14f * it); lineTo(0.14f * it, 0.14f * it); lineTo(0.14f * it, 0.86f * it); lineTo(0.86f * it, 0.86f * it); lineTo(0.86f * it, 0.48f * it) },
         path(s) { moveTo(0.46f * it, 0.54f * it); lineTo(0.88f * it, 0.12f * it); moveTo(0.62f * it, 0.12f * it); lineTo(0.88f * it, 0.12f * it); lineTo(0.88f * it, 0.38f * it) },
     ) to emptyList<Path>()
-    MmiLine.WIDGETS -> listOf(0.10f to 0.10f, 0.56f to 0.10f, 0.10f to 0.56f, 0.56f to 0.56f).map { (x, y) ->
-        path(s) { addRoundRect(RoundRect(Rect(x * it, y * it, (x + 0.34f) * it, (y + 0.34f) * it), CornerRadius(0.06f * it))) }
-    } to emptyList<Path>()
     MmiLine.BLUETOOTH -> listOf(path(s) {
         moveTo(0.28f * it, 0.30f * it); lineTo(0.70f * it, 0.68f * it); lineTo(0.50f * it, 0.88f * it)
         lineTo(0.50f * it, 0.12f * it); lineTo(0.70f * it, 0.32f * it); lineTo(0.28f * it, 0.70f * it)

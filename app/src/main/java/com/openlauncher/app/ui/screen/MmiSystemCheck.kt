@@ -27,6 +27,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openlauncher.app.map.MapData
+import com.openlauncher.app.map.NavigationEngine
+import com.openlauncher.app.util.CrashLog
 import com.openlauncher.app.model.AppInfo
 import com.openlauncher.app.service.MediaListenerService
 import com.openlauncher.app.util.LocationData
@@ -154,9 +156,12 @@ private suspend fun runChecks(context: Context, apps: List<AppInfo>, location: L
     out += Check("Spotify", if (isInstalled(pm, "com.spotify.music")) "installed" else "not installed", Level.INFO)
     out += Check("Anghami", if (isInstalled(pm, "com.anghami")) "installed" else "not installed", Level.INFO)
 
+    // Bluetooth first: if the unit's Bluetooth app exposes the phone's library
+    // (AVRCP browsing), Spotify playlists can be browsed with no internet.
     val browsers = pm.queryIntentServices(Intent("android.media.browse.MediaBrowserService"), 0)
         .map { ComponentName(it.serviceInfo.packageName, it.serviceInfo.name) }
         .filter { it.packageName != context.packageName }
+        .sortedByDescending { "bluetooth" in it.packageName.lowercase() || "bt" in it.packageName.lowercase() }
     if (browsers.isEmpty()) out += Check("Media libraries", "no apps expose a media library", Level.WARN)
     for (component in browsers.take(8)) {
         val result = browserStatus(context, component)
@@ -176,6 +181,27 @@ private suspend fun runChecks(context: Context, apps: List<AppInfo>, location: L
         if (MapData.isInstalled(context)) "installed · %.0f MB tiles · %.0f MB search".format(tiles.length() / 1e6, search.length() / 1e6)
         else "not imported yet",
         if (MapData.isInstalled(context)) Level.OK else Level.WARN,
+    )
+    val routing = MapData.routing(context)
+    out += Check(
+        "Turn-by-turn data",
+        if (routing.exists()) "installed · %.0f MB routing graph".format(routing.length() / 1e6) else "not imported — direct line only",
+        if (routing.exists()) Level.OK else Level.WARN,
+    )
+    val safety = MapData.safety(context)
+    out += Check(
+        "Speed limits & cameras",
+        if (safety.exists()) "installed" else "not imported",
+        if (safety.exists()) Level.OK else Level.WARN,
+    )
+    val voice = NavigationEngine.voiceStatus
+    out += Check("Voice prompts", voice, if (voice.startsWith("Ready")) Level.OK else Level.BAD)
+
+    val crash = CrashLog.read(context)
+    out += Check(
+        "Last crash",
+        crash?.lines()?.filter { it.isNotBlank() }?.take(8)?.joinToString("\n") { it.trim() } ?: "none",
+        if (crash == null) Level.OK else Level.BAD,
     )
     return out
 }

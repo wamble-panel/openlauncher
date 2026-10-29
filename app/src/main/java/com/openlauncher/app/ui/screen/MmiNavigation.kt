@@ -229,7 +229,6 @@ private fun NavMap(
     val context = LocalContext.current
     val holder = remember { MapHolder() }
     var following by remember { mutableStateOf(true) }
-    var threeD by remember { mutableStateOf(true) }
     var toast by remember { mutableStateOf<String?>(null) }
     val course = nav.course
     val destination = nav.destination
@@ -244,7 +243,12 @@ private fun NavMap(
 
     val mapView = remember {
         MapLibre.getInstance(context)
-        MapView(context, MapLibreMapOptions.createFromAttributes(context, null).textureMode(true)).apply { onCreate(null) }
+        // SurfaceView rendering (faster than TextureView on Mali/PowerVR head units), capped
+        // at 30 fps so the map leaves CPU for audio, GPS and the rest of the UI.
+        MapView(context, MapLibreMapOptions.createFromAttributes(context, null).textureMode(false)).apply {
+            onCreate(null)
+            setMaximumFps(30)
+        }
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle, mapView) {
@@ -301,20 +305,20 @@ private fun NavMap(
         nav.speedKmh > 50f -> 1
         else -> 2
     }
-    LaunchedEffect(holder.style, here, course, following, threeD, zoomBand) {
+    LaunchedEffect(holder.style, here, course, following, zoomBand) {
         val style = holder.style ?: return@LaunchedEffect
         val map = holder.map ?: return@LaunchedEffect
         val pos = here ?: return@LaunchedEffect
         style.getSourceAs<GeoJsonSource>("vehicle")?.setGeoJson(Point.fromLngLat(pos.longitude, pos.latitude))
         (style.getLayer("vehicle") as? SymbolLayer)?.setProperties(PropertyFactory.iconRotate(course))
         if (following) {
-            val zoom = if (threeD) 15.5 + zoomBand * 0.5 else 14.5 + zoomBand * 0.25
+            val zoom = 15.0 + zoomBand * 0.5
             map.animateCamera(
                 CameraUpdateFactory.newCameraPosition(
                     CameraPosition.Builder().target(pos)
                         .zoom(zoom)
-                        .tilt(if (threeD) 55.0 else 0.0)
-                        .bearing(if (threeD) course.toDouble() else 0.0)
+                        .tilt(0.0)
+                        .bearing(course.toDouble())
                         .build()
                 ),
                 900,
@@ -394,10 +398,6 @@ private fun NavMap(
         ) {
             ChromeButton(MmiLine.PLUS, 46.dp, { holder.map?.animateCamera(CameraUpdateFactory.zoomIn(), 250) })
             ChromeButton(MmiLine.MINUS, 46.dp, { holder.map?.animateCamera(CameraUpdateFactory.zoomOut(), 250) })
-            Box(
-                Modifier.size(46.dp).pressable { threeD = !threeD; following = true }.mmiPanel(),
-                contentAlignment = Alignment.Center,
-            ) { Text(if (threeD) "2D" else "3D", color = MmiInk, fontFamily = MmiFont, fontSize = 15.sp) }
             ChromeButton(MmiLine.LOCATE, 46.dp, { following = true }, highlighted = !following)
             ChromeButton(if (nav.voiceOn) MmiLine.SPEAKER else MmiLine.MUTE, 46.dp, { NavigationEngine.setVoice(!nav.voiceOn) })
             ChromeButton(MmiLine.CAMERA, 46.dp, {

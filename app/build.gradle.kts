@@ -13,8 +13,8 @@ android {
         applicationId  = "com.openlauncher.app"
         minSdk         = 21
         targetSdk      = 36
-        versionCode    = 20
-        versionName    = "1.0.0"
+        versionCode    = 21
+        versionName    = "2.0.0-mmi"
     }
 
     buildTypes {
@@ -22,7 +22,10 @@ android {
             // Default signing config for normal device testing (restores app visibility)
         }
         release {
-            isMinifyEnabled = false
+            // R8: strips unused code/resources and optimises what is left —
+            // smaller APK and faster start on the 2 GB head unit.
+            isMinifyEnabled = true
+            isShrinkResources = true
             // Sideload builds: sign with the debug key so the optimised (non-debuggable)
             // APK installs without a separate release keystore. Compose runs far
             // faster when not debuggable, which matters on low-end head units.
@@ -41,7 +44,7 @@ android {
 
     buildFeatures {
         compose = true
-        buildConfig = true
+        buildConfig = false
     }
 }
 
@@ -59,36 +62,19 @@ dependencies {
     // Compose
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
-    implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.foundation:foundation")
 
-    // DataStore
-    implementation("androidx.datastore:datastore-preferences:1.1.7")
-
-    // Network — weather
-    implementation("com.squareup.retrofit2:retrofit:2.12.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.12.0")
+    // Installs the bundled startup profile so ART pre-compiles the hot code
+    // instead of interpreting it for the first days of use.
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 
     // Offline vector maps (MMI navigation)
     implementation("org.maplibre.gl:android-sdk:11.5.2")
 
-    // Image loading
-    implementation("io.coil-kt:coil-compose:2.7.0")
-
-    // Permissions
-    implementation("com.google.accompanist:accompanist-permissions:0.37.3")
-
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
 
-    // JSON serialization
-    implementation("com.google.code.gson:gson:2.13.1")
-
-    debugImplementation("androidx.compose.ui:ui-tooling")
-
-    // Unit tests — pure-logic functions only (src/test runs on the local JVM,
-    // no Android framework available without Robolectric/instrumentation)
+    // Unit tests — pure-logic functions only (src/test runs on the local JVM)
     testImplementation("junit:junit:4.13.2")
 }

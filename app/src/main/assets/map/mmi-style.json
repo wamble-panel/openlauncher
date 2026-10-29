@@ -129,7 +129,7 @@
    "type": "fill",
    "source": "omt",
    "source-layer": "building",
-   "minzoom": 15,
+   "minzoom": 16.5,
    "paint": {
     "fill-color": "#16181B",
     "fill-outline-color": "#1E2126"
