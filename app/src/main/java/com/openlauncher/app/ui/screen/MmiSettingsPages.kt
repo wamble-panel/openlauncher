@@ -39,6 +39,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.openlauncher.app.data.CarPrefs
 import com.openlauncher.app.map.MapData
 import com.openlauncher.app.map.NavigationEngine
+import com.openlauncher.app.map.CarProfile
+import com.openlauncher.app.map.RoadMemory
+import kotlinx.coroutines.launch
 import com.openlauncher.app.model.AppInfo
 import com.openlauncher.app.util.CarAudio
 import kotlin.math.roundToInt
@@ -295,6 +298,27 @@ internal fun MmiNavSettingsPage(metric: Boolean, onSetMetric: (Boolean) -> Unit)
         ToggleRow("Metric units (km, km/h)", metric, onSetMetric)
         SettingRow("Map data", if (MapData.isInstalled(context)) "Egypt, offline" else "not imported")
         SettingRow("Turn-by-turn data", if (MapData.routing(context).exists()) "installed" else "not imported")
+        SectionTitle("Road memory (potholes & speed bumps)")
+        val road by RoadMemory.stats.collectAsStateWithLifecycle()
+        var car by remember { mutableStateOf(RoadMemory.car) }
+        var roadWarnings by remember { mutableStateOf(RoadMemory.warnings) }
+        var roadMessage by remember { mutableStateOf<String?>(null) }
+        val roadScope = rememberCoroutineScope()
+        SettingRow("Car", car.label, onClick = {
+            car = CarProfile.entries[(car.ordinal + 1) % CarProfile.entries.size]
+            RoadMemory.setCar(car)
+        })
+        ToggleRow("Warn before potholes & bumps", roadWarnings) { roadWarnings = it; RoadMemory.setWarnings(it) }
+        SettingRow("Learned", "${road.confirmed} confirmed · ${road.spots} spots · ${road.jolts} jolts this session")
+        SettingRow("Share with the other car: export", roadMessage, onClick = {
+            roadScope.launch { roadMessage = RoadMemory.export()?.let { "saved to Download" } ?: "export failed — allow file access" }
+        })
+        SettingRow("Import from the other car", onClick = {
+            roadScope.launch {
+                val n = RoadMemory.import()
+                roadMessage = if (n > 0) "merged $n spots" else "no mmi-road-memory file on USB or in Download"
+            }
+        })
         SectionTitle("About the map")
         Text(
             "Map data © OpenStreetMap contributors, available under the Open Database License (openstreetmap.org/copyright).",

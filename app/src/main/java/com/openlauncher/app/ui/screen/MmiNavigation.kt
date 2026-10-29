@@ -77,6 +77,9 @@ import org.maplibre.android.maps.Style
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.SymbolLayer
+import org.maplibre.android.style.layers.CircleLayer
+import com.openlauncher.app.map.HazardType
+import com.openlauncher.app.map.RoadMemory
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
@@ -148,6 +151,23 @@ internal object PersistentMap {
                 .replace("{{TILES}}", "mbtiles://" + MapData.tiles(context).absolutePath)
             m.setStyle(Style.Builder().fromJson(json)) { s ->
                 s.addImage("vehicle", vehicleBitmap(context.resources.displayMetrics.density))
+                // Road memory: confirmed potholes (orange) and speed bumps (amber).
+                s.addSource(GeoJsonSource("hazards"))
+                s.addLayer(
+                    CircleLayer("hazards", "hazards").withProperties(
+                        PropertyFactory.circleRadius(5f),
+                        PropertyFactory.circleColor(
+                            org.maplibre.android.style.expressions.Expression.match(
+                                org.maplibre.android.style.expressions.Expression.get("kind"),
+                                org.maplibre.android.style.expressions.Expression.literal("bump"),
+                                org.maplibre.android.style.expressions.Expression.color(android.graphics.Color.parseColor("#FFC93C")),
+                                org.maplibre.android.style.expressions.Expression.color(android.graphics.Color.parseColor("#FF7A2E")),
+                            )
+                        ),
+                        PropertyFactory.circleStrokeColor("#000000"),
+                        PropertyFactory.circleStrokeWidth(1.5f),
+                    )
+                )
                 s.addSource(GeoJsonSource("vehicle"))
                 s.addLayer(
                     SymbolLayer("vehicle", "vehicle").withProperties(
@@ -320,6 +340,7 @@ private fun NavMap(
     val context = LocalContext.current
     val holder = PersistentMap
     var northUp by remember { mutableStateOf(false) }
+    var markMenu by remember { mutableStateOf(false) }
     var following by remember { mutableStateOf(true) }
     var toast by remember { mutableStateOf<String?>(null) }
     val course = nav.course
@@ -420,6 +441,16 @@ private fun NavMap(
         val pos = here ?: return@LaunchedEffect
         style.getSourceAs<GeoJsonSource>("vehicle")?.setGeoJson(Point.fromLngLat(pos.longitude, pos.latitude))
         (style.getLayer("vehicle") as? SymbolLayer)?.setProperties(PropertyFactory.iconRotate(course))
+    }
+
+    // Road memory dots, refreshed only when the confirmed set changes.
+    val hazardVersion by RoadMemory.version.collectAsStateWithLifecycle()
+    LaunchedEffect(holder.style, hazardVersion) {
+        val style = holder.style ?: return@LaunchedEffect
+        val features = RoadMemory.confirmedSpots().map { (lat, lon, bump) ->
+            Feature.fromGeometry(Point.fromLngLat(lon, lat)).also { it.addStringProperty("kind", if (bump) "bump" else "pothole") }
+        }
+        style.getSourceAs<GeoJsonSource>("hazards")?.setGeoJson(FeatureCollection.fromFeatures(features))
     }
 
     // Road route from the offline router; a direct line when there is none yet.
@@ -554,6 +585,26 @@ private fun NavMap(
                 ChromeButton(MmiLine.CAMERA, 42.dp, {
                     toast = if (NavigationEngine.markCamera()) "Camera saved at this spot" else "No GPS fix yet"
                 })
+                ChromeButton(MmiLine.BUMP, 42.dp, { markMenu = !markMenu }, highlighted = markMenu)
+            }
+        }
+
+        // Mark a bump / pothole here, or confirm the last detected jolt.
+        if (markMenu) {
+            Column(
+                Modifier.align(Alignment.CenterEnd).padding(end = 72.dp).width(230.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                val done = { msg: String -> toast = msg; markMenu = false }
+                ChromePill("Speed bump here", {
+                    done(if (RoadMemory.markHere(HazardType.BUMP)) "Speed bump saved" else "No GPS fix yet")
+                }, MmiLine.BUMP, Modifier.fillMaxWidth())
+                ChromePill("Pothole here", {
+                    done(if (RoadMemory.markHere(HazardType.POTHOLE)) "Pothole saved" else "No GPS fix yet")
+                }, MmiLine.BUMP, Modifier.fillMaxWidth())
+                ChromePill("That jolt was real", {
+                    done(if (RoadMemory.confirmLast()) "Confirmed — thanks" else "No jolt detected yet")
+                }, MmiLine.STAR, Modifier.fillMaxWidth())
             }
         }
 

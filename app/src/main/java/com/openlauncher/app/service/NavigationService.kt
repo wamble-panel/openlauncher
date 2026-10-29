@@ -14,8 +14,8 @@ import androidx.core.content.ContextCompat
 import com.openlauncher.app.util.CarLocation
 
 /**
- * Keeps GPS and voice guidance alive while a route is active and another app
- * (ZLINK, the radio, a video) is in front of the launcher.
+ * Keeps GPS, voice guidance and the road-memory sensor alive while a route is
+ * active or the car is moving, even with another app (ZLINK, the radio) in front.
  */
 class NavigationService : Service() {
 
@@ -57,7 +57,7 @@ class NavigationService : Service() {
         }
         return builder
             .setSmallIcon(android.R.drawable.ic_dialog_map)
-            .setContentTitle("Navigation active")
+            .setContentTitle("MMI is running")
             .setOngoing(true)
             .setContentIntent(open)
             .build()
@@ -68,12 +68,25 @@ class NavigationService : Service() {
         private const val NOTIFICATION_ID = 7
         private const val HOLDER = "navigation"
 
-        fun start(context: Context) {
-            runCatching { ContextCompat.startForegroundService(context, Intent(context, NavigationService::class.java)) }
+        private val reasons = HashSet<String>()
+
+        /** Keeps the service up for [reason] ("route", "drive") until [release]d. */
+        @Synchronized
+        fun acquire(context: Context, reason: String) {
+            if (reasons.add(reason) && reasons.size == 1) {
+                runCatching { ContextCompat.startForegroundService(context, Intent(context, NavigationService::class.java)) }
+            }
         }
 
-        fun stop(context: Context) {
-            runCatching { context.stopService(Intent(context, NavigationService::class.java)) }
+        @Synchronized
+        fun release(context: Context, reason: String) {
+            if (reasons.remove(reason) && reasons.isEmpty()) {
+                runCatching { context.stopService(Intent(context, NavigationService::class.java)) }
+            }
         }
+
+        fun start(context: Context) = acquire(context, "route")
+
+        fun stop(context: Context) = release(context, "route")
     }
 }

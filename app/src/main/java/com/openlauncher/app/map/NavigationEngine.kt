@@ -139,6 +139,10 @@ object NavigationEngine {
         }
     }
 
+    /** Nearest road to a point (for road memory), or null without routing data. */
+    fun snapRoad(lat: Double, lon: Double, heading: Float?, maxMeters: Double = 25.0): Snap? =
+        runCatching { graph?.snap(lat, lon, heading, maxMeters) }.getOrNull()
+
     /** Re-open map files after an import. */
     fun reloadData() {
         scope.launch(worker) { loadData() }

@@ -194,6 +194,22 @@ private suspend fun runChecks(context: Context, apps: List<AppInfo>, location: L
         if (safety.exists()) "installed" else "not imported",
         if (safety.exists()) Level.OK else Level.WARN,
     )
+    val accel = (context.getSystemService(Context.SENSOR_SERVICE) as android.hardware.SensorManager)
+        .getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER)
+    val road = com.openlauncher.app.map.RoadMemory.stats.value
+    out += Check(
+        "Motion sensor",
+        accel?.let {
+            "${it.name} · max ${if (it.minDelay > 0) 1_000_000 / it.minDelay else 0} Hz" +
+                (if (road.rateHz > 0) " · measured %.0f Hz · road noise %.2f m/s²".format(road.rateHz, road.noiseFloor) else " · drive to measure")
+        } ?: "none — road memory can't detect jolts (manual marks still work)",
+        when {
+            accel == null -> Level.BAD
+            road.rateHz in 1.0..24.0 -> Level.WARN
+            else -> Level.OK
+        },
+    )
+    out += Check("Road memory", "${road.confirmed} confirmed · ${road.spots} spots · ${road.jolts} jolts (${road.axleMatches} two-axle)", Level.INFO)
     val voice = NavigationEngine.voiceStatus
     out += Check("Voice prompts", voice, if (voice.startsWith("Ready")) Level.OK else Level.BAD)
 

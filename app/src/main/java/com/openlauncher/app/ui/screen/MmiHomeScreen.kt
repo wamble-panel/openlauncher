@@ -68,6 +68,11 @@ import com.openlauncher.app.data.CarPrefs
 import com.openlauncher.app.model.AppInfo
 import com.openlauncher.app.model.NowPlayingState
 import com.openlauncher.app.map.MapData
+import com.openlauncher.app.map.RoadMemory
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import com.openlauncher.app.map.PlaceSearch
 import com.openlauncher.app.model.HardwareRadioState
 import com.openlauncher.app.service.NavGuidance
@@ -195,6 +200,7 @@ fun MmiHomeScreen(
                 while (true) {
                     awaitPointerEvent(PointerEventPass.Initial)
                     lastTouch = System.currentTimeMillis()
+                    RoadMemory.onTouch()
                     idleFade = false
                 }
             }
@@ -314,6 +320,35 @@ fun MmiHomeScreen(
                 }
             }
             if (!fullScreen) DateBar(barHeight)
+        }
+        HazardBanner(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
+    }
+}
+
+/** Pothole / speed bump warning from road memory, shown over every page. */
+@Composable
+private fun HazardBanner(modifier: Modifier) {
+    val alert by RoadMemory.alert.collectAsStateWithLifecycle()
+    val metric by CarPrefs.get(LocalContext.current).metric.collectAsStateWithLifecycle()
+    val current = alert
+    androidx.compose.animation.AnimatedVisibility(
+        visible = current != null, modifier = modifier,
+        enter = fadeIn(tween(200)) + androidx.compose.animation.slideInVertically { -it / 2 },
+        exit = fadeOut(tween(300)),
+    ) {
+        val pulse = rememberInfiniteTransition(label = "hazard")
+        val glow by pulse.animateFloat(0.75f, 1f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "hazard_glow")
+        Row(
+            Modifier.graphicsLayer { alpha = glow }.clip(RoundedCornerShape(4.dp))
+                .background(Color(0xF0E39A12)).padding(horizontal = 18.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            MmiLineIcon(MmiLine.BUMP, Color.Black, Modifier.size(30.dp))
+            Spacer(Modifier.width(12.dp))
+            Text(
+                (current?.type?.label ?: "") + "  " + (current?.let { com.openlauncher.app.map.formatDistance(it.distanceM, metric) } ?: ""),
+                color = Color.Black, fontFamily = MmiFont, fontWeight = FontWeight.Medium, fontSize = 22.sp,
+            )
         }
     }
 }

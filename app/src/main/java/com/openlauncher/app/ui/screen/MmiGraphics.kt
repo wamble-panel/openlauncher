@@ -225,7 +225,7 @@ enum class MmiLine {
     CHEVRON_LEFT, ARROW, MENU, PREV, NEXT, PLAY, PAUSE,
     CALL, BACKSPACE, OPEN, BLUETOOTH, CONTACTS, NOTE,
     PLUS, MINUS, LOCATE, SEARCH, STAR, STAR_FILLED, HISTORY, PIN, FUEL, CLOSE, HOME, FLAG, CARD, GLOBE,
-    SPEAKER, MUTE, CAMERA, MOUNTAIN, BATTERY, GRID, ANTENNA, NAV_ARROW, GEAR,
+    SPEAKER, MUTE, CAMERA, MOUNTAIN, BATTERY, GRID, ANTENNA, NAV_ARROW, GEAR, BUMP,
 }
 
 @Composable
@@ -337,6 +337,10 @@ private fun linePaths(kind: MmiLine, s: Float): Pair<List<Path>, List<Path>> = w
     MmiLine.MUTE -> listOf(
         path(s) { moveTo(0.64f * it, 0.36f * it); lineTo(0.90f * it, 0.64f * it); moveTo(0.90f * it, 0.36f * it); lineTo(0.64f * it, 0.64f * it) },
     ) to listOf(poly(s, 0.10f to 0.38f, 0.26f to 0.38f, 0.50f to 0.16f, 0.50f to 0.84f, 0.26f to 0.62f, 0.10f to 0.62f))
+    MmiLine.BUMP -> listOf(
+        path(s) { moveTo(0.04f * it, 0.74f * it); lineTo(0.22f * it, 0.74f * it); cubicTo(0.34f * it, 0.30f * it, 0.66f * it, 0.30f * it, 0.78f * it, 0.74f * it); lineTo(0.96f * it, 0.74f * it) },
+        path(s) { moveTo(0.5f * it, 0.08f * it); lineTo(0.5f * it, 0.24f * it) },
+    ) to emptyList<Path>()
     MmiLine.GRID -> listOf(
         path(s) { addRect(Rect(0.14f * it, 0.14f * it, 0.44f * it, 0.44f * it)) },
         path(s) { addRect(Rect(0.56f * it, 0.14f * it, 0.86f * it, 0.44f * it)) },
