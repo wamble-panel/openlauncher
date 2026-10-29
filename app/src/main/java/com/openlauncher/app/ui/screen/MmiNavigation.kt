@@ -487,7 +487,7 @@ private fun NavMap(
         if (following && here != null) {
             Image(
                 vehicle, contentDescription = null,
-                modifier = Modifier.align(Alignment.Center).size(44.dp).graphicsLayer { rotationZ = if (northUp) course else 0f },
+                modifier = Modifier.align(Alignment.Center).size(48.dp).graphicsLayer { rotationZ = if (northUp) course else 0f },
             )
         }
         if (reveal > 0f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = reveal }.background(MmiPageBg))
@@ -572,20 +572,16 @@ private fun NavMap(
                 }
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.End) {
-                ChromeButton(MmiLine.PLUS, 42.dp, {
+                ChromeButton(MmiLine.PLUS, 40.dp, {
                     if (following) zoomOffset = (zoomOffset + 1f).coerceAtMost(3f)
                     else holder.map?.animateCamera(CameraUpdateFactory.zoomIn(), 250)
                 })
-                ChromeButton(MmiLine.MINUS, 42.dp, {
+                ChromeButton(MmiLine.MINUS, 40.dp, {
                     if (following) zoomOffset = (zoomOffset - 1f).coerceAtLeast(-4f)
                     else holder.map?.animateCamera(CameraUpdateFactory.zoomOut(), 250)
                 })
-                ChromeButton(MmiLine.LOCATE, 42.dp, { following = true }, highlighted = !following)
-                ChromeButton(if (nav.voiceOn) MmiLine.SPEAKER else MmiLine.MUTE, 42.dp, { NavigationEngine.setVoice(!nav.voiceOn) })
-                ChromeButton(MmiLine.CAMERA, 42.dp, {
-                    toast = if (NavigationEngine.markCamera()) "Camera saved at this spot" else "No GPS fix yet"
-                })
-                ChromeButton(MmiLine.BUMP, 42.dp, { markMenu = !markMenu }, highlighted = markMenu)
+                ChromeButton(MmiLine.LOCATE, 40.dp, { following = true }, highlighted = !following)
+                ChromeButton(MmiLine.MENU, 40.dp, { markMenu = !markMenu }, highlighted = markMenu)
             }
         }
 
@@ -596,6 +592,12 @@ private fun NavMap(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 val done = { msg: String -> toast = msg; markMenu = false }
+                ChromePill(if (nav.voiceOn) "Voice: on" else "Voice: off", {
+                    NavigationEngine.setVoice(!nav.voiceOn)
+                }, if (nav.voiceOn) MmiLine.SPEAKER else MmiLine.MUTE, Modifier.fillMaxWidth())
+                ChromePill("Speed camera here", {
+                    done(if (NavigationEngine.markCamera()) "Camera saved at this spot" else "No GPS fix yet")
+                }, MmiLine.CAMERA, Modifier.fillMaxWidth())
                 ChromePill("Speed bump here", {
                     done(if (RoadMemory.markHere(HazardType.BUMP)) "Speed bump saved" else "No GPS fix yet")
                 }, MmiLine.BUMP, Modifier.fillMaxWidth())
@@ -665,22 +667,29 @@ private val RAIL = listOf(
 
 @Composable
 private fun NavRail(modifier: Modifier, onOpen: (String) -> Unit) {
-    Column(
-        modifier.fillMaxHeight().width(64.dp)
-            .background(Brush.horizontalGradient(listOf(Color(0xF00A0B0D), Color(0xD00A0B0D))))
-            .padding(vertical = 10.dp),
-        verticalArrangement = Arrangement.SpaceEvenly,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        RAIL.forEach { (key, icon) ->
-            val active = key == "nav"
-            Box(
-                Modifier.size(52.dp).pressable { if (!active) onOpen(key) },
-                contentAlignment = Alignment.Center,
-            ) {
-                MmiLineIcon(icon, if (active) MmiCyan else MmiInk, Modifier.size(if (active) 28.dp else 26.dp))
+    Row(modifier.fillMaxHeight()) {
+        Column(
+            Modifier.fillMaxHeight().width(64.dp)
+                .background(Brush.horizontalGradient(listOf(Color(0xFA03050A), Color(0xEE070A10))))
+                .padding(vertical = 8.dp),
+            verticalArrangement = Arrangement.SpaceEvenly,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            RAIL.forEach { (key, icon) ->
+                val active = key == "nav"
+                Box(
+                    Modifier.fillMaxWidth().height(52.dp).pressable { if (!active) onOpen(key) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (active) {
+                        // Audi-style marker: a lit bar on the edge of the active entry.
+                        Box(Modifier.align(Alignment.CenterStart).width(3.dp).height(30.dp).background(MmiCyan))
+                    }
+                    MmiLineIcon(icon, if (active) MmiCyan else MmiInk, Modifier.size(if (active) 28.dp else 24.dp))
+                }
             }
         }
+        Box(Modifier.fillMaxHeight().width(1.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xFF3A4250), Color.Transparent))))
     }
 }
 
@@ -805,24 +814,28 @@ private fun bearingDegrees(from: LatLng, to: LatLng): Float {
 
 /** White ring with an upward arrow, like the MMI vehicle position marker. */
 private fun vehicleBitmap(density: Float): Bitmap {
-    val size = (44 * density).roundToInt()
+    val size = (48 * density).roundToInt()
     val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val c = AndroidCanvas(bmp)
     val p = Paint(Paint.ANTI_ALIAS_FLAG)
     val r = size / 2f
-    p.color = 0x55000000
-    c.drawCircle(r, r, r * 0.98f, p)
+    // Soft cyan glow, dark disc, cyan ring, white arrow — the MMI position marker.
+    p.shader = android.graphics.RadialGradient(r, r, r, intArrayOf(0x553EC6F0, 0x003EC6F0), null, android.graphics.Shader.TileMode.CLAMP)
+    c.drawCircle(r, r, r, p)
+    p.shader = null
+    p.color = 0xE005080D.toInt()
+    c.drawCircle(r, r, r * 0.66f, p)
     p.style = Paint.Style.STROKE
-    p.strokeWidth = size * 0.07f
-    p.color = 0xFFFFFFFF.toInt()
-    c.drawCircle(r, r, r * 0.78f, p)
+    p.strokeWidth = size * 0.06f
+    p.color = 0xFF3EC6F0.toInt()
+    c.drawCircle(r, r, r * 0.66f, p)
     p.style = Paint.Style.FILL
-    p.color = 0xFF2AA8FF.toInt()
+    p.color = 0xFFFFFFFF.toInt()
     val arrow = AndroidPath().apply {
-        moveTo(r, size * 0.22f)
-        lineTo(size * 0.70f, size * 0.68f)
+        moveTo(r, size * 0.26f)
+        lineTo(size * 0.67f, size * 0.68f)
         lineTo(r, size * 0.58f)
-        lineTo(size * 0.30f, size * 0.68f)
+        lineTo(size * 0.33f, size * 0.68f)
         close()
     }
     c.drawPath(arrow, p)

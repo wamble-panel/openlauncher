@@ -354,6 +354,37 @@ private fun linePaths(kind: MmiLine, s: Float): Pair<List<Path>, List<Path>> = w
     ) to listOf(circle(0.5f, 0.36f, 0.06f, s))
     MmiLine.NAV_ARROW -> emptyList<Path>() to listOf(poly(s, 0.5f to 0.08f, 0.86f to 0.90f, 0.5f to 0.70f, 0.14f to 0.90f))
     MmiLine.GEAR -> listOf(
+        path(s) {
+            // Eight-tooth gear outline.
+            val teeth = 8
+            for (i in 0 until teeth * 4) {
+                val a = Math.toRadians(i * 360.0 / (teeth * 4) - 90.0)
+                val r = if ((i / 2) % 2 == 0) 0.44f else 0.33f
+                val x = (0.5f + r * kotlin.math.cos(a).toFloat()) * it
+                val y = (0.5f + r * kotlin.math.sin(a).toFloat()) * it
+                if (i == 0) moveTo(x, y) else lineTo(x, y)
+            }
+            close()
+        },
+        circle(0.5f, 0.5f, 0.13f, s),
+    ) to emptyList<Path>()
+    MmiLine.BUMP -> listOf(
+        path(s) { moveTo(0.04f * it, 0.74f * it); lineTo(0.22f * it, 0.74f * it); cubicTo(0.34f * it, 0.30f * it, 0.66f * it, 0.30f * it, 0.78f * it, 0.74f * it); lineTo(0.96f * it, 0.74f * it) },
+        path(s) { moveTo(0.5f * it, 0.08f * it); lineTo(0.5f * it, 0.24f * it) },
+    ) to emptyList<Path>()
+    MmiLine.GRID -> listOf(
+        path(s) { addRect(Rect(0.14f * it, 0.14f * it, 0.44f * it, 0.44f * it)) },
+        path(s) { addRect(Rect(0.56f * it, 0.14f * it, 0.86f * it, 0.44f * it)) },
+        path(s) { addRect(Rect(0.14f * it, 0.56f * it, 0.44f * it, 0.86f * it)) },
+        path(s) { addRect(Rect(0.56f * it, 0.56f * it, 0.86f * it, 0.86f * it)) },
+    ) to emptyList<Path>()
+    MmiLine.ANTENNA -> listOf(
+        path(s) { moveTo(0.5f * it, 0.42f * it); lineTo(0.5f * it, 0.92f * it) },
+        path(s) { addArc(Rect(0.30f * it, 0.16f * it, 0.70f * it, 0.56f * it), 130f, 100f); addArc(Rect(0.30f * it, 0.16f * it, 0.70f * it, 0.56f * it), -50f, 100f) },
+        path(s) { addArc(Rect(0.12f * it, 0.0f * it, 0.88f * it, 0.72f * it), 135f, 90f); addArc(Rect(0.12f * it, 0.0f * it, 0.88f * it, 0.72f * it), -45f, 90f) },
+    ) to listOf(circle(0.5f, 0.36f, 0.06f, s))
+    MmiLine.NAV_ARROW -> emptyList<Path>() to listOf(poly(s, 0.5f to 0.08f, 0.86f to 0.90f, 0.5f to 0.70f, 0.14f to 0.90f))
+    MmiLine.GEAR -> listOf(
         circle(0.5f, 0.5f, 0.17f, s),
         path(s) {
             for (i in 0 until 8) {
