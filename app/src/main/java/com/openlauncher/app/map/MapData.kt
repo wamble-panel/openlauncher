@@ -20,6 +20,7 @@ object MapData {
     fun dir(context: Context) = File(context.getExternalFilesDir(null) ?: context.filesDir, "map").apply { mkdirs() }
     fun tiles(context: Context) = File(dir(context), "egypt.mbtiles")
     fun search(context: Context) = File(dir(context), "egypt-search.db")
+    fun safety(context: Context) = File(dir(context), "egypt-safety.db")
     fun isInstalled(context: Context) = tiles(context).length() > 0 && search(context).length() > 0
 
     /**
@@ -39,6 +40,7 @@ object MapData {
             }
             when {
                 name.endsWith(".mbtiles", ignoreCase = true) -> Triple(uri, tiles(context), size)
+                name.contains("safety", ignoreCase = true) && name.endsWith(".db", ignoreCase = true) -> Triple(uri, safety(context), size)
                 name.endsWith(".db", ignoreCase = true) -> Triple(uri, search(context), size)
                 else -> null
             }

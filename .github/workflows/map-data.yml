@@ -44,6 +44,11 @@ jobs:
           python tools/map/build_search_index.py egypt.osm.pbf egypt-search.db
           ls -la egypt-search.db
 
+      - name: Extract speed limits and cameras
+        run: |
+          python tools/map/build_road_safety.py egypt.osm.pbf egypt-safety.db
+          ls -la egypt-safety.db
+
       - name: Upload map package
         uses: actions/upload-artifact@v4
         with:
@@ -51,5 +56,6 @@ jobs:
           path: |
             egypt.mbtiles
             egypt-search.db
+            egypt-safety.db
           compression-level: 1
           if-no-files-found: error
