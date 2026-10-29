@@ -8,6 +8,8 @@ import android.net.Uri
 import android.provider.Settings
 import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -65,7 +67,9 @@ import com.openlauncher.app.model.HardwareRadioState
 import com.openlauncher.app.service.NavGuidance
 import com.openlauncher.app.map.NavigationEngine
 import com.openlauncher.app.service.NavigationTracker
+import com.openlauncher.app.util.IntroVideo
 import com.openlauncher.app.util.LocationData
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -618,9 +622,22 @@ private fun DriveRow(label: String, value: String) {
 @Composable
 private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onSystemCheck: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var introSet by remember { mutableStateOf(IntroVideo.isSet(context)) }
+    val pickIntro = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch { introSet = IntroVideo.import(context, uri) }
+    }
     val openSystem = { context.launchFirst(Intent(Settings.ACTION_SETTINGS)); Unit }
     val rows: List<Pair<String, () -> Unit>> = listOf(
         (if (metric) "Units: km/h, metres" else "Units: mph, feet") to { onSetMetric(!metric) },
+        (if (introSet) "Startup video: on (tap to remove)" else "Startup video: import from USB") to {
+            if (introSet) {
+                IntroVideo.remove(context)
+                introSet = false
+            } else {
+                pickIntro.launch(arrayOf("video/*"))
+            }
+        },
         "Media access" to {
             context.launchFirst(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"), Intent(Settings.ACTION_SETTINGS))
             Unit

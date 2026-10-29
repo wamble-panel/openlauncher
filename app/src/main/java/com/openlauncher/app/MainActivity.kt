@@ -11,6 +11,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
@@ -22,8 +25,10 @@ import com.openlauncher.app.ui.components.VolumeGestureBox
 import com.openlauncher.app.ui.screen.MmiCyan
 import com.openlauncher.app.ui.screen.MmiHomeScreen
 import com.openlauncher.app.ui.screen.MmiInk
+import com.openlauncher.app.ui.screen.MmiIntro
 import com.openlauncher.app.ui.screen.MmiPageBg
 import com.openlauncher.app.util.CarLocation
+import com.openlauncher.app.util.IntroVideo
 import com.openlauncher.app.viewmodel.CarViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -70,6 +75,16 @@ class MainActivity : ComponentActivity() {
             val hardwareRadio by vm.hardwareRadio.collectAsStateWithLifecycle()
             val metric by vm.prefs.metric.collectAsStateWithLifecycle()
             val home by homeSignal.collectAsStateWithLifecycle()
+            // Startup video once per boot (cold start of the app), then the MMI shell.
+            var intro by remember { mutableStateOf(!introPlayed && IntroVideo.isSet(this)) }
+            if (intro) {
+                MmiIntro(IntroVideo.file(this)) {
+                    introPlayed = true
+                    intro = false
+                }
+                return@setContent
+            }
+            introPlayed = true
 
             VolumeGestureBox(
                 accent = MmiCyan,
@@ -129,5 +144,6 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val HOLDER = "home"
+        var introPlayed = false
     }
 }
