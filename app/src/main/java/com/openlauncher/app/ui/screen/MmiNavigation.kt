@@ -948,7 +948,7 @@ private fun ImportPanel(onBack: (() -> Unit)?, onDone: () -> Unit) {
                     Text("Download", color = MmiCyan, fontFamily = MmiFont, fontSize = 14.sp, letterSpacing = 2.sp)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Turn on your phone's hotspot and connect this screen to it, then tap Download. About 300 MB, once — after that everything works without internet.",
+                        "Turn on your phone's hotspot and connect this screen to it, then tap Download. About 470 MB, once — after that everything works without internet.",
                         color = MmiInk, fontFamily = MmiFont, fontSize = 17.sp,
                     )
                     Spacer(Modifier.weight(1f))
