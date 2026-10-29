@@ -1,0 +1,35 @@
+name: Publish maps to release
+
+# Attaches an already-built Egypt map package (artifact "egypt-map-data" from a
+# map-data run) to the maps-egypt release, where the app's Download button
+# fetches it. Map data © OpenStreetMap contributors, ODbL.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "map-data run whose egypt-map-data artifact to publish"
+        required: true
+        default: "40808573711"
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: egypt-map-data
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+          path: maps
+
+      - name: Upload to maps-egypt release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -la maps
+          gh release upload maps-egypt maps/egypt-safety.db maps/egypt-routing.graph maps/egypt-search.db maps/egypt.mbtiles --clobber
