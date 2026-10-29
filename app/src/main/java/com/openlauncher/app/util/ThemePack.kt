@@ -40,7 +40,18 @@ object ThemePack {
 
     private fun dir(context: Context) = File(context.filesDir, "theme")
 
-    fun isSet(context: Context) = dir(context).listFiles()?.isNotEmpty() == true
+    /** True when the owner imported their own pack (otherwise the built-in MMI art is used). */
+    fun isImported(context: Context) = dir(context).listFiles()?.isNotEmpty() == true
+
+    private fun prefs(context: Context) = context.getSharedPreferences("mmi_theme", Context.MODE_PRIVATE)
+
+    /** Whether the artwork is shown at all (off = the drawn theme). */
+    fun isEnabled(context: Context) = prefs(context).getBoolean("enabled", true)
+
+    fun setEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("enabled", on).apply()
+        scope.launch { _theme.value = load(context.applicationContext) }
+    }
 
     fun init(context: Context) {
         val app = context.applicationContext
@@ -67,30 +78,32 @@ object ThemePack {
         }.getOrDefault(false)
     }
 
+    /** Drops the imported pack; the built-in MMI art takes over again. */
     fun remove(context: Context) {
         dir(context).deleteRecursively()
-        _theme.value = null
+        scope.launch { _theme.value = load(context.applicationContext) }
     }
 
     private fun load(context: Context): LoadedTheme? {
+        if (!isEnabled(context)) return null
         val d = dir(context)
-        if (!d.isDirectory) return null
-        fun image(name: String, maxWidth: Int): ImageBitmap? {
-            val f = File(d, name)
-            if (!f.exists()) return null
-            return runCatching {
-                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeFile(f.absolutePath, bounds)
-                var sample = 1
-                while (bounds.outWidth / (sample * 2) >= maxWidth) sample *= 2
-                BitmapFactory.decodeFile(f.absolutePath, BitmapFactory.Options().apply { inSampleSize = sample })?.asImageBitmap()
-            }.getOrNull()
-        }
+        val imported = isImported(context)
+        // Imported pack first, else the MMI artwork shipped in the app.
+        fun open(name: String): java.io.InputStream? =
+            if (imported) File(d, name).takeIf { it.exists() }?.inputStream()
+            else runCatching { context.assets.open("theme-default/$name") }.getOrNull()
+        fun image(name: String, maxWidth: Int): ImageBitmap? = runCatching {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            (open(name) ?: return null).use { BitmapFactory.decodeStream(it, null, bounds) }
+            var sample = 1
+            while (bounds.outWidth / (sample * 2) >= maxWidth) sample *= 2
+            open(name)?.use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample }) }?.asImageBitmap()
+        }.getOrNull()
         val background = image("background.jpg", 1600) ?: image("background.png", 1600)
         val icons = listOf("dashboard", "video", "settings", "music", "phone", "navigation", "apps", "radio")
             .mapNotNull { key -> image("$key.png", 256)?.let { key to it } }.toMap()
         val ring = runCatching {
-            File(d, "theme.txt").readLines().firstOrNull { it.startsWith("ring=") }
+            open("theme.txt")?.bufferedReader()?.use { it.readLines() }?.firstOrNull { it.startsWith("ring=") }
                 ?.removePrefix("ring=")?.split(',')?.map { it.trim().toFloat() }?.takeIf { it.size == 4 }?.toFloatArray()
         }.getOrNull()
         if (background == null && icons.isEmpty()) return null

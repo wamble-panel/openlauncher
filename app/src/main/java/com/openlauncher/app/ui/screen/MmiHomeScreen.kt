@@ -615,7 +615,8 @@ private fun Orbit(
         val ownPicture by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, carProfile, pictureVersion) {
             value = CarPicture.load(pictureContext, carProfile)?.asImageBitmap()
         }
-        val carH = carW * (ownPicture?.let { it.height.toFloat() / it.width } ?: (473f / 900f))
+        val astra = carProfile == com.openlauncher.app.map.CarProfile.ASTRA_J
+        val carH = carW * (ownPicture?.let { it.height.toFloat() / it.width } ?: if (astra) 540f / 900f else 473f / 900f)
 
         Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = (intro.value * 1.6f).coerceAtMost(1f) }) {
             val c = Offset(cx.toPx(), cy.toPx())
@@ -698,7 +699,10 @@ private fun Orbit(
         if (picture != null) {
             Image(picture, contentDescription = "Your car", contentScale = ContentScale.Fit, modifier = carModifier)
         } else {
-            Image(painterResource(R.drawable.mmi_car), contentDescription = "Your car", contentScale = ContentScale.Fit, modifier = carModifier)
+            Image(
+                painterResource(if (astra) R.drawable.mmi_car_astra else R.drawable.mmi_car),
+                contentDescription = "Your car", contentScale = ContentScale.Fit, modifier = carModifier,
+            )
         }
 
         ORBIT_ITEMS.forEachIndexed { index, item ->
@@ -931,7 +935,9 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
     val carName = carProfile.label
     val pictureVersion by CarPicture.version.collectAsStateWithLifecycle()
     val hasPicture = remember(carProfile, pictureVersion) { CarPicture.has(context, carProfile) }
-    val themeSet = ThemePack.theme.collectAsStateWithLifecycle().value != null
+    val themeState = ThemePack.theme.collectAsStateWithLifecycle().value
+    val themeOn = themeState != null
+    val themeImported = remember(themeState) { ThemePack.isImported(context) }
     val pickTheme = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch { ThemePack.import(context, uri) }
     }
@@ -943,8 +949,11 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
             val next = com.openlauncher.app.map.CarProfile.entries[(RoadMemory.car.ordinal + 1) % com.openlauncher.app.map.CarProfile.entries.size]
             RoadMemory.setCar(next)
         },
-        (if (themeSet) "Theme pack: on (tap to remove)" else "Theme pack: import from USB") to {
-            if (themeSet) ThemePack.remove(context) else pickTheme.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+        (if (themeOn) "Look: MMI artwork (tap for drawn)" else "Look: drawn (tap for MMI artwork)") to {
+            ThemePack.setEnabled(context, !themeOn)
+        },
+        (if (themeImported) "Theme pack: yours (tap to remove)" else "Theme pack: import from USB") to {
+            if (themeImported) ThemePack.remove(context) else pickTheme.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
         },
         (if (hasPicture) "Car picture: yours (tap to remove)" else "Car picture: import from USB") to {
             if (hasPicture) CarPicture.remove(context, carProfile) else pickPicture.launch(arrayOf("image/*"))
