@@ -83,7 +83,7 @@ internal val MmiCyan = Color(0xFF3EC6F0)
 internal val MmiFont = FontFamily.SansSerif
 internal val MmiPageBg = Color(0xFF0B0C0E)
 
-private val ChromeRim = listOf(Color(0xFFF2F4F7), Color(0xFF8C939C), Color(0xFFDDE1E6), Color(0xFF4F555D))
+internal val ChromeRim = listOf(Color(0xFFF2F4F7), Color(0xFF8C939C), Color(0xFFDDE1E6), Color(0xFF4F555D))
 
 /** Click with a quick press-in scale, read in the draw phase so it never recomposes. */
 @Composable
@@ -503,28 +503,53 @@ internal fun MmiPhonePage(apps: List<AppInfo>) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun MmiAppsPage(apps: List<AppInfo>, onLaunch: (String) -> Unit) {
-    val sorted = remember(apps) { apps.sortedBy { it.appName.lowercase() } }
+internal fun MmiAppsPage(
+    apps: List<AppInfo>,
+    hidden: Set<String>,
+    onToggleHidden: (String) -> Unit,
+    onLaunch: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    var editing by remember { mutableStateOf(false) }
+    // Only real apps (with a launcher icon), never this launcher itself; hidden ones only while editing.
+    val shown = remember(apps, hidden, editing) {
+        apps.filter { it.launchable && it.packageName != context.packageName && (editing || it.packageName !in hidden) }
+            .sortedBy { it.appName.lowercase() }
+    }
     val perPage = 18
-    val pages = ((sorted.size + perPage - 1) / perPage).coerceAtLeast(1)
+    val pages = ((shown.size + perPage - 1) / perPage).coerceAtLeast(1)
     val pager = rememberPagerState { pages }
     Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 4.dp)) {
         HorizontalPager(pager, Modifier.weight(1f).fillMaxWidth()) { page ->
-            val slice = sorted.drop(page * perPage).take(perPage)
+            val slice = shown.drop(page * perPage).take(perPage)
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
                 slice.chunked(6).forEach { row ->
                     Row(Modifier.fillMaxWidth()) {
-                        row.forEach { app -> AppCell(app, Modifier.weight(1f)) { onLaunch(app.packageName) } }
+                        row.forEach { app ->
+                            val isHidden = app.packageName in hidden
+                            AppCell(app, Modifier.weight(1f).graphicsLayer { alpha = if (editing && isHidden) 0.3f else 1f }) {
+                                if (editing) onToggleHidden(app.packageName) else onLaunch(app.packageName)
+                            }
+                        }
                         repeat(6 - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }
         }
-        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.Center) {
-            repeat(pages) { i ->
-                val color by animateColorAsState(if (i == pager.currentPage) MmiCyan else Color(0xFF4A5058), label = "dot")
-                Box(Modifier.padding(horizontal = 4.dp).size(width = 22.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(color))
+        Box(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Row(Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.Center) {
+                repeat(pages) { i ->
+                    val color by animateColorAsState(if (i == pager.currentPage) MmiCyan else Color(0xFF4A5058), label = "dot")
+                    Box(Modifier.padding(horizontal = 4.dp).size(width = 22.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(color))
+                }
             }
+            if (editing) {
+                Text(
+                    "Tap apps to hide or show them",
+                    color = MmiDim, fontFamily = MmiFont, fontSize = 14.sp, modifier = Modifier.align(Alignment.CenterStart),
+                )
+            }
+            ChromePill(if (editing) "Done" else "Edit", { editing = !editing }, modifier = Modifier.align(Alignment.CenterEnd))
         }
     }
 }

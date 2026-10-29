@@ -2,6 +2,7 @@ package com.openlauncher.app
 
 import android.app.Application
 import com.openlauncher.app.map.NavigationEngine
+import com.openlauncher.app.util.CarAudio
 import com.openlauncher.app.util.CrashLog
 
 class CarApp : Application() {
@@ -9,5 +10,6 @@ class CarApp : Application() {
         super.onCreate()
         CrashLog.install(this)
         NavigationEngine.init(this)
+        CarAudio.init(this)
     }
 }

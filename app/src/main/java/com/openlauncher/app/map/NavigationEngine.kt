@@ -82,6 +82,14 @@ object NavigationEngine {
     private var tts: TextToSpeech? = null
     private var ttsReady = false
 
+    /** Warnings the driver can switch off in Navigation settings. */
+    @Volatile
+    var overspeedBeep = true
+        private set
+    @Volatile
+    var cameraAlerts = true
+        private set
+
     /** Voice prompt health, shown on the System check page. */
     @Volatile
     var voiceStatus: String = "Not started"
@@ -92,7 +100,10 @@ object NavigationEngine {
         if (context != null) return
         val app = ctx.applicationContext
         context = app
-        val voice = app.getSharedPreferences("mmi_nav", Context.MODE_PRIVATE).getBoolean("voice", true)
+        val navPrefs = app.getSharedPreferences("mmi_nav", Context.MODE_PRIVATE)
+        val voice = navPrefs.getBoolean("voice", true)
+        overspeedBeep = navPrefs.getBoolean("overspeed_beep", true)
+        cameraAlerts = navPrefs.getBoolean("camera_alerts", true)
         _state.update { it.copy(voiceOn = voice) }
         scope.launch(worker) { loadData() }
         // Same GPS listener as the home screen; the navigation service keeps it
@@ -168,6 +179,16 @@ object NavigationEngine {
         prefs.edit().putString("user_cameras", if (existing.isEmpty()) entry else "$existing;$entry").apply()
         cameras = cameras + SpeedCamera(lastLat, lastLon, limit, true)
         return true
+    }
+
+    fun setOverspeedBeep(on: Boolean) {
+        overspeedBeep = on
+        context?.getSharedPreferences("mmi_nav", Context.MODE_PRIVATE)?.edit()?.putBoolean("overspeed_beep", on)?.apply()
+    }
+
+    fun setCameraAlerts(on: Boolean) {
+        cameraAlerts = on
+        context?.getSharedPreferences("mmi_nav", Context.MODE_PRIVATE)?.edit()?.putBoolean("camera_alerts", on)?.apply()
     }
 
     fun setVoice(on: Boolean) {
@@ -295,9 +316,9 @@ object NavigationEngine {
             limit = freeDriveLimit
         }
 
-        val camera = nearestCameraAhead(lat, lon, course, speedKmh)
+        val camera = if (cameraAlerts) nearestCameraAhead(lat, lon, course, speedKmh) else null
         val overspeed = limit > 0 && speedKmh > limit + 4
-        if (overspeed && !s.overspeed) beep()
+        if (overspeed && !s.overspeed && overspeedBeep) beep()
 
         _state.update {
             it.copy(

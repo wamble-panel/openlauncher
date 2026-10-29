@@ -30,7 +30,7 @@ import kotlinx.coroutines.launch
 /** State and actions behind the MMI shell: apps, media, GPS, radio and supply voltage. */
 class CarViewModel(application: Application) : AndroidViewModel(application) {
 
-    val prefs = CarPrefs(application)
+    val prefs = CarPrefs.get(application)
     private val locationMgr = CarLocation.get(application)
 
     // ── Installed apps ────────────────────────────────────────────────────────
@@ -47,6 +47,9 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
 
             // Use getInstalledApplications — same source Android Settings uses,
             // catches apps with no launcher/ACTION_MAIN activity (e.g. CarPlay companions)
+            val launchable = pm.queryIntentActivities(
+                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0
+            ).map { it.activityInfo.packageName }.toSet()
             _apps.value = pm.getInstalledApplications(0)
                 .mapNotNull { appInfo ->
                     try {
@@ -55,8 +58,10 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
                         AppInfo(
                             packageName = appInfo.packageName,
                             appName     = label,
-                            icon        = pm.getApplicationIcon(appInfo),
-                            isSystemApp = (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+                            // Icons only for apps the Apps page shows; the rest are just for detection.
+                            icon        = if (appInfo.packageName in launchable) pm.getApplicationIcon(appInfo) else NO_ICON,
+                            isSystemApp = (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0,
+                            launchable  = appInfo.packageName in launchable,
                         )
                     } catch (_: Exception) { null }
                 }
@@ -257,6 +262,10 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
         radioSessionController()?.transportControls?.play()
     }
 
+    private val packageReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) = loadInstalledApps()
+    }
+
     // ── Voltage ───────────────────────────────────────────────────────────────
     // Most aftermarket head units have no real internal battery — the vendor ROM
     // wires the car's 12V input straight into Android's standard battery-voltage
@@ -287,11 +296,24 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
         radioObserver?.let { getApplication<Application>().contentResolver.unregisterContentObserver(it) }
         radioObserver = null
         runCatching { getApplication<Application>().unregisterReceiver(batteryReceiver) }
+        runCatching { getApplication<Application>().unregisterReceiver(packageReceiver) }
     }
 
     init {
         loadInstalledApps()
+        runCatching {
+            getApplication<Application>().registerReceiver(
+                packageReceiver,
+                IntentFilter().apply {
+                    addAction(Intent.ACTION_PACKAGE_ADDED)
+                    addAction(Intent.ACTION_PACKAGE_REMOVED)
+                    addDataScheme("package")
+                },
+            )
+        }
         startVoltageObserver()
         if (hasSzchoicewayMcu) startHardwareRadioObserver()
     }
 }
+
+private val NO_ICON = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)

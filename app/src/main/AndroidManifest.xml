@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Broadcast permission for MCU head unit event service -->
     <uses-permission android:name="com.szchoiceway.permission.broadcast" />
@@ -29,7 +30,11 @@
          self-assertion to compete on equal footing. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-    <!-- Edge-swipe volume gesture -->
+    <!-- MMI Display page brightness slider (user grants it once in Android settings) -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- Edge-swipe volume gesture + MMI equalizer -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <!-- MMI system check + Bluetooth page: read adapter/profile state -->

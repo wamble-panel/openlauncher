@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.openlauncher.app.R
+import com.openlauncher.app.data.CarPrefs
 import com.openlauncher.app.model.AppInfo
 import com.openlauncher.app.model.NowPlayingState
 import com.openlauncher.app.model.HardwareRadioState
@@ -78,10 +79,11 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-private enum class MmiPage(val title: String?) {
+private enum class MmiPage(val title: String?, val inSettings: Boolean = false) {
     HOME(null), DASHBOARD("Dashboard"), SETTINGS("Settings"),
     MUSIC("Music"), RADIO("Radio"), PHONE("Phone"), APPS("Apps"),
-    NAV("Navigation"), SYSTEM("System check"),
+    NAV("Navigation"), SYSTEM("System check", true),
+    DISPLAY("Display", true), SOUND("Sound", true), BLUETOOTH("Bluetooth", true), NAV_SETTINGS("Navigation settings", true),
 }
 
 /**
@@ -115,7 +117,7 @@ fun MmiHomeScreen(
     var page by rememberSaveable { mutableStateOf(MmiPage.HOME) }
     var selected by rememberSaveable { mutableStateOf("nav") }
     BackHandler(enabled = page != MmiPage.HOME) {
-        page = if (page == MmiPage.SYSTEM) MmiPage.SETTINGS else MmiPage.HOME
+        page = if (page.inSettings) MmiPage.SETTINGS else MmiPage.HOME
     }
     // Pressing the unit's Home key returns to the ring menu.
     LaunchedEffect(homeSignal) { if (homeSignal > 0) page = MmiPage.HOME }
@@ -156,7 +158,7 @@ fun MmiHomeScreen(
                 height = barHeight,
                 title = page.title,
                 nowPlaying = nowPlaying,
-                onBack = { page = if (page == MmiPage.SYSTEM) MmiPage.SETTINGS else MmiPage.HOME },
+                onBack = { page = if (page.inSettings) MmiPage.SETTINGS else MmiPage.HOME },
                 onTapNowPlaying = { page = MmiPage.MUSIC },
             )
             AnimatedContent(
@@ -201,7 +203,11 @@ fun MmiHomeScreen(
                         }
                     }
                     MmiPage.DASHBOARD -> MmiDashboardPage(location, bearing, voltage, metric)
-                    MmiPage.SETTINGS -> SettingsPanel(metric, onSetMetric) { page = MmiPage.SYSTEM }
+                    MmiPage.SETTINGS -> SettingsPanel(metric, onSetMetric) { page = it }
+                    MmiPage.DISPLAY -> MmiDisplayPage()
+                    MmiPage.SOUND -> MmiSoundPage(apps, onLaunchPackage)
+                    MmiPage.BLUETOOTH -> MmiBluetoothPage(apps, onLaunchPackage)
+                    MmiPage.NAV_SETTINGS -> MmiNavSettingsPage(metric, onSetMetric)
                     MmiPage.NAV -> MmiNavigationPage(location, metric)
                     MmiPage.SYSTEM -> MmiSystemCheckPage(apps, location)
                     MmiPage.MUSIC -> MmiMusicPage(
@@ -217,7 +223,11 @@ fun MmiHomeScreen(
                         onFm = onRadioFm, onAm = onRadioAm,
                     )
                     MmiPage.PHONE -> MmiPhonePage(apps)
-                    MmiPage.APPS -> MmiAppsPage(apps, onLaunchPackage)
+                    MmiPage.APPS -> {
+                        val prefs = remember(context) { CarPrefs.get(context) }
+                        val hidden by prefs.hiddenApps.collectAsStateWithLifecycle()
+                        MmiAppsPage(apps, hidden, prefs::toggleHidden, onLaunchPackage)
+                    }
                 }
             }
             DateBar(barHeight)
@@ -326,8 +336,9 @@ private fun DateBar(height: Dp) {
         }
     }
     val dateFmt = remember { SimpleDateFormat("MMMM d, yyyy", Locale.getDefault()) }
-    val timeFmt = remember(context) {
-        SimpleDateFormat(if (DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm a", Locale.getDefault())
+    val clock24 by CarPrefs.get(context).clock24.collectAsStateWithLifecycle()
+    val timeFmt = remember(clock24) {
+        SimpleDateFormat(if (clock24) "HH:mm" else "h:mm a", Locale.getDefault())
     }
     val density = LocalDensity.current
     val dateSize = with(density) { (height * 0.42f).toSp() }
@@ -620,7 +631,7 @@ private fun DriveRow(label: String, value: String) {
 // ── Settings page ────────────────────────────────────────────────────────────
 
 @Composable
-private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onSystemCheck: () -> Unit) {
+private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpen: (MmiPage) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var introSet by remember { mutableStateOf(IntroVideo.isSet(context)) }
@@ -629,6 +640,10 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onSys
     }
     val openSystem = { context.launchFirst(Intent(Settings.ACTION_SETTINGS)); Unit }
     val rows: List<Pair<String, () -> Unit>> = listOf(
+        "Display" to { onOpen(MmiPage.DISPLAY) },
+        "Sound" to { onOpen(MmiPage.SOUND) },
+        "Bluetooth" to { onOpen(MmiPage.BLUETOOTH) },
+        "Navigation" to { onOpen(MmiPage.NAV_SETTINGS) },
         (if (metric) "Units: km/h, metres" else "Units: mph, feet") to { onSetMetric(!metric) },
         (if (introSet) "Startup video: on (tap to remove)" else "Startup video: import from USB") to {
             if (introSet) {
@@ -646,25 +661,9 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onSys
             context.launchFirst(Intent(Settings.ACTION_HOME_SETTINGS), Intent(Settings.ACTION_SETTINGS))
             Unit
         },
-        "System" to { context.launchFirst(Intent(Settings.ACTION_SETTINGS)); Unit },
-        "Navigation" to { context.launchFirst(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)); Unit },
-        "Volume" to {
-            (context.getSystemService(Context.AUDIO_SERVICE) as AudioManager)
-                .adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_SAME, AudioManager.FLAG_SHOW_UI)
-        },
-        "Sound" to {
-            context.launchFirst(
-                Intent(AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL).putExtra(AudioEffect.EXTRA_AUDIO_SESSION, 0),
-                Intent(Settings.ACTION_SOUND_SETTINGS),
-            )
-            Unit
-        },
-        "Bluetooth" to { context.launchFirst(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)); Unit },
-        "Wi-Fi" to { context.launchFirst(Intent(Settings.ACTION_WIFI_SETTINGS)); Unit },
-        "Display" to { context.launchFirst(Intent(Settings.ACTION_DISPLAY_SETTINGS)); Unit },
-        "Language" to { context.launchFirst(Intent(Settings.ACTION_LOCALE_SETTINGS)); Unit },
-        "Time" to { context.launchFirst(Intent(Settings.ACTION_DATE_SETTINGS)); Unit },
-        "System check" to onSystemCheck,
+        "Date & time" to { context.launchFirst(Intent(Settings.ACTION_DATE_SETTINGS)); Unit },
+        "System check" to { onOpen(MmiPage.SYSTEM) },
+        "Android settings" to openSystem,
     )
     BoxWithConstraints(Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, bottom = 8.dp)) {
         val panelHeight = maxHeight
