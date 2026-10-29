@@ -122,12 +122,24 @@ fun MmiHomeScreen(
     }
     val openMusicApp = {
         val pkg = nowPlaying?.controller?.packageName
+        val btMusic = apps.findByLabel("bt music", "bluetooth music", "a2dp", "bt audio")
         when {
             !pkg.isNullOrEmpty() -> onLaunchPackage(pkg)
+            btMusic != null -> onLaunchPackage(btMusic.packageName)
             context.launchFirst(Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_MUSIC)) -> Unit
             else -> apps.findByLabel("music")?.let { onLaunchPackage(it.packageName) } ?: Unit
         }
     }
+    // With no media session (some vendor Bluetooth-music apps publish none), fall back to
+    // media-button presses, which the Bluetooth app forwards to the phone like steering-wheel keys.
+    val audio = remember(context) { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    fun mediaKey(code: Int) {
+        audio.dispatchMediaKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, code))
+        audio.dispatchMediaKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, code))
+    }
+    val playPause = { if (nowPlaying?.controller != null) onPlayPause() else mediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) }
+    val next = { if (nowPlaying?.controller != null) onNext() else mediaKey(android.view.KeyEvent.KEYCODE_MEDIA_NEXT) }
+    val prev = { if (nowPlaying?.controller != null) onPrev() else mediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS) }
 
     BoxWithConstraints(Modifier.fillMaxSize().mmiBackdrop()) {
         val barHeight = maxHeight * 0.11f
@@ -186,7 +198,7 @@ fun MmiHomeScreen(
                     MmiPage.SYSTEM -> MmiSystemCheckPage(apps, location)
                     MmiPage.MUSIC -> MmiMusicPage(
                         state = nowPlaying,
-                        onPlayPause = onPlayPause, onNext = onNext, onPrev = onPrev,
+                        onPlayPause = playPause, onNext = next, onPrev = prev,
                         onOpenSource = openMusicApp,
                         onOpenMusicApp = openMusicApp,
                     )

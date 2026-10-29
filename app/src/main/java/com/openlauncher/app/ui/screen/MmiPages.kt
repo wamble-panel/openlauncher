@@ -178,11 +178,24 @@ internal fun MmiMusicPage(
             Spacer(Modifier.width(48.dp))
             Column(Modifier.weight(1f)) {
                 if (state == null) {
-                    Text("No audio source", color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 32.sp)
+                    Text("BLUETOOTH AUDIO", color = MmiCyan, fontFamily = MmiFont, fontSize = 13.sp, letterSpacing = 2.sp)
+                    Spacer(Modifier.height(6.dp))
+                    Text("No track info", color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 32.sp)
                     Spacer(Modifier.height(8.dp))
-                    Text("Start music on your phone or open a music app.", color = MmiDim, fontFamily = MmiFont, fontSize = 17.sp)
+                    Text(
+                        "Play music on your phone. The buttons below still control it over Bluetooth.",
+                        color = MmiDim, fontFamily = MmiFont, fontSize = 17.sp,
+                    )
                     Spacer(Modifier.height(28.dp))
-                    ChromePill("Open music app", onOpenMusicApp, MmiLine.NOTE)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ChromeButton(MmiLine.PREV, 64.dp, onPrev)
+                        Spacer(Modifier.width(22.dp))
+                        ChromeButton(MmiLine.PLAY, 84.dp, onPlayPause, highlighted = true)
+                        Spacer(Modifier.width(22.dp))
+                        ChromeButton(MmiLine.NEXT, 64.dp, onNext)
+                        Spacer(Modifier.width(36.dp))
+                        ChromePill("Music app", onOpenMusicApp, MmiLine.NOTE)
+                    }
                 } else {
                     Text(
                         context.appLabel(state.controller?.packageName)?.uppercase() ?: "MEDIA",
