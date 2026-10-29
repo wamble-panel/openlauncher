@@ -49,6 +49,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -71,6 +73,7 @@ import com.openlauncher.app.model.HardwareRadioState
 import com.openlauncher.app.service.NavGuidance
 import com.openlauncher.app.map.NavigationEngine
 import com.openlauncher.app.service.NavigationTracker
+import com.openlauncher.app.util.BtConnect
 import com.openlauncher.app.util.IntroVideo
 import com.openlauncher.app.util.LocationData
 import kotlinx.coroutines.launch
@@ -171,23 +174,56 @@ fun MmiHomeScreen(
     val next = { if (nowPlaying?.controller != null) onNext() else mediaKey(android.view.KeyEvent.KEYCODE_MEDIA_NEXT) }
     val prev = { if (nowPlaying?.controller != null) onPrev() else mediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS) }
 
-    BoxWithConstraints(Modifier.fillMaxSize().mmiBackdrop()) {
+    // Idle: with no touch, no music playing and no phone connected for a while,
+    // the screen fades over to the map, like a parked MMI.
+    var lastTouch by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var idleFade by remember { mutableStateOf(false) }
+    val playing = nowPlaying?.isPlaying == true
+    LaunchedEffect(page, lastTouch, playing) {
+        if (page == MmiPage.NAV || playing) return@LaunchedEffect
+        delay(IDLE_TO_MAP_MS)
+        val busy = BtConnect.anyConnected() || nowPlaying?.isPlaying == true || !MapData.isInstalled(context)
+        if (!busy) {
+            idleFade = true
+            page = MmiPage.NAV
+        }
+    }
+
+    BoxWithConstraints(
+        Modifier.fillMaxSize().mmiBackdrop().pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) {
+                    awaitPointerEvent(PointerEventPass.Initial)
+                    lastTouch = System.currentTimeMillis()
+                    idleFade = false
+                }
+            }
+        },
+    ) {
         val barHeight = maxHeight * 0.11f
         val cardWidth = maxWidth * 0.24f
+        // Navigation is full screen with its own rail and buttons, as in the Audi MMI.
+        val fullScreen = page == MmiPage.NAV
         Column(Modifier.fillMaxSize()) {
-            TopBar(
-                height = barHeight,
-                title = page.title,
-                nowPlaying = nowPlaying,
-                onBack = back,
-                onTapNowPlaying = { page = MmiPage.MUSIC },
-            )
+            if (!fullScreen) {
+                TopBar(
+                    height = barHeight,
+                    title = page.title,
+                    nowPlaying = nowPlaying,
+                    onBack = back,
+                    onTapNowPlaying = { page = MmiPage.MUSIC },
+                )
+            }
             AnimatedContent(
                 targetState = page,
                 transitionSpec = {
-                    (fadeIn(tween(260, delayMillis = 60)) +
-                        scaleIn(tween(320, easing = FastOutSlowInEasing), initialScale = 0.94f)) togetherWith
-                        (fadeOut(tween(180)) + scaleOut(tween(220), targetScale = 1.04f))
+                    if (targetState == MmiPage.NAV && idleFade) {
+                        fadeIn(tween(1100, delayMillis = 200)) togetherWith fadeOut(tween(800))
+                    } else {
+                        (fadeIn(tween(260, delayMillis = 60)) +
+                            scaleIn(tween(320, easing = FastOutSlowInEasing), initialScale = 0.94f)) togetherWith
+                            (fadeOut(tween(180)) + scaleOut(tween(220), targetScale = 1.04f))
+                    }
                 },
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 label = "mmi_page",
@@ -243,7 +279,15 @@ fun MmiHomeScreen(
                         onConnectNew = { pairOnOpen = true; bluetoothFrom = MmiPage.BT_HUB; page = MmiPage.BLUETOOTH },
                     )
                     MmiPage.NAV_SETTINGS -> MmiNavSettingsPage(metric, onSetMetric)
-                    MmiPage.NAV -> MmiNavigationPage(location, metric)
+                    MmiPage.NAV -> MmiNavigationPage(location, metric) { key ->
+                        page = when (key) {
+                            "radio" -> MmiPage.RADIO
+                            "music" -> MmiPage.MUSIC
+                            "phone" -> MmiPage.BT_HUB
+                            "settings" -> MmiPage.NAV_SETTINGS
+                            else -> MmiPage.HOME
+                        }
+                    }
                     MmiPage.SYSTEM -> MmiSystemCheckPage(apps, location)
                     MmiPage.MUSIC -> MmiMusicPage(
                         state = nowPlaying,
@@ -269,10 +313,12 @@ fun MmiHomeScreen(
                     }
                 }
             }
-            DateBar(barHeight)
+            if (!fullScreen) DateBar(barHeight)
         }
     }
 }
+
+private const val IDLE_TO_MAP_MS = 45_000L
 
 // ── Backdrop ─────────────────────────────────────────────────────────────────
 

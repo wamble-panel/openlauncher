@@ -225,7 +225,7 @@ enum class MmiLine {
     CHEVRON_LEFT, ARROW, MENU, PREV, NEXT, PLAY, PAUSE,
     CALL, BACKSPACE, OPEN, BLUETOOTH, CONTACTS, NOTE,
     PLUS, MINUS, LOCATE, SEARCH, STAR, STAR_FILLED, HISTORY, PIN, FUEL, CLOSE, HOME, FLAG, CARD, GLOBE,
-    SPEAKER, MUTE, CAMERA, MOUNTAIN, BATTERY,
+    SPEAKER, MUTE, CAMERA, MOUNTAIN, BATTERY, GRID, ANTENNA, NAV_ARROW, GEAR,
 }
 
 @Composable
@@ -337,6 +337,28 @@ private fun linePaths(kind: MmiLine, s: Float): Pair<List<Path>, List<Path>> = w
     MmiLine.MUTE -> listOf(
         path(s) { moveTo(0.64f * it, 0.36f * it); lineTo(0.90f * it, 0.64f * it); moveTo(0.90f * it, 0.36f * it); lineTo(0.64f * it, 0.64f * it) },
     ) to listOf(poly(s, 0.10f to 0.38f, 0.26f to 0.38f, 0.50f to 0.16f, 0.50f to 0.84f, 0.26f to 0.62f, 0.10f to 0.62f))
+    MmiLine.GRID -> listOf(
+        path(s) { addRect(Rect(0.14f * it, 0.14f * it, 0.44f * it, 0.44f * it)) },
+        path(s) { addRect(Rect(0.56f * it, 0.14f * it, 0.86f * it, 0.44f * it)) },
+        path(s) { addRect(Rect(0.14f * it, 0.56f * it, 0.44f * it, 0.86f * it)) },
+        path(s) { addRect(Rect(0.56f * it, 0.56f * it, 0.86f * it, 0.86f * it)) },
+    ) to emptyList<Path>()
+    MmiLine.ANTENNA -> listOf(
+        path(s) { moveTo(0.5f * it, 0.42f * it); lineTo(0.5f * it, 0.92f * it) },
+        path(s) { addArc(Rect(0.30f * it, 0.16f * it, 0.70f * it, 0.56f * it), 130f, 100f); addArc(Rect(0.30f * it, 0.16f * it, 0.70f * it, 0.56f * it), -50f, 100f) },
+        path(s) { addArc(Rect(0.12f * it, 0.0f * it, 0.88f * it, 0.72f * it), 135f, 90f); addArc(Rect(0.12f * it, 0.0f * it, 0.88f * it, 0.72f * it), -45f, 90f) },
+    ) to listOf(circle(0.5f, 0.36f, 0.06f, s))
+    MmiLine.NAV_ARROW -> emptyList<Path>() to listOf(poly(s, 0.5f to 0.08f, 0.86f to 0.90f, 0.5f to 0.70f, 0.14f to 0.90f))
+    MmiLine.GEAR -> listOf(
+        circle(0.5f, 0.5f, 0.17f, s),
+        path(s) {
+            for (i in 0 until 8) {
+                val a = Math.toRadians(i * 45.0)
+                moveTo((0.5f + 0.27f * kotlin.math.cos(a).toFloat()) * it, (0.5f + 0.27f * kotlin.math.sin(a).toFloat()) * it)
+                lineTo((0.5f + 0.40f * kotlin.math.cos(a).toFloat()) * it, (0.5f + 0.40f * kotlin.math.sin(a).toFloat()) * it)
+            }
+        },
+    ) to emptyList<Path>()
     MmiLine.MOUNTAIN -> listOf(path(s) {
         moveTo(0.06f * it, 0.84f * it); lineTo(0.38f * it, 0.30f * it); lineTo(0.56f * it, 0.58f * it)
         lineTo(0.68f * it, 0.44f * it); lineTo(0.94f * it, 0.84f * it); close()

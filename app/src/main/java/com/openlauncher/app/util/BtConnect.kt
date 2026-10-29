@@ -61,6 +61,10 @@ object BtConnect {
     fun isConnected(device: BluetoothDevice): Boolean =
         runCatching { device.javaClass.getMethod("isConnected").invoke(device) as Boolean }.getOrDefault(false)
 
+    /** Whether any paired phone is connected right now. */
+    fun anyConnected(): Boolean =
+        runCatching { adapter?.bondedDevices?.any { isConnected(it) } == true }.getOrDefault(false)
+
     /** Asks the unit to connect calls and music to [address]. True if the stack accepted the request. */
     fun connect(address: String): Boolean {
         val device = runCatching { adapter?.getRemoteDevice(address) }.getOrNull() ?: return false

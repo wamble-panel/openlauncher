@@ -24,6 +24,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -183,7 +184,7 @@ internal object PersistentMap {
  * points of interest, favourites and recent destinations.
  */
 @Composable
-internal fun MmiNavigationPage(location: LocationData?, metric: Boolean) {
+internal fun MmiNavigationPage(location: LocationData?, metric: Boolean, onOpenPage: (String) -> Unit) {
     val context = LocalContext.current
     var installed by remember { mutableStateOf(MapData.isInstalled(context)) }
     var screen by remember { mutableStateOf(if (installed) NavScreen.MAP else NavScreen.IMPORT) }
@@ -224,7 +225,10 @@ internal fun MmiNavigationPage(location: LocationData?, metric: Boolean) {
                 here = here,
                 nav = nav,
                 metric = metric,
+                altitude = location?.altitude,
                 onOpenDestination = { screen = NavScreen.DESTINATION },
+                onSearch = { screen = NavScreen.SEARCH },
+                onOpenPage = onOpenPage,
                 onEnd = { NavigationEngine.stop() },
             )
         }
@@ -307,11 +311,15 @@ private fun NavMap(
     here: LatLng?,
     nav: NavState,
     metric: Boolean,
+    altitude: Double?,
     onOpenDestination: () -> Unit,
+    onSearch: () -> Unit,
+    onOpenPage: (String) -> Unit,
     onEnd: () -> Unit,
 ) {
     val context = LocalContext.current
     val holder = PersistentMap
+    var northUp by remember { mutableStateOf(false) }
     var following by remember { mutableStateOf(true) }
     var toast by remember { mutableStateOf<String?>(null) }
     val course = nav.course
@@ -390,7 +398,7 @@ private fun NavMap(
             PropertyFactory.visibility(if (following) Property.NONE else Property.VISIBLE)
         )
         if (!following) return@LaunchedEffect
-        snapshotFlow { Triple(progress.value, zoom.value, zoomOffset) }.collect { (t, zBase, zOff) ->
+        snapshotFlow { listOf(progress.value, zoom.value, zoomOffset, if (northUp) 1f else 0f) }.collect { (t, zBase, zOff, north) ->
             val z = (zBase + zOff).coerceIn(10f, 19f)
             if (from[0] == 0.0 && to[0] == 0.0) return@collect
             shown[0] = from[0] + (to[0] - from[0]) * t
@@ -399,7 +407,7 @@ private fun NavMap(
             map.moveCamera(
                 CameraUpdateFactory.newCameraPosition(
                     CameraPosition.Builder().target(LatLng(shown[0], shown[1]))
-                        .zoom(z.toDouble()).tilt(0.0).bearing((shown[2] % 360.0 + 360.0) % 360.0).build()
+                        .zoom(z.toDouble()).tilt(0.0).bearing(if (north > 0f) 0.0 else (shown[2] % 360.0 + 360.0) % 360.0).build()
                 )
             )
         }
@@ -446,12 +454,34 @@ private fun NavMap(
             modifier = Modifier.fillMaxSize(),
         )
         if (following && here != null) {
-            Image(vehicle, contentDescription = null, modifier = Modifier.align(Alignment.Center).size(44.dp))
+            Image(
+                vehicle, contentDescription = null,
+                modifier = Modifier.align(Alignment.Center).size(44.dp).graphicsLayer { rotationZ = if (northUp) course else 0f },
+            )
         }
         if (reveal > 0f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = reveal }.background(MmiPageBg))
 
-        if (destination != null) {
-            Column(Modifier.align(Alignment.TopStart).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Left rail, as in the Audi MMI: quick jumps without leaving the map.
+        NavRail(Modifier.align(Alignment.CenterStart), onOpenPage)
+
+        Column(
+            Modifier.align(Alignment.TopStart).padding(start = 76.dp, top = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Box(Modifier.size(48.dp).pressable(onOpenDestination).mmiPanel(), contentAlignment = Alignment.Center) {
+                    MmiLineIcon(MmiLine.GRID, MmiInk, Modifier.size(24.dp))
+                }
+                Row(
+                    Modifier.height(48.dp).widthIn(min = 170.dp).pressable(onSearch).mmiPanel().padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    MmiLineIcon(MmiLine.SEARCH, MmiInk, Modifier.size(22.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text("Search", color = MmiInk, fontFamily = MmiFont, fontSize = 18.sp)
+                }
+            }
+            if (destination != null) {
                 if (route != null || nav.calculating) {
                     ManeuverPanel(nav, metric)
                 } else {
@@ -469,12 +499,14 @@ private fun NavMap(
                     )
                 }
             }
-            TripPanel(nav, here, metric, Modifier.align(Alignment.BottomStart).padding(16.dp), onEnd)
+        }
+        if (destination != null) {
+            TripPanel(nav, here, metric, Modifier.align(Alignment.BottomStart).padding(start = 76.dp, bottom = 12.dp), onEnd)
         }
 
         nav.camera?.let { cam ->
             Row(
-                Modifier.align(Alignment.TopCenter).padding(top = 16.dp)
+                Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp)
                     .clip(RoundedCornerShape(4.dp)).background(Color(0xE6B71C1C)).padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -491,59 +523,76 @@ private fun NavMap(
             }
         }
 
+        // Top right: clock, compass (heading-up / north-up) and settings.
         Column(
-            Modifier.align(Alignment.CenterEnd).padding(end = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            Modifier.align(Alignment.TopEnd).padding(end = 12.dp, top = 12.dp),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            ChromeButton(MmiLine.PLUS, 46.dp, {
-                if (following) zoomOffset = (zoomOffset + 1f).coerceAtMost(3f)
-                else holder.map?.animateCamera(CameraUpdateFactory.zoomIn(), 250)
-            })
-            ChromeButton(MmiLine.MINUS, 46.dp, {
-                if (following) zoomOffset = (zoomOffset - 1f).coerceAtLeast(-4f)
-                else holder.map?.animateCamera(CameraUpdateFactory.zoomOut(), 250)
-            })
-            ChromeButton(MmiLine.LOCATE, 46.dp, { following = true }, highlighted = !following)
-            ChromeButton(if (nav.voiceOn) MmiLine.SPEAKER else MmiLine.MUTE, 46.dp, { NavigationEngine.setVoice(!nav.voiceOn) })
-            ChromeButton(MmiLine.CAMERA, 46.dp, {
-                toast = if (NavigationEngine.markCamera()) "Camera saved at this spot" else "No GPS fix yet"
-            })
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                NavClock()
+                Spacer(Modifier.width(4.dp))
+                Box(
+                    Modifier.size(48.dp).pressable { northUp = !northUp; following = true }.mmiPanel(),
+                    contentAlignment = Alignment.Center,
+                ) { CompassButton(if (northUp) 0f else -course, northUp) }
+                Box(Modifier.size(48.dp).pressable { onOpenPage("settings") }.mmiPanel(), contentAlignment = Alignment.Center) {
+                    MmiLineIcon(MmiLine.GEAR, MmiInk, Modifier.size(24.dp))
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.End) {
+                ChromeButton(MmiLine.PLUS, 42.dp, {
+                    if (following) zoomOffset = (zoomOffset + 1f).coerceAtMost(3f)
+                    else holder.map?.animateCamera(CameraUpdateFactory.zoomIn(), 250)
+                })
+                ChromeButton(MmiLine.MINUS, 42.dp, {
+                    if (following) zoomOffset = (zoomOffset - 1f).coerceAtLeast(-4f)
+                    else holder.map?.animateCamera(CameraUpdateFactory.zoomOut(), 250)
+                })
+                ChromeButton(MmiLine.LOCATE, 42.dp, { following = true }, highlighted = !following)
+                ChromeButton(if (nav.voiceOn) MmiLine.SPEAKER else MmiLine.MUTE, 42.dp, { NavigationEngine.setVoice(!nav.voiceOn) })
+                ChromeButton(MmiLine.CAMERA, 42.dp, {
+                    toast = if (NavigationEngine.markCamera()) "Camera saved at this spot" else "No GPS fix yet"
+                })
+            }
         }
 
-        // Speed limit sign with the current speed, bottom-left above the trip bar.
+        // Bottom right info box, like the Audi one: limit, speed, altitude.
         if (here != null) {
             Column(
-                Modifier.align(Alignment.BottomStart).padding(start = 20.dp, bottom = if (destination != null) 84.dp else 18.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 12.dp).width(150.dp).mmiPanel().padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                if (nav.speedLimit > 0) {
-                    SpeedLimitSign(nav.speedLimit, Modifier.size(60.dp))
-                    Spacer(Modifier.height(4.dp))
-                }
-                val speed = if (metric) nav.speedKmh else nav.speedKmh / 1.609f
-                Row(
-                    Modifier.mmiPanel().padding(horizontal = 12.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.Bottom,
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (nav.speedLimit > 0) {
+                        SpeedLimitSign(nav.speedLimit, Modifier.size(46.dp))
+                        Spacer(Modifier.width(10.dp))
+                    }
+                    val speed = if (metric) nav.speedKmh else nav.speedKmh / 1.609f
                     Text(
                         "${speed.roundToInt()}", color = if (nav.overspeed) Color(0xFFFF5252) else MmiInk,
-                        fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 26.sp,
+                        fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 28.sp,
                     )
                     Spacer(Modifier.width(4.dp))
-                    Text(if (metric) "km/h" else "mph", color = MmiDim, fontFamily = MmiFont, fontSize = 12.sp, modifier = Modifier.padding(bottom = 5.dp))
+                    Text(if (metric) "km/h" else "mph", color = MmiDim, fontFamily = MmiFont, fontSize = 12.sp)
+                }
+                if (altitude != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        MmiLineIcon(MmiLine.MOUNTAIN, MmiDim, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            if (metric) "${altitude.roundToInt()} m" else "${(altitude * 3.281).roundToInt()} ft",
+                            color = MmiInk, fontFamily = MmiFont, fontSize = 15.sp,
+                        )
+                    }
                 }
             }
         }
 
-        ChromePill(
-            if (destination == null) "Select destination" else "Destination",
-            onOpenDestination, MmiLine.SEARCH,
-            Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp),
-        )
         if (here == null) {
             Text(
                 "Waiting for GPS…", color = MmiInk, fontFamily = MmiFont, fontSize = 15.sp,
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp).mmiPanel().padding(horizontal = 14.dp, vertical = 8.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp).mmiPanel().padding(horizontal = 14.dp, vertical = 8.dp),
             )
         }
         toast?.let {
@@ -553,6 +602,63 @@ private fun NavMap(
             )
         }
     }
+}
+
+private val RAIL = listOf(
+    "home" to MmiLine.HOME,
+    "radio" to MmiLine.ANTENNA,
+    "music" to MmiLine.NOTE,
+    "phone" to MmiLine.CALL,
+    "nav" to MmiLine.NAV_ARROW,
+)
+
+@Composable
+private fun NavRail(modifier: Modifier, onOpen: (String) -> Unit) {
+    Column(
+        modifier.fillMaxHeight().width(64.dp)
+            .background(Brush.horizontalGradient(listOf(Color(0xF00A0B0D), Color(0xD00A0B0D))))
+            .padding(vertical = 10.dp),
+        verticalArrangement = Arrangement.SpaceEvenly,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        RAIL.forEach { (key, icon) ->
+            val active = key == "nav"
+            Box(
+                Modifier.size(52.dp).pressable { if (!active) onOpen(key) },
+                contentAlignment = Alignment.Center,
+            ) {
+                MmiLineIcon(icon, if (active) MmiCyan else MmiInk, Modifier.size(if (active) 28.dp else 26.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompassButton(rotation: Float, northUp: Boolean) {
+    val turn by animateFloatAsState(rotation, tween(400), label = "compass_btn")
+    Box(Modifier.size(34.dp).graphicsLayer { rotationZ = turn }, contentAlignment = Alignment.TopCenter) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawCircle(if (northUp) MmiCyan else MmiInk, size.minDimension / 2f, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
+        }
+        Text("N", color = if (northUp) MmiCyan else MmiInk, fontFamily = MmiFont, fontSize = 13.sp, modifier = Modifier.padding(top = 3.dp))
+    }
+}
+
+@Composable
+private fun NavClock() {
+    val context = LocalContext.current
+    val clock24 by com.openlauncher.app.data.CarPrefs.get(context).clock24.collectAsStateWithLifecycle()
+    val now by produceState(System.currentTimeMillis()) {
+        while (true) {
+            value = System.currentTimeMillis()
+            delay(60_000 - value % 60_000)
+        }
+    }
+    val fmt = remember(clock24) { java.text.SimpleDateFormat(if (clock24) "HH:mm" else "h:mm a", java.util.Locale.getDefault()) }
+    Text(
+        fmt.format(java.util.Date(now)), color = MmiInk, fontFamily = MmiFont, fontSize = 18.sp,
+        modifier = Modifier.mmiPanel().padding(horizontal = 12.dp, vertical = 12.dp),
+    )
 }
 
 @Composable
