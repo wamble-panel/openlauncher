@@ -86,7 +86,7 @@ private enum class MmiPage(val title: String?, val inSettings: Boolean = false) 
     HOME(null), DASHBOARD("Dashboard"), SETTINGS("Settings"),
     MUSIC("Music"), RADIO("Radio"), BT_HUB("Bluetooth"), PHONE("Telephone"), APPS("Apps"),
     NAV("Navigation"), SYSTEM("System check", true),
-    DISPLAY("Display", true), SOUND("Sound", true), BLUETOOTH("Bluetooth devices", true), NAV_SETTINGS("Navigation settings", true),
+    PERMISSIONS("Permissions", true), DISPLAY("Display", true), SOUND("Sound", true), BLUETOOTH("Bluetooth devices", true), NAV_SETTINGS("Navigation settings", true),
 }
 
 /**
@@ -131,6 +131,15 @@ fun MmiHomeScreen(
         }
     }
     BackHandler(enabled = page != MmiPage.HOME) { back() }
+    // First start after install: show the permissions checklist once if anything is missing.
+    val startContext = LocalContext.current
+    LaunchedEffect(Unit) {
+        val prefs = startContext.getSharedPreferences("mmi_prefs", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("permissions_shown", false) && !startContext.allPermissionsGranted()) {
+            prefs.edit().putBoolean("permissions_shown", true).apply()
+            page = MmiPage.PERMISSIONS
+        }
+    }
     // Pressing the unit's Home key returns to the ring menu.
     LaunchedEffect(homeSignal) { if (homeSignal > 0) page = MmiPage.HOME }
     val context = LocalContext.current
@@ -223,6 +232,7 @@ fun MmiHomeScreen(
                         page = it
                     }
                     MmiPage.DISPLAY -> MmiDisplayPage()
+                    MmiPage.PERMISSIONS -> MmiPermissionsPage()
                     MmiPage.SOUND -> MmiSoundPage(apps, onLaunchPackage)
                     MmiPage.BLUETOOTH -> MmiBluetoothPage(apps, onLaunchPackage, startPairing = pairOnOpen)
                     MmiPage.BT_HUB -> MmiBluetoothHub(
@@ -752,14 +762,7 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
                 pickIntro.launch(arrayOf("video/*"))
             }
         },
-        "Media access" to {
-            context.launchFirst(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"), Intent(Settings.ACTION_SETTINGS))
-            Unit
-        },
-        "Default home screen" to {
-            context.launchFirst(Intent(Settings.ACTION_HOME_SETTINGS), Intent(Settings.ACTION_SETTINGS))
-            Unit
-        },
+        "Permissions" to { onOpen(MmiPage.PERMISSIONS) },
         "Date & time" to { context.launchFirst(Intent(Settings.ACTION_DATE_SETTINGS)); Unit },
         "System check" to { onOpen(MmiPage.SYSTEM) },
         "Android settings" to openSystem,
