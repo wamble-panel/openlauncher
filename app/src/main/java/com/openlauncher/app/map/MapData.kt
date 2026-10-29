@@ -21,6 +21,7 @@ object MapData {
     fun tiles(context: Context) = File(dir(context), "egypt.mbtiles")
     fun search(context: Context) = File(dir(context), "egypt-search.db")
     fun safety(context: Context) = File(dir(context), "egypt-safety.db")
+    fun routing(context: Context) = File(dir(context), "egypt-routing.graph")
     fun isInstalled(context: Context) = tiles(context).length() > 0 && search(context).length() > 0
 
     /**
@@ -40,6 +41,7 @@ object MapData {
             }
             when {
                 name.endsWith(".mbtiles", ignoreCase = true) -> Triple(uri, tiles(context), size)
+                name.endsWith(".graph", ignoreCase = true) -> Triple(uri, routing(context), size)
                 name.contains("safety", ignoreCase = true) && name.endsWith(".db", ignoreCase = true) -> Triple(uri, safety(context), size)
                 name.endsWith(".db", ignoreCase = true) -> Triple(uri, search(context), size)
                 else -> null
