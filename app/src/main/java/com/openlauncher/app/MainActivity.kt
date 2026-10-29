@@ -147,7 +147,7 @@ class MainActivity : ComponentActivity() {
             val textColor      = resolvedTheme?.ink
                 ?: if (isDayMode) Color(0xFF111111) else Color(settings.fontColor)
             val bgGradientEnd  = Color(settings.gradientEndColor)
-            val bgBrush        = if (settings.useCustomBackgroundColor && settings.useGradient) {
+            val customBrush    = if (settings.useCustomBackgroundColor && settings.useGradient) {
                 val colors = listOf(bg, bgGradientEnd)
                 when (settings.gradientDirection) {
                     GradientDirection.TOP_TO_BOTTOM -> androidx.compose.ui.graphics.Brush.verticalGradient(colors)
@@ -156,6 +156,8 @@ class MainActivity : ComponentActivity() {
                     GradientDirection.RADIAL -> androidx.compose.ui.graphics.Brush.radialGradient(colors)
                 }
             } else null
+            // A dashboard theme's gradient wins over the user's custom gradient when a preset is active.
+            val bgBrush = resolvedTheme?.backgroundBrush ?: customBrush
 
             val currentContext = LocalContext.current
             val localizedContext = remember(settings.appLanguage, currentContext) {

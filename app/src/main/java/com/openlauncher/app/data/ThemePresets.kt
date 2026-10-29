@@ -1,5 +1,6 @@
 package com.openlauncher.app.data
 
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -8,6 +9,10 @@ import androidx.compose.ui.graphics.Color
  * neutral with only the accent swapped, and not the dark accent simply dropped
  * onto white. Every accent/surface pair here was contrast-checked (WCAG) before
  * landing: see the design artifact this was picked from for the exact ratios.
+ *
+ * Themes may also carry a gradient endpoint. When set, the resolved theme exposes
+ * a Brush that the home screen uses as its background in place of the flat color
+ * (widgets still sit on the flat surface, which stays opaque under them).
  */
 data class DashboardThemeDef(
     val id: String,
@@ -16,7 +21,10 @@ data class DashboardThemeDef(
     val darkBg: Long,
     val darkInk: Long,
     val lightAccent: Long,
-    val lightBg: Long
+    val lightBg: Long,
+    val darkGradientEnd: Long? = null,
+    val lightGradientEnd: Long? = null,
+    val gradient: GradientDirection? = null,
 )
 
 val DASHBOARD_THEMES = listOf(
@@ -59,20 +67,40 @@ val DASHBOARD_THEMES = listOf(
         id = "instrument", label = "Instrument Cluster",
         darkAccent  = 0xFFFFA23DL, darkBg  = 0xFF14100AL, darkInk = 0xFFF3ECDDL,
         lightAccent = 0xFF1F2A44L, lightBg = 0xFFF0E6D2L
-    )
+    ),
+    DashboardThemeDef(
+        id = "mbux", label = "MBUX",
+        darkAccent  = 0xFF5BC8FFL, darkBg  = 0xFF01060EL, darkInk = 0xFFF2F7FCL,
+        lightAccent = 0xFF1E6FB3L, lightBg = 0xFFE4EEF8L,
+        darkGradientEnd  = 0xFF0A3E7AL,
+        lightGradientEnd = 0xFFCDE0F2L,
+        gradient = GradientDirection.RADIAL,
+    ),
 )
 
 data class ResolvedTheme(
     val accent: Color,
     val background: Color,
-    val ink: Color?  // non-null only in dark mode — light mode keeps the app's existing neutral ink
+    val ink: Color?,  // non-null only in dark mode — light mode keeps the app's existing neutral ink
+    val backgroundBrush: Brush? = null,
 )
 
 fun resolveDashboardTheme(themeId: String, isDayMode: Boolean): ResolvedTheme? {
     val def = DASHBOARD_THEMES.find { it.id == themeId } ?: return null
-    return if (isDayMode) {
+    val base = if (isDayMode) {
         ResolvedTheme(accent = Color(def.lightAccent), background = Color(def.lightBg), ink = null)
     } else {
         ResolvedTheme(accent = Color(def.darkAccent), background = Color(def.darkBg), ink = Color(def.darkInk))
     }
+    val endLong = if (isDayMode) def.lightGradientEnd else def.darkGradientEnd
+    if (endLong == null || def.gradient == null) return base
+    val endColor = Color(endLong)
+    val stops = listOf(base.background, endColor)
+    val brush = when (def.gradient) {
+        GradientDirection.TOP_TO_BOTTOM -> Brush.verticalGradient(stops)
+        GradientDirection.LEFT_TO_RIGHT -> Brush.horizontalGradient(stops)
+        GradientDirection.DIAGONAL -> Brush.linearGradient(stops)
+        GradientDirection.RADIAL -> Brush.radialGradient(colors = listOf(endColor, base.background))
+    }
+    return base.copy(backgroundBrush = brush)
 }
