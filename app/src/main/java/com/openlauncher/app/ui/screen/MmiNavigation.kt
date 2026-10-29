@@ -5,6 +5,17 @@ import android.graphics.Canvas as AndroidCanvas
 import android.graphics.Paint
 import android.graphics.Path as AndroidPath
 import android.net.Uri
+import android.content.Intent
+import android.os.Build
+import android.provider.Settings
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.lifecycle.compose.LifecycleEventEffect
+import com.openlauncher.app.map.MapInstaller
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -846,72 +857,163 @@ private fun KeyText(text: String) {
 private fun ImportPanel(onBack: (() -> Unit)?, onDone: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var progress by remember { mutableStateOf<Float?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
+    val install by MapInstaller.state.collectAsStateWithLifecycle()
+    var pickProgress by remember { mutableStateOf<Float?>(null) }
+    var pickError by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
+    var access by remember { mutableStateOf(MapInstaller.hasFileAccess(context)) }
+    var found by remember { mutableStateOf<Map<String, java.io.File>>(emptyMap()) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { access = MapInstaller.hasFileAccess(context) }
+    // Watch USB sticks, SD cards and the Download folder while this screen is open.
+    LaunchedEffect(access) {
+        while (access) {
+            found = withContext(Dispatchers.IO) { MapInstaller.findLocal(context) }
+            delay(3000)
+        }
+    }
+    LaunchedEffect(install.finished) {
+        refresh++
+        if (install.finished && MapData.isInstalled(context)) onDone()
+    }
+    val askRead = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        access = MapInstaller.hasFileAccess(context)
+    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri> ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
-            progress = 0f
-            error = null
-            val ok = MapData.import(context, uris) { progress = it }
-            progress = null
+            pickProgress = 0f
+            pickError = null
+            val ok = MapData.import(context, uris) { pickProgress = it }
+            pickProgress = null
             refresh++
+            NavigationEngine.reloadData()
             if (ok && MapData.isInstalled(context)) onDone()
-            else error = "Select at least egypt.mbtiles and egypt-search.db."
+            else pickError = "Select at least egypt.mbtiles and egypt-search.db."
         }
     }
-    Column(
-        Modifier.fillMaxSize().background(MmiPageBg).padding(horizontal = 64.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.Center,
-    ) {
-        if (onBack != null) {
-            Box(Modifier.size(width = 64.dp, height = 44.dp).pressable(onBack).mmiPanel(), contentAlignment = Alignment.Center) {
-                MmiLineIcon(MmiLine.CHEVRON_LEFT, MmiInk, Modifier.size(20.dp))
+
+    Column(Modifier.fillMaxSize().background(MmiPageBg).padding(horizontal = 48.dp, vertical = 14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (onBack != null) {
+                Box(Modifier.size(width = 64.dp, height = 44.dp).pressable(onBack).mmiPanel(), contentAlignment = Alignment.Center) {
+                    MmiLineIcon(MmiLine.CHEVRON_LEFT, MmiInk, Modifier.size(20.dp))
+                }
+                Spacer(Modifier.width(20.dp))
             }
-            Spacer(Modifier.height(12.dp))
+            Text("Offline maps for Egypt", color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 30.sp)
         }
-        Text("Offline maps for Egypt", color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 32.sp)
-        Spacer(Modifier.height(10.dp))
-        Text(
-            "Copy the files from the map package to a USB stick, plug it in, then tap Import\n" +
-                "and select all of them. Needed only once — everything then works without internet.",
-            color = MmiDim, fontFamily = MmiFont, fontSize = 16.sp,
-        )
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(8.dp))
         key(refresh) {
-            listOf(
-                Triple("egypt.mbtiles", "Map", MapData.tiles(context)),
-                Triple("egypt-search.db", "Search", MapData.search(context)),
-                Triple("egypt-routing.graph", "Turn-by-turn routing", MapData.routing(context)),
-                Triple("egypt-safety.db", "Speed limits and cameras", MapData.safety(context)),
-            ).forEach { (name, label, file) ->
-                val present = file.exists()
-                Row(Modifier.height(30.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(if (present) RouteGreen else Color(0xFF5A6068)))
-                    Spacer(Modifier.width(12.dp))
-                    Text(name, color = MmiInk, fontFamily = MmiFont, fontSize = 16.sp, modifier = Modifier.width(220.dp))
-                    Text(
-                        if (present) "$label · ${file.length() / (1024 * 1024)} MB" else "$label · not imported",
-                        color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp,
-                    )
+            Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                listOf(
+                    "Map" to MapData.tiles(context),
+                    "Search" to MapData.search(context),
+                    "Turn-by-turn" to MapData.routing(context),
+                    "Speed limits & cameras" to MapData.safety(context),
+                ).forEach { (label, file) ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(if (file.exists()) RouteGreen else Color(0xFF5A6068)))
+                        Spacer(Modifier.width(8.dp))
+                        Text(label, color = if (file.exists()) MmiInk else MmiDim, fontFamily = MmiFont, fontSize = 15.sp)
+                    }
                 }
             }
         }
-        Spacer(Modifier.height(18.dp))
-        val p = progress
-        if (p != null) {
-            Box(Modifier.fillMaxWidth(0.6f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFF2A2E34))) {
-                Box(Modifier.fillMaxHeight().fillMaxWidth(p).background(RouteGreen))
+        Spacer(Modifier.height(16.dp))
+
+        val busy = install.running || pickProgress != null
+        if (busy) {
+            val fraction = pickProgress ?: install.fraction
+            Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.Center) {
+                Text(
+                    if (pickProgress != null) "Copying…" else "${install.source} ${install.file}…",
+                    color = MmiInk, fontFamily = MmiFont, fontSize = 20.sp,
+                )
+                Spacer(Modifier.height(12.dp))
+                Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF2A2E34))) {
+                    Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).background(RouteGreen))
+                }
+                Spacer(Modifier.height(8.dp))
+                Row {
+                    Text(
+                        if (install.totalBytes > 0 && pickProgress == null) "${install.doneBytes shr 20} of ${install.totalBytes shr 20} MB" else "${(fraction * 100).roundToInt()}%",
+                        color = MmiDim, fontFamily = MmiFont, fontSize = 16.sp, modifier = Modifier.weight(1f),
+                    )
+                    if (install.running) ChromePill("Cancel", { MapInstaller.cancel() }, MmiLine.CLOSE)
+                }
             }
-            Spacer(Modifier.height(8.dp))
-            Text("Copying… ${(p * 100).roundToInt()}%", color = MmiInk, fontFamily = MmiFont, fontSize = 16.sp)
         } else {
-            ChromePill("Import from USB", { picker.launch(arrayOf("*/*")) }, MmiLine.OPEN, Modifier.width(260.dp))
+            Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                Column(Modifier.weight(1f).fillMaxHeight().mmiPanel().padding(18.dp)) {
+                    Text("Download", color = MmiCyan, fontFamily = MmiFont, fontSize = 14.sp, letterSpacing = 2.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Turn on your phone's hotspot and connect this screen to it, then tap Download. About 300 MB, once — after that everything works without internet.",
+                        color = MmiInk, fontFamily = MmiFont, fontSize = 17.sp,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    ChromePill("Download maps", { MapInstaller.download(context) }, MmiLine.GLOBE, Modifier.fillMaxWidth())
+                }
+                Column(Modifier.weight(1f).fillMaxHeight().mmiPanel().padding(18.dp)) {
+                    Text("From USB or phone", color = MmiCyan, fontFamily = MmiFont, fontSize = 14.sp, letterSpacing = 2.sp)
+                    Spacer(Modifier.height(8.dp))
+                    when {
+                        !access -> {
+                            Text(
+                                "Allow file access once, then plug in a USB stick with the map files or send them to this screen (Send Files To TV). They are picked up automatically.",
+                                color = MmiInk, fontFamily = MmiFont, fontSize = 17.sp,
+                            )
+                            Spacer(Modifier.weight(1f))
+                            ChromePill("Allow file access", {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                    context.launchFirst(
+                                        Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}")),
+                                        Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION),
+                                    )
+                                } else {
+                                    askRead.launch(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+                                }
+                            }, MmiLine.OPEN, Modifier.fillMaxWidth())
+                        }
+                        found.isEmpty() -> {
+                            Text(
+                                "Plug in a USB stick with the map files, or send them to this screen with Send Files To TV. They appear here automatically.",
+                                color = MmiInk, fontFamily = MmiFont, fontSize = 17.sp,
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                SearchingIndicator()
+                                Spacer(Modifier.width(10.dp))
+                                Text("Looking for map files…", color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp)
+                            }
+                        }
+                        else -> {
+                            Text("Found ${found.size} of 4 map files:", color = MmiInk, fontFamily = MmiFont, fontSize = 17.sp)
+                            found.forEach { (name, file) ->
+                                Text("$name · ${file.length() shr 20} MB", color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp, maxLines = 1)
+                            }
+                            Spacer(Modifier.weight(1f))
+                            ChromePill("Install", { MapInstaller.installLocal(context, found) }, MmiLine.OPEN, Modifier.fillMaxWidth())
+                        }
+                    }
+                }
+            }
+            Text(
+                "Or choose the files yourself…",
+                color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp,
+                modifier = Modifier.padding(top = 10.dp).pressable { picker.launch(arrayOf("*/*")) },
+            )
         }
-        error?.let {
-            Spacer(Modifier.height(12.dp))
+        (install.error ?: pickError)?.let {
+            Spacer(Modifier.height(8.dp))
             Text(it, color = Color(0xFFE57373), fontFamily = MmiFont, fontSize = 15.sp)
         }
     }
+}
+
+@Composable
+private fun SearchingIndicator() {
+    val t = rememberInfiniteTransition(label = "looking")
+    val a by t.animateFloat(0.3f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "looking_alpha")
+    Box(Modifier.size(10.dp).graphicsLayer { alpha = a }.clip(RoundedCornerShape(5.dp)).background(MmiCyan))
 }
