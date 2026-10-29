@@ -1,0 +1,55 @@
+name: Egypt map data
+
+# Builds the offline map package for the MMI navigation: OpenMapTiles-schema
+# vector tiles (egypt.mbtiles) and the place-search index (egypt-search.db).
+# Copy both files to a USB stick and import them from the Navigation page.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "tools/map/**"
+      - ".github/workflows/map-data.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download Egypt OpenStreetMap extract
+        run: curl -fsSL --retry 3 -o egypt.osm.pbf https://download.geofabrik.de/africa/egypt-latest.osm.pbf
+
+      - name: Build vector tiles
+        run: |
+          curl -fsSL --retry 3 -o planetiler.jar https://github.com/onthegomap/planetiler/releases/latest/download/planetiler.jar
+          java -Xmx10g -jar planetiler.jar \
+            --osm-path=egypt.osm.pbf --download \
+            --languages=en,ar \
+            --output=egypt.mbtiles --force
+          ls -la egypt.mbtiles
+
+      - name: Build search index
+        run: |
+          pip install --quiet osmium
+          python tools/map/build_search_index.py egypt.osm.pbf egypt-search.db
+          ls -la egypt-search.db
+
+      - name: Upload map package
+        uses: actions/upload-artifact@v4
+        with:
+          name: egypt-map-data
+          path: |
+            egypt.mbtiles
+            egypt-search.db
+          compression-level: 1
+          if-no-files-found: error
