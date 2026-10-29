@@ -436,7 +436,7 @@ private fun TuningScale(isAm: Boolean, freq: Float?, modifier: Modifier) {
 // ── Phone ────────────────────────────────────────────────────────────────────
 
 @Composable
-internal fun MmiPhonePage(apps: List<AppInfo>) {
+internal fun MmiPhonePage(apps: List<AppInfo>, onOpenBluetooth: () -> Unit) {
     val context = LocalContext.current
     var number by remember { mutableStateOf("") }
     val phoneApp = remember(apps) { apps.findByLabel("bluetooth", "bt phone", "phone", "dial", "call") }
@@ -478,6 +478,16 @@ internal fun MmiPhonePage(apps: List<AppInfo>) {
             }
             Spacer(Modifier.width(56.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                val phone = rememberConnectedPhone()
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    MmiLineIcon(MmiLine.BLUETOOTH, if (phone != null) MmiCyan else MmiDim, Modifier.size(24.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        phone?.let { "Connected: $it" } ?: "No phone connected",
+                        color = if (phone != null) MmiInk else MmiDim, fontFamily = MmiFont, fontSize = 18.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 ChromePill(
                     "Call", {
                         if (number.isNotEmpty()) context.launchFirst(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(number))))
@@ -493,7 +503,7 @@ internal fun MmiPhonePage(apps: List<AppInfo>) {
                     MmiLine.OPEN, Modifier.fillMaxWidth(),
                 )
                 ChromePill("Contacts", { context.launchFirst(Intent(Intent.ACTION_VIEW, ContactsContract.Contacts.CONTENT_URI)) }, MmiLine.CONTACTS, Modifier.fillMaxWidth())
-                ChromePill("Bluetooth", { context.launchFirst(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }, MmiLine.BLUETOOTH, Modifier.fillMaxWidth())
+                ChromePill("Phones & pairing", onOpenBluetooth, MmiLine.BLUETOOTH, Modifier.fillMaxWidth())
             }
         }
     }

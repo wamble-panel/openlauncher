@@ -275,48 +275,6 @@ private fun EqualizerPanel() {
     }
 }
 
-// ── Bluetooth ────────────────────────────────────────────────────────────────
-
-@Composable
-internal fun MmiBluetoothPage(apps: List<AppInfo>, onLaunchPackage: (String) -> Unit) {
-    val context = LocalContext.current
-    val adapter = remember { runCatching { BluetoothAdapter.getDefaultAdapter() }.getOrNull() }
-    var refresh by remember { mutableIntStateOf(0) }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh++ }
-    val enabled = remember(refresh) { runCatching { adapter?.isEnabled == true }.getOrDefault(false) }
-    val paired = remember(refresh) {
-        runCatching { adapter?.bondedDevices?.map { (it.name ?: it.address) }.orEmpty() }.getOrDefault(emptyList())
-    }
-    val vendorApp = remember(apps) { apps.findByLabel("bluetooth", "bt phone", "bt") }
-
-    SettingsColumn(Modifier.padding(horizontal = 48.dp)) {
-        SectionTitle("Bluetooth")
-        when {
-            adapter == null -> Text(
-                "This unit runs Bluetooth in its own module, so phones are paired in the unit's Bluetooth app.",
-                color = MmiDim, fontFamily = MmiFont, fontSize = 17.sp, modifier = Modifier.padding(vertical = 8.dp),
-            )
-            else -> SettingRow("Status", if (enabled) "On" else "Off")
-        }
-        if (paired.isNotEmpty()) {
-            SectionTitle("Paired phones")
-            paired.forEach { name ->
-                Row(Modifier.fillMaxWidth().height(54.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    MmiLineIcon(MmiLine.BLUETOOTH, MmiCyan, Modifier.size(22.dp))
-                    Spacer(Modifier.width(14.dp))
-                    Text(name, color = MmiInk, fontFamily = MmiFont, fontSize = 18.sp)
-                }
-                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF1E2125)))
-            }
-        }
-        SectionTitle("Connect")
-        if (vendorApp != null) {
-            SettingRow("Open ${vendorApp.appName}", onClick = { onLaunchPackage(vendorApp.packageName) })
-        }
-        SettingRow("Pair a new phone", onClick = { context.launchFirst(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) })
-    }
-}
-
 // ── Navigation ───────────────────────────────────────────────────────────────
 
 @Composable

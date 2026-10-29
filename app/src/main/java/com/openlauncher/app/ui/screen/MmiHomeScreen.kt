@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -64,6 +65,8 @@ import com.openlauncher.app.R
 import com.openlauncher.app.data.CarPrefs
 import com.openlauncher.app.model.AppInfo
 import com.openlauncher.app.model.NowPlayingState
+import com.openlauncher.app.map.MapData
+import com.openlauncher.app.map.PlaceSearch
 import com.openlauncher.app.model.HardwareRadioState
 import com.openlauncher.app.service.NavGuidance
 import com.openlauncher.app.map.NavigationEngine
@@ -116,9 +119,16 @@ fun MmiHomeScreen(
 ) {
     var page by rememberSaveable { mutableStateOf(MmiPage.HOME) }
     var selected by rememberSaveable { mutableStateOf("nav") }
-    BackHandler(enabled = page != MmiPage.HOME) {
-        page = if (page.inSettings) MmiPage.SETTINGS else MmiPage.HOME
+    // Bluetooth is reached from Settings or from the Phone page; Back returns to whichever.
+    var bluetoothFrom by rememberSaveable { mutableStateOf(MmiPage.SETTINGS) }
+    val back = {
+        page = when {
+            page == MmiPage.BLUETOOTH -> bluetoothFrom
+            page.inSettings -> MmiPage.SETTINGS
+            else -> MmiPage.HOME
+        }
     }
+    BackHandler(enabled = page != MmiPage.HOME) { back() }
     // Pressing the unit's Home key returns to the ring menu.
     LaunchedEffect(homeSignal) { if (homeSignal > 0) page = MmiPage.HOME }
     val context = LocalContext.current
@@ -158,7 +168,7 @@ fun MmiHomeScreen(
                 height = barHeight,
                 title = page.title,
                 nowPlaying = nowPlaying,
-                onBack = { page = if (page.inSettings) MmiPage.SETTINGS else MmiPage.HOME },
+                onBack = back,
                 onTapNowPlaying = { page = MmiPage.MUSIC },
             )
             AnimatedContent(
@@ -203,7 +213,10 @@ fun MmiHomeScreen(
                         }
                     }
                     MmiPage.DASHBOARD -> MmiDashboardPage(location, bearing, voltage, metric)
-                    MmiPage.SETTINGS -> SettingsPanel(metric, onSetMetric) { page = it }
+                    MmiPage.SETTINGS -> SettingsPanel(metric, onSetMetric) {
+                        if (it == MmiPage.BLUETOOTH) bluetoothFrom = MmiPage.SETTINGS
+                        page = it
+                    }
                     MmiPage.DISPLAY -> MmiDisplayPage()
                     MmiPage.SOUND -> MmiSoundPage(apps, onLaunchPackage)
                     MmiPage.BLUETOOTH -> MmiBluetoothPage(apps, onLaunchPackage)
@@ -222,7 +235,10 @@ fun MmiHomeScreen(
                         onSeekUp = onRadioSeekUp, onSeekDown = onRadioSeekDown,
                         onFm = onRadioFm, onAm = onRadioAm,
                     )
-                    MmiPage.PHONE -> MmiPhonePage(apps)
+                    MmiPage.PHONE -> MmiPhonePage(apps) {
+                        bluetoothFrom = MmiPage.PHONE
+                        page = MmiPage.BLUETOOTH
+                    }
                     MmiPage.APPS -> {
                         val prefs = remember(context) { CarPrefs.get(context) }
                         val hidden by prefs.hiddenApps.collectAsStateWithLifecycle()
@@ -412,7 +428,7 @@ private fun Orbit(modifier: Modifier, selected: String, onSelect: (String) -> Un
             val c = Offset(cx.toPx(), cy.toPx())
             val rxp = rx.toPx()
             val ryp = ry.toPx()
-            val band = size.height * 0.075f
+            val band = size.height * 0.035f
             val ringTL = Offset(c.x - rxp, c.y - ryp)
             val ringSize = Size(rxp * 2, ryp * 2)
             val outerTL = Offset(ringTL.x - band / 2, ringTL.y - band / 2)
@@ -420,6 +436,14 @@ private fun Orbit(modifier: Modifier, selected: String, onSelect: (String) -> Un
             val innerTL = Offset(ringTL.x + band / 2, ringTL.y + band / 2)
             val innerSize = Size(ringSize.width - band, ringSize.height - band)
 
+            // The MMI "disc": a near-black floor inside the ring, slightly lighter towards the rim.
+            drawOval(
+                Brush.radialGradient(
+                    listOf(Color(0xF0030304), Color(0xE0070809), Color(0xC0121418)),
+                    center = c, radius = rxp,
+                ),
+                topLeft = ringTL, size = ringSize,
+            )
             drawOval(Color(0x80000000), topLeft = ringTL + Offset(0f, band * 0.7f), size = ringSize, style = Stroke(band * 1.5f))
             drawOval(
                 Brush.verticalGradient(
@@ -488,6 +512,8 @@ private fun Orbit(modifier: Modifier, selected: String, onSelect: (String) -> Un
                 y = cy + ry * sin(rad).toFloat() - iconSize / 2,
                 iconSize = iconSize, labelSize = labelSize,
                 selected = selected == item.key,
+                // Lower-right entries sit where the ring climbs; drop their label below it.
+                labelDrop = if (item.angle in 50f..90f) iconSize * 0.42f else 0.dp,
                 appear = { ((intro.value - 0.25f - index * 0.07f) / 0.3f).coerceIn(0f, 1f) },
                 onClick = { onSelect(item.key) },
             )
@@ -514,6 +540,7 @@ private fun OrbitEntry(
     selected: Boolean,
     appear: () -> Float,
     onClick: () -> Unit,
+    labelDrop: Dp = 0.dp,
 ) {
     val boxColor by animateColorAsState(if (selected) MmiCyan else Color.Transparent, tween(220), label = "select")
     Row(
@@ -542,6 +569,7 @@ private fun OrbitEntry(
         Text(
             label, color = MmiInk, fontFamily = MmiFont, fontSize = labelSize,
             modifier = Modifier
+                .offset(y = labelDrop)
                 .border(2.dp, boxColor, RoundedCornerShape(4.dp))
                 .padding(horizontal = 6.dp, vertical = 2.dp),
         )
@@ -589,41 +617,99 @@ private fun NavCard(guidance: NavGuidance, modifier: Modifier, onClick: () -> Un
 
 @Composable
 private fun DriveCard(location: LocationData?, bearing: Float, voltage: Float?, metric: Boolean, modifier: Modifier) {
+    val context = LocalContext.current
     val speed = (location?.speedMps ?: 0f) * if (metric) 3.6f else 2.237f
-    val heading = remember(bearing) {
-        listOf("N", "NE", "E", "SE", "S", "SW", "W", "NW")[(((bearing % 360f) + 360f) % 360f / 45f + 0.5f).toInt() % 8]
+    val heading = remember(bearing) { compassPoint(bearing) }
+    // Area name from the offline map index, refreshed every ~500 m.
+    val search = remember(context) { PlaceSearch(MapData.search(context)) }
+    var area by remember { mutableStateOf<String?>(null) }
+    val cellLat = location?.let { (it.latitude * 200).roundToInt() }
+    val cellLon = location?.let { (it.longitude * 200).roundToInt() }
+    LaunchedEffect(cellLat, cellLon) {
+        val loc = location ?: return@LaunchedEffect
+        if (!MapData.isInstalled(context)) return@LaunchedEffect
+        area = search.nearby(AREA_KINDS, loc.latitude, loc.longitude, 4.0).firstOrNull()?.title ?: area
     }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Column(
-            Modifier.fillMaxWidth().weight(1f).mmiPanel().padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            Text("DRIVE", color = MmiCyan, fontFamily = MmiFont, fontSize = 12.sp, letterSpacing = 3.sp)
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(speed.roundToInt().toString(), color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 64.sp)
-                Spacer(Modifier.width(6.dp))
-                Text(if (metric) "km/h" else "mph", color = MmiDim, fontFamily = MmiFont, fontSize = 16.sp, modifier = Modifier.padding(bottom = 14.dp))
+        Box(Modifier.fillMaxWidth().weight(1f).mmiPanel().padding(12.dp)) {
+            Row(Modifier.align(Alignment.TopStart)) {
+                Text(speed.roundToInt().toString(), color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 54.sp)
+                Text(if (metric) "km/h" else "mph", color = MmiInk, fontFamily = MmiFont, fontSize = 14.sp, modifier = Modifier.padding(top = 10.dp, start = 2.dp))
             }
-            Box(Modifier.fillMaxWidth(0.5f).aspectRatio(1f), contentAlignment = Alignment.Center) {
-                MmiLineIcon(MmiLine.ARROW, MmiInk, Modifier.fillMaxSize(0.5f).graphicsLayer { rotationZ = bearing - 90f })
-            }
-            Text(heading, color = MmiInk, fontFamily = MmiFont, fontSize = 20.sp)
+            Text(
+                heading, color = MmiInk, fontFamily = MmiFont, fontSize = 18.sp,
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 10.dp),
+            )
+            CompassRose(bearing, Modifier.align(Alignment.Center).padding(top = 28.dp).fillMaxWidth(0.5f).aspectRatio(1f))
+            Text(
+                if (location == null) "Waiting for GPS" else if (speed < 3f) "Parked" else "Heading ${compassWord(bearing)}",
+                color = MmiDim, fontFamily = MmiFont, fontSize = 17.sp,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
-        DriveRow("Altitude", location?.let { "${(if (metric) it.altitude else it.altitude * 3.281).roundToInt()} ${if (metric) "m" else "ft"}" } ?: "--")
-        DriveRow("GPS", location?.satellitesUsed?.takeIf { it >= 0 }?.let { "$it satellites" } ?: if (location != null) "Fix" else "Searching")
-        DriveRow("Battery", voltage?.let { "%.1f V".format(it) } ?: "--")
+        DriveRow(MmiLine.MOUNTAIN, location?.let { "${(if (metric) it.altitude else it.altitude * 3.281).roundToInt()} ${if (metric) "m" else "ft"}" } ?: "--")
+        DriveRow(MmiLine.LOCATE, location?.satellitesUsed?.takeIf { it >= 0 }?.let { "$it satellites" } ?: if (location != null) "GPS fix" else "Searching")
+        DriveRow(MmiLine.BATTERY, voltage?.let { "%.1f V".format(it) } ?: "--")
+        Text(
+            area ?: "",
+            color = MmiInk, fontFamily = MmiFont, fontSize = 19.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        )
+    }
+}
+
+private val AREA_KINDS = listOf("neighbourhood", "suburb", "quarter", "village", "town", "city")
+
+private fun compassPoint(bearing: Float): String =
+    listOf("N", "NE", "E", "SE", "S", "SW", "W", "NW")[(((bearing % 360f) + 360f) % 360f / 45f + 0.5f).toInt() % 8]
+
+private fun compassWord(bearing: Float): String =
+    listOf("north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west")[(((bearing % 360f) + 360f) % 360f / 45f + 0.5f).toInt() % 8]
+
+/** Chrome compass: the rose turns so its red needle always points north. */
+@Composable
+private fun CompassRose(bearing: Float, modifier: Modifier) {
+    val turn by androidx.compose.animation.core.animateFloatAsState(-bearing, tween(400), label = "rose")
+    Canvas(modifier) {
+        val r = size.minDimension / 2f
+        val c = center
+        drawCircle(Brush.radialGradient(listOf(Color(0xFF1B1E23), Color(0xFF0A0B0D)), c, r), r)
+        drawCircle(Brush.linearGradient(listOf(Color(0xFFF2F4F7), Color(0xFF4F555D), Color(0xFFDDE1E6)), Offset(c.x - r, c.y - r), Offset(c.x + r, c.y + r)), r, style = Stroke(2.dp.toPx()))
+        rotate(turn, c) {
+            for (i in 0 until 36) {
+                val a = Math.toRadians(i * 10.0)
+                val outer = r * 0.9f
+                val inner = if (i % 9 == 0) r * 0.74f else r * 0.82f
+                drawLine(
+                    Color(0x99B8BEC6),
+                    Offset(c.x + inner * sin(a).toFloat(), c.y - inner * cos(a).toFloat()),
+                    Offset(c.x + outer * sin(a).toFloat(), c.y - outer * cos(a).toFloat()),
+                    if (i % 9 == 0) 2.dp.toPx() else 1.dp.toPx(),
+                )
+            }
+            val north = Path().apply {
+                moveTo(c.x, c.y - r * 0.66f); lineTo(c.x + r * 0.12f, c.y); lineTo(c.x - r * 0.12f, c.y); close()
+            }
+            val south = Path().apply {
+                moveTo(c.x, c.y + r * 0.66f); lineTo(c.x + r * 0.12f, c.y); lineTo(c.x - r * 0.12f, c.y); close()
+            }
+            drawPath(north, Brush.verticalGradient(listOf(Color(0xFFFF5A4E), Color(0xFFB0261C)), c.y - r * 0.66f, c.y))
+            drawPath(south, Brush.verticalGradient(listOf(Color(0xFFE9ECEF), Color(0xFF7D838B)), c.y, c.y + r * 0.66f))
+        }
+        drawCircle(Brush.radialGradient(listOf(Color.White, Color(0xFF8C939C)), c, r * 0.06f), r * 0.06f, c)
     }
 }
 
 @Composable
-private fun DriveRow(label: String, value: String) {
+private fun DriveRow(icon: MmiLine, value: String) {
     Row(
         Modifier.fillMaxWidth().height(40.dp).mmiPanel().padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
     ) {
-        Text(label, color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp)
-        Spacer(Modifier.weight(1f))
+        MmiLineIcon(icon, MmiInk, Modifier.size(22.dp))
+        Spacer(Modifier.width(18.dp))
         Text(value, color = MmiInk, fontFamily = MmiFont, fontSize = 16.sp)
     }
 }

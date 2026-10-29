@@ -40,6 +40,12 @@
     <!-- MMI system check + Bluetooth page: read adapter/profile state -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- MMI Bluetooth page: find nearby phones, pair, make the car visible -->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
 
     <!-- Required on API 30+ so PackageManager returns ALL launcher apps -->
     <queries>
