@@ -225,9 +225,14 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 } else {
-                    Box(modifier = Modifier.fillMaxSize().let { m ->
-                        if (bgBrush != null) m.background(bgBrush) else m.background(bg)
-                    }) {
+                    com.openlauncher.app.ui.components.VolumeGestureBox(
+                        accent = accent,
+                        panel  = resolvedTheme?.background ?: (if (isDayMode) Color(0xFFF5F5F5) else Color(0xFF121212)),
+                        ink    = textColor,
+                        modifier = Modifier.let { m ->
+                            if (bgBrush != null) m.background(bgBrush) else m.background(bg)
+                        },
+                    ) {
                         // Optional wallpaper layer
                         if (settings.wallpaperUri.isNotEmpty()) {
                             AsyncImage(
