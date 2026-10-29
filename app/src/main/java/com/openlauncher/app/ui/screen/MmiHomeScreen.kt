@@ -318,7 +318,7 @@ fun MmiHomeScreen(
     }
 }
 
-private const val IDLE_TO_MAP_MS = 45_000L
+private const val IDLE_TO_MAP_MS = 10_000L
 
 // ── Backdrop ─────────────────────────────────────────────────────────────────
 
