@@ -46,6 +46,9 @@ internal fun runtimePermissions(): List<String> = buildList {
         add(Manifest.permission.BLUETOOTH_ADVERTISE)
     }
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
+    add(Manifest.permission.READ_CONTACTS)
+    add(Manifest.permission.READ_CALL_LOG)
+    add(Manifest.permission.CALL_PHONE)
     if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) add(Manifest.permission.READ_EXTERNAL_STORAGE)
 }
 
@@ -53,7 +56,7 @@ private class PermissionItem(val label: String, val detail: String, val granted:
 
 private fun Context.isGranted(p: String) = ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED
 
-private fun Context.isDefaultHome(): Boolean {
+internal fun Context.isDefaultHome(): Boolean {
     val home = packageManager.resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)
     return home?.activityInfo?.packageName == packageName
 }
@@ -109,7 +112,7 @@ internal fun MmiPermissionsPage() {
         val pkgUri = Uri.parse("package:${context.packageName}")
         buildList {
             add(PermissionItem(
-                "Location, Bluetooth, notifications", "GPS navigation, pairing phones",
+                "Location, Bluetooth, contacts, calls", "Navigation, pairing phones, calling from MMI",
                 runtimePermissions().all { context.isGranted(it) },
             ) { ask.launch(runtimePermissions().toTypedArray()) })
             add(PermissionItem(
@@ -182,3 +185,14 @@ internal fun MmiPermissionsPage() {
 }
 
 private val RouteGreenUi = Color(0xFF4CD964)
+
+/** Intent that asks Android to make MMI the home app (role dialog on 10+, home chooser before). */
+internal fun Context.homeRequestIntents(): List<Intent> {
+    val role = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        runCatching {
+            val rm = getSystemService(RoleManager::class.java)
+            if (rm.isRoleAvailable(RoleManager.ROLE_HOME) && !rm.isRoleHeld(RoleManager.ROLE_HOME)) rm.createRequestRoleIntent(RoleManager.ROLE_HOME) else null
+        }.getOrNull()
+    } else null
+    return listOfNotNull(role, Intent(Settings.ACTION_HOME_SETTINGS), Intent(Settings.ACTION_SETTINGS))
+}

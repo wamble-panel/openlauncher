@@ -30,6 +30,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -436,7 +437,7 @@ private fun TuningScale(isAm: Boolean, freq: Float?, modifier: Modifier) {
 // ── Phone ────────────────────────────────────────────────────────────────────
 
 @Composable
-internal fun MmiPhonePage(apps: List<AppInfo>, onOpenBluetooth: () -> Unit) {
+internal fun MmiPhonePage(apps: List<AppInfo>, onOpenContacts: () -> Unit, onOpenBluetooth: () -> Unit) {
     val context = LocalContext.current
     var number by remember { mutableStateOf("") }
     val phoneApp = remember(apps) { apps.findByLabel("bluetooth", "bt phone", "phone", "dial", "call") }
@@ -490,7 +491,7 @@ internal fun MmiPhonePage(apps: List<AppInfo>, onOpenBluetooth: () -> Unit) {
                 }
                 ChromePill(
                     "Call", {
-                        if (number.isNotEmpty()) context.launchFirst(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(number))))
+                        if (number.isNotEmpty()) context.placeCall(number)
                         else phoneApp?.let { context.launchPackage(it.packageName) }
                     },
                     MmiLine.CALL, Modifier.fillMaxWidth(),
@@ -502,7 +503,7 @@ internal fun MmiPhonePage(apps: List<AppInfo>, onOpenBluetooth: () -> Unit) {
                     },
                     MmiLine.OPEN, Modifier.fillMaxWidth(),
                 )
-                ChromePill("Contacts", { context.launchFirst(Intent(Intent.ACTION_VIEW, ContactsContract.Contacts.CONTENT_URI)) }, MmiLine.CONTACTS, Modifier.fillMaxWidth())
+                ChromePill("Contacts & recents", onOpenContacts, MmiLine.CONTACTS, Modifier.fillMaxWidth())
                 ChromePill("Phones & pairing", onOpenBluetooth, MmiLine.BLUETOOTH, Modifier.fillMaxWidth())
             }
         }
@@ -521,6 +522,7 @@ internal fun MmiAppsPage(
 ) {
     val context = LocalContext.current
     var editing by remember { mutableStateOf(false) }
+    var menuApp by remember { mutableStateOf<AppInfo?>(null) }
     // Only real apps (with a launcher icon), never this launcher itself; hidden ones only while editing.
     val shown = remember(apps, hidden, editing) {
         apps.filter { it.launchable && it.packageName != context.packageName && (editing || it.packageName !in hidden) }
@@ -529,6 +531,7 @@ internal fun MmiAppsPage(
     val perPage = 18
     val pages = ((shown.size + perPage - 1) / perPage).coerceAtLeast(1)
     val pager = rememberPagerState { pages }
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 4.dp)) {
         HorizontalPager(pager, Modifier.weight(1f).fillMaxWidth()) { page ->
             val slice = shown.drop(page * perPage).take(perPage)
@@ -537,7 +540,10 @@ internal fun MmiAppsPage(
                     Row(Modifier.fillMaxWidth()) {
                         row.forEach { app ->
                             val isHidden = app.packageName in hidden
-                            AppCell(app, Modifier.weight(1f).graphicsLayer { alpha = if (editing && isHidden) 0.3f else 1f }) {
+                            AppCell(
+                                app, Modifier.weight(1f).graphicsLayer { alpha = if (editing && isHidden) 0.3f else 1f },
+                                onLongClick = { menuApp = app },
+                            ) {
                                 if (editing) onToggleHidden(app.packageName) else onLaunch(app.packageName)
                             }
                         }
@@ -562,11 +568,41 @@ internal fun MmiAppsPage(
             ChromePill(if (editing) "Done" else "Edit", { editing = !editing }, modifier = Modifier.align(Alignment.CenterEnd))
         }
     }
+    // Long-press menu: everything about an app without leaving MMI (uninstall asks Android to confirm).
+    menuApp?.let { app ->
+        Box(Modifier.fillMaxSize().background(Color(0xB0000000)).pressable { menuApp = null }, contentAlignment = Alignment.Center) {
+            Column(Modifier.width(340.dp).mmiPanel().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(app.appName, color = MmiInk, fontFamily = MmiFont, fontSize = 22.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                ChromePill("Open", { menuApp = null; onLaunch(app.packageName) }, MmiLine.OPEN, Modifier.fillMaxWidth())
+                ChromePill(if (app.packageName in hidden) "Show in Apps" else "Hide from Apps", {
+                    menuApp = null; onToggleHidden(app.packageName)
+                }, MmiLine.GRID, Modifier.fillMaxWidth())
+                if (!app.isSystemApp) {
+                    ChromePill("Uninstall", {
+                        menuApp = null
+                        context.launchFirst(Intent(Intent.ACTION_DELETE, Uri.parse("package:${app.packageName}")))
+                    }, MmiLine.CLOSE, Modifier.fillMaxWidth())
+                }
+                ChromePill("App info", {
+                    menuApp = null
+                    context.launchFirst(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${app.packageName}")))
+                }, MmiLine.GEAR, Modifier.fillMaxWidth())
+            }
+        }
+    }
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AppCell(app: AppInfo, modifier: Modifier, onClick: () -> Unit) {
-    Column(modifier.pressable(onClick).padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+private fun AppCell(app: AppInfo, modifier: Modifier, onLongClick: () -> Unit = {}, onClick: () -> Unit) {
+    Column(
+        modifier.combinedClickable(
+            interactionSource = remember { MutableInteractionSource() }, indication = null,
+            onLongClick = onLongClick, onClick = onClick,
+        ).padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         Box(
             Modifier.size(64.dp).drawBehind {
                 drawOval(Color(0x88000000), topLeft = Offset(size.width * 0.1f, size.height * 0.88f), size = Size(size.width * 0.8f, size.height * 0.14f))

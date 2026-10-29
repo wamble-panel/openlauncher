@@ -159,10 +159,80 @@ internal fun MmiDisplayPage() {
                 )
             })
         }
+        if (canWrite) {
+            var auto by remember {
+                mutableStateOf(runCatching {
+                    Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE) == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC
+                }.getOrDefault(false))
+            }
+            ToggleRow("Automatic brightness", auto) { on ->
+                auto = on
+                runCatching {
+                    Settings.System.putInt(
+                        context.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE,
+                        if (on) Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC else Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL,
+                    )
+                }
+            }
+            SectionTitle("Screen turns off")
+            var timeout by remember {
+                mutableIntStateOf(runCatching { Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_OFF_TIMEOUT) }.getOrDefault(600_000))
+            }
+            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                listOf(60_000 to "1 min", 600_000 to "10 min", 1_800_000 to "30 min", Int.MAX_VALUE to "Never").forEach { (ms, label) ->
+                    val selected = timeout == ms
+                    ChromePill(if (selected) "• $label" else label, {
+                        timeout = ms
+                        runCatching { Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_OFF_TIMEOUT, ms) }
+                    })
+                }
+            }
+        }
         SectionTitle("Clock")
         ToggleRow("24-hour clock", clock24, prefs::setClock24)
-        SectionTitle("More")
-        SettingRow("Android display settings", onClick = { context.launchFirst(Intent(Settings.ACTION_DISPLAY_SETTINGS)) })
+    }
+}
+
+// ── Storage & about ─────────────────────────────────────────────────────────
+
+@Composable
+internal fun MmiStoragePage() {
+    val context = LocalContext.current
+    var refresh by remember { mutableIntStateOf(0) }
+    val stat = remember(refresh) { runCatching { android.os.StatFs(context.filesDir.absolutePath) }.getOrNull() }
+    val mapBytes = remember(refresh) { MapData.dir(context).listFiles()?.sumOf { it.length() } ?: 0L }
+    val version = remember {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "?"
+    }
+    var confirmDelete by remember { mutableStateOf(false) }
+    fun gb(b: Long) = "%.1f GB".format(b / 1e9)
+
+    SettingsColumn(Modifier.padding(horizontal = 48.dp)) {
+        SectionTitle("Storage")
+        if (stat != null) {
+            val total = stat.totalBytes
+            val free = stat.availableBytes
+            SettingRow("Free", "${gb(free)} of ${gb(total)}")
+            Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp).height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF2A2E34))) {
+                Box(Modifier.fillMaxHeight().fillMaxWidth(((total - free).toFloat() / total).coerceIn(0f, 1f)).background(MmiCyan))
+            }
+        }
+        SettingRow("Offline maps", "%.0f MB".format(mapBytes / 1e6))
+        SettingRow(if (confirmDelete) "Tap again to delete the maps" else "Delete offline maps", onClick = {
+            if (confirmDelete) {
+                MapData.dir(context).listFiles()?.forEach { it.delete() }
+                PersistentMap.destroy()
+                NavigationEngine.reloadData()
+                confirmDelete = false
+                refresh++
+            } else {
+                confirmDelete = true
+            }
+        })
+        SectionTitle("About")
+        SettingRow("MMI", version)
+        SettingRow("Unit", "${Build.MANUFACTURER} ${Build.MODEL}")
+        SettingRow("Android", "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
     }
 }
 

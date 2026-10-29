@@ -92,9 +92,9 @@ import kotlin.math.sin
 
 private enum class MmiPage(val title: String?, val inSettings: Boolean = false) {
     HOME(null), DASHBOARD("Dashboard"), SETTINGS("Settings"),
-    MUSIC("Music"), RADIO("Radio"), BT_HUB("Bluetooth"), PHONE("Telephone"), APPS("Apps"),
+    MUSIC("Music"), RADIO("Radio"), BT_HUB("Bluetooth"), PHONE("Telephone"), CONTACTS("Contacts"), APPS("Apps"),
     NAV("Navigation"), SYSTEM("System check", true),
-    PERMISSIONS("Permissions", true), DISPLAY("Display", true), SOUND("Sound", true), BLUETOOTH("Bluetooth devices", true), NAV_SETTINGS("Navigation settings", true),
+    PERMISSIONS("Permissions", true), STORAGE("Storage & about", true), DISPLAY("Display", true), SOUND("Sound", true), BLUETOOTH("Bluetooth devices", true), NAV_SETTINGS("Navigation settings", true),
 }
 
 /**
@@ -133,7 +133,7 @@ fun MmiHomeScreen(
     val back = {
         page = when {
             page == MmiPage.BLUETOOTH -> bluetoothFrom
-            page == MmiPage.PHONE -> MmiPage.BT_HUB
+            page == MmiPage.PHONE || page == MmiPage.CONTACTS -> MmiPage.BT_HUB
             page.inSettings -> MmiPage.SETTINGS
             else -> MmiPage.HOME
         }
@@ -275,12 +275,13 @@ fun MmiHomeScreen(
                     }
                     MmiPage.DISPLAY -> MmiDisplayPage()
                     MmiPage.PERMISSIONS -> MmiPermissionsPage()
+                    MmiPage.STORAGE -> MmiStoragePage()
                     MmiPage.SOUND -> MmiSoundPage(apps, onLaunchPackage)
                     MmiPage.BLUETOOTH -> MmiBluetoothPage(apps, onLaunchPackage, startPairing = pairOnOpen)
                     MmiPage.BT_HUB -> MmiBluetoothHub(
                         onTelephone = { page = MmiPage.PHONE },
                         onMusic = { page = MmiPage.MUSIC },
-                        onContacts = { context.launchFirst(Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)) },
+                        onContacts = { page = MmiPage.CONTACTS },
                         onDevices = { pairOnOpen = false; bluetoothFrom = MmiPage.BT_HUB; page = MmiPage.BLUETOOTH },
                         onConnectNew = { pairOnOpen = true; bluetoothFrom = MmiPage.BT_HUB; page = MmiPage.BLUETOOTH },
                     )
@@ -307,7 +308,8 @@ fun MmiHomeScreen(
                         onSeekUp = onRadioSeekUp, onSeekDown = onRadioSeekDown,
                         onFm = onRadioFm, onAm = onRadioAm,
                     )
-                    MmiPage.PHONE -> MmiPhonePage(apps) {
+                    MmiPage.CONTACTS -> MmiContactsPage()
+                    MmiPage.PHONE -> MmiPhonePage(apps, onOpenContacts = { page = MmiPage.CONTACTS }) {
                         bluetoothFrom = MmiPage.PHONE
                         pairOnOpen = false
                         page = MmiPage.BLUETOOTH
@@ -322,6 +324,48 @@ fun MmiHomeScreen(
             if (!fullScreen) DateBar(barHeight)
         }
         HazardBanner(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
+        HomeAppPrompt()
+    }
+}
+
+/**
+ * Until MMI is the unit's home app, offer to make it so on every start, in MMI style.
+ * The role dialog (Android 10+) or the home chooser does the switch.
+ */
+@Composable
+private fun HomeAppPrompt() {
+    val context = LocalContext.current
+    var isHome by remember { mutableStateOf(true) }
+    var dismissed by rememberSaveable { mutableStateOf(false) }
+    val request = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        isHome = context.isDefaultHome()
+    }
+    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) { isHome = context.isDefaultHome() }
+    LaunchedEffect(Unit) {
+        delay(1500)
+        isHome = context.isDefaultHome()
+    }
+    if (isHome || dismissed) return
+    Box(Modifier.fillMaxSize().background(Color(0xB0000000)).pressable { }, contentAlignment = Alignment.Center) {
+        Column(
+            Modifier.width(520.dp).mmiPanel().padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("Make MMI your home screen?", color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 26.sp)
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "The unit then always starts in MMI, and the Home button and steering-wheel keys come back here.",
+                color = MmiDim, fontFamily = MmiFont, fontSize = 16.sp, textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(22.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                ChromePill("Not now", { dismissed = true }, null, Modifier.width(160.dp))
+                ChromePill("Make MMI home", {
+                    val intent = context.homeRequestIntents().firstOrNull { it.resolveActivity(context.packageManager) != null }
+                    if (intent != null) runCatching { request.launch(intent) }
+                }, MmiLine.HOME, Modifier.width(240.dp))
+            }
+        }
     }
 }
 
@@ -833,6 +877,15 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
         "Display" to { onOpen(MmiPage.DISPLAY) },
         "Sound" to { onOpen(MmiPage.SOUND) },
         "Bluetooth" to { onOpen(MmiPage.BLUETOOTH) },
+        "Wi-Fi (for map downloads)" to {
+            // Android 10+ shows Wi-Fi as a panel over MMI instead of leaving it.
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                context.launchFirst(Intent(Settings.Panel.ACTION_WIFI), Intent(Settings.ACTION_WIFI_SETTINGS))
+            } else {
+                context.launchFirst(Intent(Settings.ACTION_WIFI_SETTINGS))
+            }
+            Unit
+        },
         "Navigation" to { onOpen(MmiPage.NAV_SETTINGS) },
         (if (metric) "Units: km/h, metres" else "Units: mph, feet") to { onSetMetric(!metric) },
         (if (introSet) "Startup video: on (tap to remove)" else "Startup video: import from USB") to {
@@ -845,6 +898,7 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
         },
         "Permissions" to { onOpen(MmiPage.PERMISSIONS) },
         "Date & time" to { context.launchFirst(Intent(Settings.ACTION_DATE_SETTINGS)); Unit },
+        "Storage & about" to { onOpen(MmiPage.STORAGE) },
         "System check" to { onOpen(MmiPage.SYSTEM) },
         "Android settings" to openSystem,
     )
