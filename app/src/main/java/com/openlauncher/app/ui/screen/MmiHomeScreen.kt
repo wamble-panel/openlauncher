@@ -61,6 +61,7 @@ import com.openlauncher.app.model.AppInfo
 import com.openlauncher.app.model.NowPlayingState
 import com.openlauncher.app.model.WeatherState
 import com.openlauncher.app.service.NavGuidance
+import com.openlauncher.app.map.NavigationEngine
 import com.openlauncher.app.service.NavigationTracker
 import com.openlauncher.app.util.LocationData
 import com.openlauncher.app.viewmodel.LauncherViewModel
@@ -115,6 +116,13 @@ fun MmiHomeScreen(
     }
     val context = LocalContext.current
     val guidance by NavigationTracker.guidance.collectAsStateWithLifecycle()
+    val ownNav by NavigationEngine.state.collectAsStateWithLifecycle()
+
+    // Offline guidance keeps running (and talking) on every MMI page.
+    LaunchedEffect(Unit) { NavigationEngine.init(context) }
+    LaunchedEffect(location) {
+        location?.let { NavigationEngine.onLocation(it.latitude, it.longitude, it.speedMps) }
+    }
 
     val openRadioApp = {
         if (radioPackage.isNotEmpty() || hardwareRadio != null) onLaunchRadio()
@@ -184,7 +192,9 @@ fun MmiHomeScreen(
                         )
                         Box(Modifier.fillMaxHeight().width(cardWidth).padding(end = 16.dp, top = 4.dp, bottom = 8.dp)) {
                             val active = guidance
-                            if (active != null) {
+                            if (ownNav.destination != null) {
+                                MmiRouteCard(ownNav, metric, Modifier.fillMaxSize()) { page = MmiPage.NAV }
+                            } else if (active != null) {
                                 NavCard(active, Modifier.fillMaxSize()) { context.openNavigation(active) }
                             } else {
                                 WeatherCard(weather, placeName, metric, Modifier.fillMaxSize())

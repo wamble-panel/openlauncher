@@ -36,8 +36,12 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.openlauncher.app.map.Destinations
+import com.openlauncher.app.map.ManeuverType
 import com.openlauncher.app.map.MapData
+import com.openlauncher.app.map.NavState
+import com.openlauncher.app.map.NavigationEngine
 import com.openlauncher.app.map.Place
 import com.openlauncher.app.map.PlaceSearch
 import com.openlauncher.app.map.distanceMeters
@@ -102,18 +106,18 @@ internal fun MmiNavigationPage(location: LocationData?, metric: Boolean) {
     var screen by remember { mutableStateOf(if (installed) NavScreen.MAP else NavScreen.IMPORT) }
     val search = remember(installed) { PlaceSearch(MapData.search(context)) }
     val destinations = remember { Destinations(context) }
-    var target by remember { mutableStateOf<Place?>(null) }
+    val nav by NavigationEngine.state.collectAsStateWithLifecycle()
     var detail by remember { mutableStateOf<Place?>(null) }
     var listTitle by remember { mutableStateOf("") }
     var listItems by remember { mutableStateOf<List<Place>>(emptyList()) }
     var listReturn by remember { mutableStateOf(NavScreen.DESTINATION) }
     val scope = rememberCoroutineScope()
 
-    BackHandler(enabled = screen != NavScreen.MAP && screen != NavScreen.IMPORT) {
+    BackHandler(enabled = screen != NavScreen.MAP && (screen != NavScreen.IMPORT || installed)) {
         screen = when (screen) {
             NavScreen.DETAILS -> listReturn
             NavScreen.LIST -> if (listReturn == NavScreen.POI) NavScreen.POI else NavScreen.DESTINATION
-            NavScreen.POI, NavScreen.SEARCH -> NavScreen.DESTINATION
+            NavScreen.POI, NavScreen.SEARCH, NavScreen.IMPORT -> NavScreen.DESTINATION
             else -> NavScreen.MAP
         }
     }
@@ -135,10 +139,10 @@ internal fun MmiNavigationPage(location: LocationData?, metric: Boolean) {
         if (installed) {
             NavMap(
                 here = here,
-                target = target,
+                nav = nav,
                 metric = metric,
                 onOpenDestination = { screen = NavScreen.DESTINATION },
-                onEnd = { target = null },
+                onEnd = { NavigationEngine.stop() },
             )
         }
         AnimatedContent(
@@ -148,7 +152,13 @@ internal fun MmiNavigationPage(location: LocationData?, metric: Boolean) {
         ) { s ->
             when (s) {
                 NavScreen.MAP -> Spacer(Modifier.fillMaxSize())
-                NavScreen.IMPORT -> ImportPanel { installed = true; screen = NavScreen.MAP }
+                NavScreen.IMPORT -> ImportPanel(
+                    onBack = if (installed) ({ screen = NavScreen.DESTINATION }) else null,
+                ) {
+                    installed = true
+                    NavigationEngine.reloadData()
+                    screen = NavScreen.MAP
+                }
                 NavScreen.DESTINATION -> NavPanel("Select destination", onBack = { screen = NavScreen.MAP }) {
                     DestinationGrid(
                         onSearch = { screen = NavScreen.SEARCH },
@@ -161,6 +171,7 @@ internal fun MmiNavigationPage(location: LocationData?, metric: Boolean) {
                                 ?: run { screen = NavScreen.SEARCH }
                         },
                         onMap = { screen = NavScreen.MAP },
+                        onMapData = { screen = NavScreen.IMPORT },
                     )
                 }
                 NavScreen.POI -> NavPanel("Points of interest", onBack = { screen = NavScreen.DESTINATION }) {
@@ -193,7 +204,7 @@ internal fun MmiNavigationPage(location: LocationData?, metric: Boolean) {
                                 place = place, here = here, metric = metric, destinations = destinations,
                                 onStart = {
                                     destinations.addRecent(place)
-                                    target = place
+                                    NavigationEngine.navigateTo(place)
                                     screen = NavScreen.MAP
                                 },
                             )
@@ -210,7 +221,7 @@ internal fun MmiNavigationPage(location: LocationData?, metric: Boolean) {
 @Composable
 private fun NavMap(
     here: LatLng?,
-    target: Place?,
+    nav: NavState,
     metric: Boolean,
     onOpenDestination: () -> Unit,
     onEnd: () -> Unit,
@@ -219,16 +230,15 @@ private fun NavMap(
     val holder = remember { MapHolder() }
     var following by remember { mutableStateOf(true) }
     var threeD by remember { mutableStateOf(true) }
-    var course by remember { mutableFloatStateOf(0f) }
-    var lastFix by remember { mutableStateOf<LatLng?>(null) }
+    var toast by remember { mutableStateOf<String?>(null) }
+    val course = nav.course
+    val destination = nav.destination
+    val route = nav.route
 
-    // Heading from consecutive GPS fixes; head units often have no compass.
-    LaunchedEffect(here) {
-        val now = here ?: return@LaunchedEffect
-        val prev = lastFix
-        if (prev == null || distanceMeters(prev.latitude, prev.longitude, now.latitude, now.longitude) > 8) {
-            if (prev != null) course = bearingDegrees(prev, now)
-            lastFix = now
+    LaunchedEffect(toast) {
+        if (toast != null) {
+            delay(2200)
+            toast = null
         }
     }
 
@@ -285,18 +295,24 @@ private fun NavMap(
         }
     }
 
-    // Vehicle marker + camera follow.
-    LaunchedEffect(holder.style, here, course, following, threeD) {
+    // Vehicle marker + camera follow. Zooms out a little at speed so the next turn stays in view.
+    val zoomBand = when {
+        nav.speedKmh > 90f -> 0
+        nav.speedKmh > 50f -> 1
+        else -> 2
+    }
+    LaunchedEffect(holder.style, here, course, following, threeD, zoomBand) {
         val style = holder.style ?: return@LaunchedEffect
         val map = holder.map ?: return@LaunchedEffect
         val pos = here ?: return@LaunchedEffect
         style.getSourceAs<GeoJsonSource>("vehicle")?.setGeoJson(Point.fromLngLat(pos.longitude, pos.latitude))
         (style.getLayer("vehicle") as? SymbolLayer)?.setProperties(PropertyFactory.iconRotate(course))
         if (following) {
+            val zoom = if (threeD) 15.5 + zoomBand * 0.5 else 14.5 + zoomBand * 0.25
             map.animateCamera(
                 CameraUpdateFactory.newCameraPosition(
                     CameraPosition.Builder().target(pos)
-                        .zoom(if (threeD) 16.5 else 15.0)
+                        .zoom(zoom)
                         .tilt(if (threeD) 55.0 else 0.0)
                         .bearing(if (threeD) course.toDouble() else 0.0)
                         .build()
@@ -306,50 +322,110 @@ private fun NavMap(
         }
     }
 
-    // Destination marker and a direct line to it (road routing arrives with the router).
-    LaunchedEffect(holder.style, target, here) {
+    // Road route from the offline router; a direct line when there is none yet.
+    val directFrom = if (route == null) here else null
+    LaunchedEffect(holder.style, route, destination, directFrom) {
         val style = holder.style ?: return@LaunchedEffect
-        val dest = target
         val destSource = style.getSourceAs<GeoJsonSource>("destination")
         val routeSource = style.getSourceAs<GeoJsonSource>("route")
+        val dest = destination
         if (dest == null) {
             destSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
             routeSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
             return@LaunchedEffect
         }
         destSource?.setGeoJson(Point.fromLngLat(dest.lon, dest.lat))
-        val from = here
-        if (from != null) {
-            routeSource?.setGeoJson(
-                Feature.fromGeometry(
-                    LineString.fromLngLats(listOf(Point.fromLngLat(from.longitude, from.latitude), Point.fromLngLat(dest.lon, dest.lat)))
-                )
-            )
+        val points = when {
+            route != null -> List(route.lat.size) { Point.fromLngLat(route.lon[it], route.lat[it]) }
+            directFrom != null -> listOf(Point.fromLngLat(directFrom.longitude, directFrom.latitude), Point.fromLngLat(dest.lon, dest.lat))
+            else -> null
         }
+        if (points != null && points.size >= 2) routeSource?.setGeoJson(Feature.fromGeometry(LineString.fromLngLats(points)))
+        else routeSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
     }
 
     Box(Modifier.fillMaxSize()) {
         AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
 
-        if (target != null) {
-            GuidanceBanner(target, here, course, metric, Modifier.align(Alignment.TopStart).padding(16.dp), onEnd)
+        if (destination != null) {
+            Column(Modifier.align(Alignment.TopStart).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (route != null || nav.calculating) {
+                    ManeuverPanel(nav, metric)
+                } else {
+                    GuidanceBanner(destination, here, course, metric)
+                }
+                val status = when {
+                    nav.rerouting -> "Recalculating…"
+                    nav.calculating -> "Calculating route…"
+                    else -> nav.message
+                }
+                if (status != null) {
+                    Text(
+                        status, color = MmiInk, fontFamily = MmiFont, fontSize = 15.sp,
+                        modifier = Modifier.width(380.dp).mmiPanel().padding(horizontal = 14.dp, vertical = 8.dp),
+                    )
+                }
+            }
+            TripPanel(nav, here, metric, Modifier.align(Alignment.BottomStart).padding(16.dp), onEnd)
+        }
+
+        nav.camera?.let { cam ->
+            Row(
+                Modifier.align(Alignment.TopCenter).padding(top = 16.dp)
+                    .clip(RoundedCornerShape(4.dp)).background(Color(0xE6B71C1C)).padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MmiLineIcon(MmiLine.CAMERA, Color.White, Modifier.size(28.dp))
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    (if (cam.user) "Marked camera" else "Speed camera") + "  " + formatDistance(cam.distanceM, metric),
+                    color = Color.White, fontFamily = MmiFont, fontSize = 20.sp,
+                )
+                if (cam.limit > 0) {
+                    Spacer(Modifier.width(12.dp))
+                    SpeedLimitSign(cam.limit, Modifier.size(44.dp))
+                }
+            }
         }
 
         Column(
             Modifier.align(Alignment.CenterEnd).padding(end = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            ChromeButton(MmiLine.PLUS, 52.dp, { holder.map?.animateCamera(CameraUpdateFactory.zoomIn(), 250) })
-            ChromeButton(MmiLine.MINUS, 52.dp, { holder.map?.animateCamera(CameraUpdateFactory.zoomOut(), 250) })
+            ChromeButton(MmiLine.PLUS, 46.dp, { holder.map?.animateCamera(CameraUpdateFactory.zoomIn(), 250) })
+            ChromeButton(MmiLine.MINUS, 46.dp, { holder.map?.animateCamera(CameraUpdateFactory.zoomOut(), 250) })
             Box(
-                Modifier.size(52.dp).pressable { threeD = !threeD; following = true }.mmiPanel(),
+                Modifier.size(46.dp).pressable { threeD = !threeD; following = true }.mmiPanel(),
                 contentAlignment = Alignment.Center,
-            ) { Text(if (threeD) "2D" else "3D", color = MmiInk, fontFamily = MmiFont, fontSize = 16.sp) }
-            ChromeButton(MmiLine.LOCATE, 52.dp, { following = true }, highlighted = !following)
+            ) { Text(if (threeD) "2D" else "3D", color = MmiInk, fontFamily = MmiFont, fontSize = 15.sp) }
+            ChromeButton(MmiLine.LOCATE, 46.dp, { following = true }, highlighted = !following)
+            ChromeButton(if (nav.voiceOn) MmiLine.SPEAKER else MmiLine.MUTE, 46.dp, { NavigationEngine.setVoice(!nav.voiceOn) })
+            ChromeButton(MmiLine.CAMERA, 46.dp, {
+                toast = if (NavigationEngine.markCamera()) "Camera saved at this spot" else "No GPS fix yet"
+            })
+        }
+
+        // Speed limit sign with the current speed underneath.
+        if (here != null) {
+            Column(
+                Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 26.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                if (nav.speedLimit > 0) {
+                    SpeedLimitSign(nav.speedLimit, Modifier.size(64.dp))
+                    Spacer(Modifier.height(6.dp))
+                }
+                val speed = if (metric) nav.speedKmh else nav.speedKmh / 1.609f
+                Text(
+                    "${speed.roundToInt()}", color = if (nav.overspeed) Color(0xFFFF5252) else MmiInk,
+                    fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 30.sp,
+                )
+                Text(if (metric) "km/h" else "mph", color = MmiDim, fontFamily = MmiFont, fontSize = 12.sp)
+            }
         }
 
         ChromePill(
-            if (target == null) "Select destination" else "Destination",
+            if (destination == null) "Select destination" else "Destination",
             onOpenDestination, MmiLine.SEARCH,
             Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp),
         )
@@ -359,19 +435,85 @@ private fun NavMap(
         )
         if (here == null) {
             Text(
-                "Waiting for GPS…", color = MmiDim, fontFamily = MmiFont, fontSize = 14.sp,
-                modifier = Modifier.align(Alignment.BottomStart).padding(16.dp),
+                "Waiting for GPS…", color = MmiInk, fontFamily = MmiFont, fontSize = 15.sp,
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp).mmiPanel().padding(horizontal = 14.dp, vertical = 8.dp),
+            )
+        }
+        toast?.let {
+            Text(
+                it, color = MmiInk, fontFamily = MmiFont, fontSize = 16.sp,
+                modifier = Modifier.align(Alignment.Center).mmiPanel().padding(horizontal = 18.dp, vertical = 10.dp),
             )
         }
     }
 }
 
 @Composable
-private fun GuidanceBanner(target: Place, here: LatLng?, course: Float, metric: Boolean, modifier: Modifier, onEnd: () -> Unit) {
+private fun ManeuverPanel(nav: NavState, metric: Boolean) {
+    val next = nav.next
+    Column(Modifier.width(380.dp).mmiPanel().padding(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val type = when {
+                nav.arrived -> ManeuverType.ARRIVE
+                next != null -> next.type
+                else -> ManeuverType.STRAIGHT
+            }
+            ManeuverGlyph(type, next?.exit ?: 0, MmiInk, Modifier.size(72.dp))
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                when {
+                    nav.arrived -> {
+                        Text("Arrived", color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 32.sp)
+                        Text(nav.destination?.title ?: "", color = MmiDim, fontFamily = MmiFont, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    next != null -> {
+                        Text(formatDistance(nav.distanceToNextM, metric), color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 32.sp)
+                        Text(next.text, color = MmiInk, fontFamily = MmiFont, fontSize = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    else -> Text("Calculating…", color = MmiDim, fontFamily = MmiFont, fontSize = 20.sp)
+                }
+            }
+        }
+        val following = nav.following
+        if (!nav.arrived && next != null && following != null && following.alongM - next.alongM < 300.0) {
+            Box(Modifier.fillMaxWidth().padding(vertical = 8.dp).height(1.dp).background(Color(0xFF2A2E34)))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Then", color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp)
+                Spacer(Modifier.width(10.dp))
+                ManeuverGlyph(following.type, following.exit, MmiDim, Modifier.size(30.dp))
+                Spacer(Modifier.width(10.dp))
+                Text(following.road.display, color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TripPanel(nav: NavState, here: LatLng?, metric: Boolean, modifier: Modifier, onEnd: () -> Unit) {
+    val dest = nav.destination ?: return
+    val remaining = if (nav.route != null) nav.remainingM
+    else here?.let { distanceMeters(it.latitude, it.longitude, dest.lat, dest.lon) }
+    val seconds = if (nav.route != null) nav.remainingS else null
+    Row(modifier.height(56.dp).mmiPanel().padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        MmiLineIcon(MmiLine.FLAG, MmiInk, Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(remaining?.let { formatDistance(it, metric) } ?: "--", color = MmiInk, fontFamily = MmiFont, fontSize = 18.sp)
+        if (seconds != null && !nav.arrived) {
+            Text("  ·  ${formatDuration(seconds)}  ·  ${formatEta(seconds)}", color = MmiInk, fontFamily = MmiFont, fontSize = 18.sp)
+        }
+        Spacer(Modifier.width(12.dp))
+        Box(Modifier.size(44.dp).pressable(onEnd), contentAlignment = Alignment.Center) {
+            MmiLineIcon(MmiLine.CLOSE, MmiInk, Modifier.size(18.dp))
+        }
+    }
+}
+
+@Composable
+private fun GuidanceBanner(target: Place, here: LatLng?, course: Float, metric: Boolean) {
     val distance = here?.let { distanceMeters(it.latitude, it.longitude, target.lat, target.lon) }
     val relative = here?.let { (bearingDegrees(it, LatLng(target.lat, target.lon)) - course + 360f) % 360f }
     Row(
-        modifier.width(360.dp).mmiPanel().padding(14.dp),
+        Modifier.width(380.dp).mmiPanel().padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
@@ -384,9 +526,6 @@ private fun GuidanceBanner(target: Place, here: LatLng?, course: Float, metric: 
         Column(Modifier.weight(1f)) {
             Text(distance?.let { formatDistance(it, metric) } ?: "--", color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 28.sp)
             Text(target.title, color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        Box(Modifier.size(44.dp).pressable(onEnd).mmiPanel(), contentAlignment = Alignment.Center) {
-            MmiLineIcon(MmiLine.CLOSE, MmiInk, Modifier.size(20.dp))
         }
     }
 }
@@ -471,6 +610,7 @@ private fun DestinationGrid(
     onPoi: () -> Unit,
     onHome: () -> Unit,
     onMap: () -> Unit,
+    onMapData: () -> Unit,
 ) {
     val tiles = listOf(
         Triple("Intelligent search", MmiLine.SEARCH, onSearch),
@@ -480,6 +620,7 @@ private fun DestinationGrid(
         Triple("Points of interest", MmiLine.FUEL, onPoi),
         Triple("Home", MmiLine.HOME, onHome),
         Triple("Map", MmiLine.GLOBE, onMap),
+        Triple("Map data", MmiLine.OPEN, onMapData),
     )
     Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         tiles.chunked(4).forEach { row ->
@@ -702,11 +843,12 @@ private fun KeyText(text: String) {
 // ── First-run import ─────────────────────────────────────────────────────────
 
 @Composable
-private fun ImportPanel(onDone: () -> Unit) {
+private fun ImportPanel(onBack: (() -> Unit)?, onDone: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var progress by remember { mutableStateOf<Float?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var refresh by remember { mutableIntStateOf(0) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri> ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
@@ -714,22 +856,49 @@ private fun ImportPanel(onDone: () -> Unit) {
             error = null
             val ok = MapData.import(context, uris) { progress = it }
             progress = null
+            refresh++
             if (ok && MapData.isInstalled(context)) onDone()
-            else error = "Select both egypt.mbtiles and egypt-search.db."
+            else error = "Select at least egypt.mbtiles and egypt-search.db."
         }
     }
     Column(
-        Modifier.fillMaxSize().background(MmiPageBg).padding(horizontal = 64.dp, vertical = 24.dp),
+        Modifier.fillMaxSize().background(MmiPageBg).padding(horizontal = 64.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.Center,
     ) {
+        if (onBack != null) {
+            Box(Modifier.size(width = 64.dp, height = 44.dp).pressable(onBack).mmiPanel(), contentAlignment = Alignment.Center) {
+                MmiLineIcon(MmiLine.CHEVRON_LEFT, MmiInk, Modifier.size(20.dp))
+            }
+            Spacer(Modifier.height(12.dp))
+        }
         Text("Offline maps for Egypt", color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 32.sp)
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(10.dp))
         Text(
-            "Copy egypt.mbtiles and egypt-search.db from the map package to a USB stick,\n" +
-                "plug it in, then tap Import and select both files. This is needed only once.",
-            color = MmiDim, fontFamily = MmiFont, fontSize = 17.sp,
+            "Copy the files from the map package to a USB stick, plug it in, then tap Import\n" +
+                "and select all of them. Needed only once — everything then works without internet.",
+            color = MmiDim, fontFamily = MmiFont, fontSize = 16.sp,
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(14.dp))
+        key(refresh) {
+            listOf(
+                Triple("egypt.mbtiles", "Map", MapData.tiles(context)),
+                Triple("egypt-search.db", "Search", MapData.search(context)),
+                Triple("egypt-routing.graph", "Turn-by-turn routing", MapData.routing(context)),
+                Triple("egypt-safety.db", "Speed limits and cameras", MapData.safety(context)),
+            ).forEach { (name, label, file) ->
+                val present = file.exists()
+                Row(Modifier.height(30.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(if (present) RouteGreen else Color(0xFF5A6068)))
+                    Spacer(Modifier.width(12.dp))
+                    Text(name, color = MmiInk, fontFamily = MmiFont, fontSize = 16.sp, modifier = Modifier.width(220.dp))
+                    Text(
+                        if (present) "$label · ${file.length() / (1024 * 1024)} MB" else "$label · not imported",
+                        color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp,
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(18.dp))
         val p = progress
         if (p != null) {
             Box(Modifier.fillMaxWidth(0.6f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFF2A2E34))) {
