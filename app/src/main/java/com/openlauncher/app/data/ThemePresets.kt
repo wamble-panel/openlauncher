@@ -74,7 +74,7 @@ val DASHBOARD_THEMES = listOf(
         lightAccent = 0xFF1E6FB3L, lightBg = 0xFFE4EEF8L,
         darkGradientEnd  = 0xFF0A3E7AL,
         lightGradientEnd = 0xFFCDE0F2L,
-        gradient = GradientDirection.RADIAL,
+        gradient = GradientDirection.TOP_TO_BOTTOM,
     ),
 )
 
@@ -95,12 +95,13 @@ fun resolveDashboardTheme(themeId: String, isDayMode: Boolean): ResolvedTheme? {
     val endLong = if (isDayMode) def.lightGradientEnd else def.darkGradientEnd
     if (endLong == null || def.gradient == null) return base
     val endColor = Color(endLong)
-    val stops = listOf(base.background, endColor)
+    // The gradient end is the lit side (top / left / centre), fading into the base surface.
+    val stops = listOf(endColor, base.background)
     val brush = when (def.gradient) {
         GradientDirection.TOP_TO_BOTTOM -> Brush.verticalGradient(stops)
         GradientDirection.LEFT_TO_RIGHT -> Brush.horizontalGradient(stops)
         GradientDirection.DIAGONAL -> Brush.linearGradient(stops)
-        GradientDirection.RADIAL -> Brush.radialGradient(colors = listOf(endColor, base.background))
+        GradientDirection.RADIAL -> Brush.radialGradient(stops)
     }
     return base.copy(backgroundBrush = brush)
 }

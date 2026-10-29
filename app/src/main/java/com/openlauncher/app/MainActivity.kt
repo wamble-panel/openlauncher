@@ -295,7 +295,22 @@ class MainActivity : ComponentActivity() {
                                 label    = "pane_transition"
                             ) { destination ->
                                 when (destination) {
-                                    NavDestination.HOME -> HomeScreen(
+                                    NavDestination.HOME -> if (settings.themeId == "mbux") MbuxHomeScreen(
+                                        nowPlaying      = nowPlaying,
+                                        hardwareRadio   = hardwareRadio,
+                                        accent          = accent,
+                                        onPlayPause     = vm::playPause,
+                                        onNext          = vm::skipNext,
+                                        onPrev          = vm::skipPrev,
+                                        onTapNowPlaying = {
+                                            val pkg = nowPlaying?.controller?.packageName
+                                            if (!pkg.isNullOrEmpty()) vm.launchApp(pkg)
+                                        },
+                                        onLaunchRadio   = { vm.launchHardwareRadioApp() },
+                                        onRadioSeekUp   = { vm.radioSeekUp() },
+                                        onRadioSeekDown = { vm.radioSeekDown() },
+                                        onOpenApps      = { vm.navigate(NavDestination.APP_LIBRARY) },
+                                    ) else HomeScreen(
                                         settings            = settings,
                                         weather             = weather,
                                         nowPlaying          = nowPlaying,
