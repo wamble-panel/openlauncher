@@ -20,6 +20,9 @@ rem Lets MMI apply its speed settings itself (Settings > Unit cleanup & speed)
 adb shell pm grant %PKG% android.permission.WRITE_SECURE_SETTINGS
 rem Pre-compile MMI fully so every screen opens without stutter
 adb shell cmd package compile -m speed -f %PKG%
+rem Silent updates: as device owner MMI installs its own updates with no prompt (only while parked).
+rem Android refuses this while accounts are signed in on the unit; MMI Settings can turn it off again.
+adb shell dpm set-device-owner %PKG%/.AdminReceiver || echo Silent updates not enabled - sign out of accounts on the unit and run this again.
 adb shell am start -n %PKG%/.MainActivity
 
 echo.

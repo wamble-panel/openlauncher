@@ -19,5 +19,9 @@ adb shell dumpsys deviceidle whitelist +$PKG || true
 adb shell pm grant $PKG android.permission.WRITE_SECURE_SETTINGS || true
 # Pre-compile MMI fully so every screen opens without stutter
 adb shell cmd package compile -m speed -f $PKG || true
+# Silent updates: as device owner MMI can install its own updates with no prompt
+# (only while parked). Android refuses this while accounts are signed in on the
+# unit; MMI Settings has "Silent updates: on (tap to turn off)" to undo it.
+adb shell dpm set-device-owner $PKG/.AdminReceiver || echo "Silent updates not enabled (sign out of accounts on the unit and run this script again)."
 adb shell am start -n $PKG/.MainActivity
 echo "Done. MMI is installed, set as home screen and has every permission."
