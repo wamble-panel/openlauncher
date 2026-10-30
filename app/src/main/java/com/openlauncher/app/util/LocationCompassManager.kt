@@ -16,6 +16,7 @@ import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
@@ -98,7 +99,11 @@ class LocationCompassManager(context: Context) {
                 val alpha = 0.20f
                 bearingSin = alpha * sin(azimuthRad).toFloat() + (1f - alpha) * bearingSin
                 bearingCos = alpha * cos(azimuthRad).toFloat() + (1f - alpha) * bearingCos
-                _bearing.value = ((Math.toDegrees(atan2(bearingSin.toDouble(), bearingCos.toDouble())) + 360) % 360).toFloat()
+                val b = ((Math.toDegrees(atan2(bearingSin.toDouble(), bearingCos.toDouble())) + 360) % 360).toFloat()
+                // Only whole-degree changes: the sensor fires ~16 times a second and
+                // every new value redraws whatever shows the heading.
+                val d = abs(((b - _bearing.value) % 360f + 540f) % 360f - 180f)
+                if (d >= 1f) _bearing.value = b
             }
         }
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}

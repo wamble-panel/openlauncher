@@ -93,9 +93,6 @@ class MainActivity : ComponentActivity() {
         setContent {
             val nowPlaying by vm.nowPlaying.collectAsStateWithLifecycle()
             val apps by vm.apps.collectAsStateWithLifecycle()
-            val location by vm.location.collectAsStateWithLifecycle()
-            val bearing by vm.compassBearing.collectAsStateWithLifecycle()
-            val voltage by vm.voltage.collectAsStateWithLifecycle()
             val hardwareRadio by vm.hardwareRadio.collectAsStateWithLifecycle()
             val metric by vm.prefs.metric.collectAsStateWithLifecycle()
             val home by homeSignal.collectAsStateWithLifecycle()
@@ -131,9 +128,9 @@ class MainActivity : ComponentActivity() {
                     onRadioFm = vm::radioCycleFm,
                     onRadioAm = vm::radioSwitchAm,
                     apps = apps,
-                    location = location,
-                    bearing = bearing,
-                    voltage = voltage,
+                    location = vm.location,
+                    bearing = vm.compassBearing,
+                    voltage = vm.voltage,
                     onLaunchPackage = vm::launchApp,
                     homeSignal = home,
                 )
@@ -155,7 +152,39 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         vm.refreshMedia()
+        // Back from the reverse camera (or another app that took the audio): if music
+        // was playing when MMI went to the background, carry on playing.
+        val wasPlaying = playingWhenPaused
+        val away = android.os.SystemClock.elapsedRealtime() - pausedAt
+        playingWhenPaused = false
+        if (wasPlaying && away < 3 * 60_000L) {
+            window.decorView.postDelayed({
+                if (vm.nowPlaying.value?.isPlaying != true) resumeMusic()
+            }, 1500)
+        }
     }
+
+    override fun onPause() {
+        playingWhenPaused = vm.nowPlaying.value?.isPlaying == true
+        pausedAt = android.os.SystemClock.elapsedRealtime()
+        super.onPause()
+    }
+
+    private fun resumeMusic() {
+        val controller = vm.nowPlaying.value?.controller
+        if (controller != null) {
+            controller.transportControls.play()
+        } else {
+            // Bluetooth music from the vendor app has no session: a play key reaches it.
+            val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+            listOf(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.ACTION_UP).forEach {
+                am.dispatchMediaKeyEvent(android.view.KeyEvent(it, android.view.KeyEvent.KEYCODE_MEDIA_PLAY))
+            }
+        }
+    }
+
+    private var playingWhenPaused = false
+    private var pausedAt = 0L
 
     override fun onDestroy() {
         com.openlauncher.app.ui.screen.PersistentMap.destroy()

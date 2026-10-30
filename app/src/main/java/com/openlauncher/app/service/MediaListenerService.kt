@@ -55,6 +55,11 @@ class MediaListenerService : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         refreshNowPlaying()
         sbn?.let { NavigationTracker.onPosted(it, this) }
+        if (sbn != null && sbn.isClearable && !sbn.isOngoing && sbn.packageName != packageName &&
+            KEEP_PREFIXES.none { sbn.packageName.startsWith(it) } && popupsHidden(this)
+        ) {
+            runCatching { cancelNotification(sbn.key) }
+        }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
@@ -161,5 +166,19 @@ class MediaListenerService : NotificationListenerService() {
 
         @Volatile private var instance: MediaListenerService? = null
         fun requestRefresh() { instance?.refreshNowPlaying() }
+
+        private fun uiPrefs(context: android.content.Context) =
+            context.getSharedPreferences("mmi_ui", android.content.Context.MODE_PRIVATE)
+
+        /** Other apps' notification pop-ups are dismissed as they arrive, so they never cover MMI. */
+        fun popupsHidden(context: android.content.Context) = uiPrefs(context).getBoolean("hide_popups", true)
+
+        fun setPopupsHidden(context: android.content.Context, hidden: Boolean) {
+            uiPrefs(context).edit().putBoolean("hide_popups", hidden).apply()
+        }
+
+        /** Never dismissed: ongoing ones, the car's own apps, navigation and Android itself. */
+        private val KEEP_PREFIXES = listOf("com.tw.", "com.android.", "android", "com.google.android.apps.maps", "com.waze")
+        }
     }
 }

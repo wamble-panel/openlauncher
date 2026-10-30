@@ -85,6 +85,7 @@ import com.openlauncher.app.util.IntroVideo
 import com.openlauncher.app.util.LocationData
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -121,9 +122,11 @@ fun MmiHomeScreen(
     onRadioFm: () -> Unit,
     onRadioAm: () -> Unit,
     apps: List<AppInfo>,
-    location: LocationData?,
-    bearing: Float,
-    voltage: Float?,
+    // Flows, not values: GPS and compass update often, and collecting them only
+    // where they're shown keeps the rest of the shell from redrawing.
+    location: StateFlow<LocationData?>,
+    bearing: StateFlow<Float>,
+    voltage: StateFlow<Float?>,
     onLaunchPackage: (String) -> Unit,
     homeSignal: Int,
 ) {
@@ -279,12 +282,12 @@ fun MmiHomeScreen(
                             } else if (active != null) {
                                 NavCard(active, Modifier.fillMaxSize()) { context.openNavigation(active) }
                             } else {
-                                DriveCard(location, bearing, voltage, metric, Modifier.fillMaxSize())
+                                LiveDriveCard(location, bearing, voltage, metric, Modifier.fillMaxSize())
                             }
                         }
                     }
                     }
-                    MmiPage.DASHBOARD -> MmiDashboardPage(location, bearing, voltage, metric)
+                    MmiPage.DASHBOARD -> LiveDashboard(location, bearing, voltage, metric)
                     MmiPage.SETTINGS -> SettingsPanel(metric, onSetMetric) {
                         if (it == MmiPage.BLUETOOTH) {
                             bluetoothFrom = MmiPage.SETTINGS
@@ -307,7 +310,7 @@ fun MmiHomeScreen(
                         onConnectNew = { pairOnOpen = true; bluetoothFrom = MmiPage.BT_HUB; page = MmiPage.BLUETOOTH },
                     )
                     MmiPage.NAV_SETTINGS -> MmiNavSettingsPage(metric, onSetMetric)
-                    MmiPage.NAV -> MmiNavigationPage(location, metric) { key ->
+                    MmiPage.NAV -> MmiNavigationPage(location.collectAsStateWithLifecycle().value, metric) { key ->
                         page = when (key) {
                             "radio" -> MmiPage.RADIO
                             "music" -> MmiPage.MUSIC
@@ -316,7 +319,7 @@ fun MmiHomeScreen(
                             else -> MmiPage.HOME
                         }
                     }
-                    MmiPage.SYSTEM -> MmiSystemCheckPage(apps, location)
+                    MmiPage.SYSTEM -> MmiSystemCheckPage(apps, location.collectAsStateWithLifecycle().value)
                     MmiPage.MUSIC -> MmiMusicPage(
                         state = nowPlaying,
                         onPlayPause = playPause, onNext = next, onPrev = prev,
@@ -977,6 +980,24 @@ private fun NavCard(guidance: NavGuidance, modifier: Modifier, onClick: () -> Un
 }
 
 @Composable
+private fun LiveDriveCard(
+    location: StateFlow<LocationData?>, bearing: StateFlow<Float>, voltage: StateFlow<Float?>, metric: Boolean, modifier: Modifier,
+) {
+    val loc by location.collectAsStateWithLifecycle()
+    val heading by bearing.collectAsStateWithLifecycle()
+    val volts by voltage.collectAsStateWithLifecycle()
+    DriveCard(loc, heading, volts, metric, modifier)
+}
+
+@Composable
+private fun LiveDashboard(location: StateFlow<LocationData?>, bearing: StateFlow<Float>, voltage: StateFlow<Float?>, metric: Boolean) {
+    val loc by location.collectAsStateWithLifecycle()
+    val heading by bearing.collectAsStateWithLifecycle()
+    val volts by voltage.collectAsStateWithLifecycle()
+    MmiDashboardPage(loc, heading, volts, metric)
+}
+
+@Composable
 private fun DriveCard(location: LocationData?, bearing: Float, voltage: Float?, metric: Boolean, modifier: Modifier) {
     val context = LocalContext.current
     val speed = (location?.speedMps ?: 0f) * if (metric) 3.6f else 2.237f
@@ -1136,6 +1157,7 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
         }
     }
     var silentUpdates by remember { mutableStateOf(updater.isDeviceOwner(context)) }
+    var popupsHidden by remember { mutableStateOf(com.openlauncher.app.service.MediaListenerService.popupsHidden(context)) }
     val rows: List<Pair<String, () -> Unit>> = listOfNotNull(
         updateLabel to runUpdate,
         // Device owner (set once over ADB) only exists for silent updates; this undoes it.
@@ -1173,6 +1195,10 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
         },
         "Navigation" to { onOpen(MmiPage.NAV_SETTINGS) },
         (if (metric) "Units: km/h, metres" else "Units: mph, feet") to { onSetMetric(!metric) },
+        (if (popupsHidden) "Android pop-ups: hidden (tap to show)" else "Android pop-ups: shown (tap to hide)") to {
+            popupsHidden = !popupsHidden
+            com.openlauncher.app.service.MediaListenerService.setPopupsHidden(context, popupsHidden)
+        },
         (if (introSet) "Startup video: on (tap to remove)" else "Startup video: import from USB") to {
             if (introSet) {
                 IntroVideo.remove(context)

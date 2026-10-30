@@ -12,15 +12,23 @@ class CarApp : Application() {
     override fun onCreate() {
         super.onCreate()
         CrashLog.install(this)
-        NavigationEngine.init(this)
-        CarAudio.init(this)
-        BtConnect.init(this)
+        // Needed for the very first frame (car picture, background) or to catch
+        // car messages from the start.
         RoadMemory.init(this)
         ThemePack.init(this)
         com.openlauncher.app.util.TwBridge.init(this)
-        // Only restarts MMI for an update while the car stands still.
-        com.openlauncher.app.util.AppUpdater.startBackground(this) {
-            (com.openlauncher.app.util.CarLocation.get(this).location.value?.speedMps ?: 0f) < 0.5f
+        // The rest (text-to-speech, routing data, equalizer, Bluetooth profiles,
+        // updates) waits until the home screen is on screen: the main thread is
+        // idle by then, so start-up after ignition shows MMI sooner.
+        android.os.Looper.myQueue().addIdleHandler {
+            NavigationEngine.init(this)
+            CarAudio.init(this)
+            BtConnect.init(this)
+            // Only restarts MMI for an update while the car stands still.
+            com.openlauncher.app.util.AppUpdater.startBackground(this) {
+                (com.openlauncher.app.util.CarLocation.get(this).location.value?.speedMps ?: 0f) < 0.5f
+            }
+            false
         }
     }
 }
