@@ -44,3 +44,11 @@ Thumbs.db
 
 # Local Claude Code session notes — not for upstream
 CLAUDE.md
+
+# MMI launcher port: tool installs, device dumps, firmware (never commit)
+tools/bin/
+tools/.venv/
+device_dump/
+firmware_in/
+firmware_work/
+hmi_web/original/
