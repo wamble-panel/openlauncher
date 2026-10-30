@@ -106,7 +106,7 @@ object Climate {
         override fun onRightWindType(type: Int) {}
         override fun onSYNC(type: Int) {}
         override fun onRightWindLevel(mLevel: Int) {}
-        override fun onPollenClear(is: Boolean): Int = 0
+        override fun onPollenClear(`is`: Boolean): Int = 0
         override fun onShow() { vendorPopupOpened() }
         override fun onHide() {}
         override fun onLeftTempNULL(isNULL: Boolean) {}
