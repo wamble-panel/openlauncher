@@ -155,9 +155,6 @@ fun MmiHomeScreen(
     }
     // Pressing the unit's Home key returns to the ring menu.
     LaunchedEffect(homeSignal) { if (homeSignal > 0) page = MmiPage.HOME }
-            }
-        }
-    }
     val context = LocalContext.current
     val guidance by NavigationTracker.guidance.collectAsStateWithLifecycle()
     val ownNav by NavigationEngine.state.collectAsStateWithLifecycle()
@@ -237,6 +234,9 @@ fun MmiHomeScreen(
                 com.openlauncher.app.util.TwBridge.radioLast().let { (_, f) ->
                     com.openlauncher.app.util.TwBridge.radioSavePreset(0, f)
                 }
+            }
+        }
+    }
 
     // Idle: with no touch, no music playing and no phone connected for a while,
     // the screen fades over to the map, like a parked MMI.
