@@ -18,7 +18,7 @@ import java.util.zip.ZipOutputStream
 object CarAppsExport {
     private val PACKAGES = listOf(
         "com.tw.bt", "com.tw.music", "com.tw.radio", "com.tw.keypad", "com.tw.service", "com.tw.service.xt",
-        "com.tw.core", "com.tw.coreservice", "com.tw.reverse", "com.tw.eq", "com.tw.carchoose", "com.tw.auxin",
+        "com.tw.core", "com.tw.coreservice", "com.tw.reverse", "com.tw.eq", "com.tw.carchoose", "com.tw.auxin", "com.tw.ac",
         "com.dofun.carsetting",
     )
     private const val PART_LIMIT = 18L * 1024 * 1024
