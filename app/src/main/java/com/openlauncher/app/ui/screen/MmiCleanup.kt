@@ -157,6 +157,29 @@ internal fun MmiCleanupPage() {
                     } ?: "Couldn't read the car apps."
                 }
             }, MmiLine.OPEN, Modifier.fillMaxWidth())
+            // One tap: export the car apps and upload everything to the developer's GitHub.
+            ChromePill("Send to developer", {
+                scope.launch {
+                    val up = com.openlauncher.app.util.DevUpload
+                    if (!up.configured) {
+                        message = "Not set up yet: GitHub sign-in for MMI still needs its Client ID."
+                        return@launch
+                    }
+                    if (!up.signedIn(context)) {
+                        val code = up.requestCode() ?: run { message = "No internet — connect Wi-Fi and tap again."; return@launch }
+                        message = "On your phone open ${code.url} and enter  ${code.userCode}  — then wait here."
+                        if (!up.awaitApproval(context, code)) { message = "Not approved — tap Send to developer to try again."; return@launch }
+                    }
+                    message = "Packing the car apps…"
+                    com.openlauncher.app.util.CarAppsExport.export(context) { message = it }
+                    UnitCleanup.writeScripts(context, list, selected)
+                    val files = up.reportFiles(context)
+                    message = up.send(context, files) { message = it }.fold(
+                        { n -> "Sent $n files. Tell Claude \"sent\"." },
+                        { e -> "Sending failed: ${e.message}" },
+                    )
+                }
+            }, MmiLine.OPEN, Modifier.fillMaxWidth())
             // Wi-Fi share: a phone on the same hotspot downloads the report files from the unit.
             var sharing by remember { mutableStateOf(WifiShare.running) }
             ChromePill(if (sharing) "Stop sharing over Wi-Fi" else "Share files over Wi-Fi", {
