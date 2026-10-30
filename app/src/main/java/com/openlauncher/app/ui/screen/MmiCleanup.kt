@@ -21,6 +21,7 @@ import com.openlauncher.app.util.Root
 import com.openlauncher.app.util.UnitApp
 import com.openlauncher.app.util.UnitCleanup
 import com.openlauncher.app.util.Verdict
+import com.openlauncher.app.util.WifiShare
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -141,6 +142,20 @@ internal fun MmiCleanupPage() {
                 },
                 MmiLine.HISTORY, Modifier.fillMaxWidth(),
             )
+            // Wi-Fi share: a phone on the same hotspot downloads the report files from the unit.
+            var sharing by remember { mutableStateOf(WifiShare.running) }
+            ChromePill(if (sharing) "Stop sharing over Wi-Fi" else "Share files over Wi-Fi", {
+                if (sharing) {
+                    WifiShare.stop()
+                    sharing = false
+                    message = null
+                } else {
+                    val ip = WifiShare.address()
+                    sharing = ip != null && WifiShare.start(context)
+                    message = if (sharing) "On your phone (on the same hotspot), open  http://$ip:${WifiShare.PORT}  and tap each file to download it."
+                    else "Connect the unit to your phone's hotspot first (Settings → Wi-Fi), then tap again."
+                }
+            }, MmiLine.OPEN, Modifier.fillMaxWidth())
             ChromePill(if (overlay) "Performance readout: on" else "Performance readout: off", {
                 prefs.setPerfOverlay(!overlay)
             }, MmiLine.HISTORY, Modifier.fillMaxWidth())
