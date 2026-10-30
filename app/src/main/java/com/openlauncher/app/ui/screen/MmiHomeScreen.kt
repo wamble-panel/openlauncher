@@ -155,6 +155,9 @@ fun MmiHomeScreen(
     }
     // Pressing the unit's Home key returns to the ring menu.
     LaunchedEffect(homeSignal) { if (homeSignal > 0) page = MmiPage.HOME }
+            }
+        }
+    }
     val context = LocalContext.current
     val guidance by NavigationTracker.guidance.collectAsStateWithLifecycle()
     val ownNav by NavigationEngine.state.collectAsStateWithLifecycle()
@@ -203,6 +206,37 @@ fun MmiHomeScreen(
             else -> mediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS)
         }
     }
+
+    // The Astra CD300 dash panel (codes learned from the car): each button drives MMI.
+    val lastCarKey by com.openlauncher.app.util.CarCore.lastKey.collectAsStateWithLifecycle()
+    LaunchedEffect(lastCarKey) {
+        val k = lastCarKey ?: return@LaunchedEffect
+        if (k.press != 1) return@LaunchedEffect  // short press only
+        when (k.code) {
+            16 -> page = MmiPage.RADIO                       // RADIO/BAND
+            32 -> page = MmiPage.BT_HUB                       // PHONE
+            37 -> page = MmiPage.DASHBOARD                    // INFO
+            90 -> page = MmiPage.SETTINGS                     // CONFIG
+            24 -> page = MmiPage.SOUND                        // TONE
+            40 -> if (radioPackage.isNotEmpty()) onLaunchRadio() // AUX (vendor source)
+            18 -> back()                                      // BACK
+            33 -> if (page == MmiPage.RADIO) {} else page = MmiPage.MUSIC // FAV -> music/favourites
+            5, 21 -> when (page) {                            // seek left / knob left
+                MmiPage.RADIO -> com.openlauncher.app.util.TwBridge.radioStep(false)
+                else -> prev()
+            }
+            6, 19 -> when (page) {                            // seek right / knob right
+                MmiPage.RADIO -> com.openlauncher.app.util.TwBridge.radioStep(true)
+                else -> next()
+            }
+            in 49..54 -> if (page == MmiPage.RADIO) {          // presets 1-6
+                com.openlauncher.app.util.TwBridge.radioPresets().getOrNull(k.code - 49)?.takeIf { it > 0f }
+                    ?.let { com.openlauncher.app.util.TwBridge.radioTune(it > 200f, it) }
+            }
+            7 -> if (page == MmiPage.RADIO) {                 // AS -> store current across presets (quick)
+                com.openlauncher.app.util.TwBridge.radioLast().let { (_, f) ->
+                    com.openlauncher.app.util.TwBridge.radioSavePreset(0, f)
+                }
 
     // Idle: with no touch, no music playing and no phone connected for a while,
     // the screen fades over to the map, like a parked MMI.
