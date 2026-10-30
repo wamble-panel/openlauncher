@@ -16,10 +16,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openlauncher.app.data.CarPrefs
+import com.openlauncher.app.util.CarLinkScan
 import com.openlauncher.app.util.Root
 import com.openlauncher.app.util.UnitApp
 import com.openlauncher.app.util.UnitCleanup
 import com.openlauncher.app.util.Verdict
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -106,6 +108,39 @@ internal fun MmiCleanupPage() {
                     else "Couldn't copy — the unit's storage refused."
                 }
             }, MmiLine.OPEN, Modifier.fillMaxWidth())
+            // Car link scan: learns the vendor's broadcasts on the unit, saved as one small text file.
+            var linkStep by remember { mutableIntStateOf(if (CarLinkScan.listening) 2 else 0) }
+            var heard by remember { mutableIntStateOf(0) }
+            LaunchedEffect(linkStep) {
+                while (linkStep == 2) { heard = CarLinkScan.eventCount(); delay(1000) }
+            }
+            ChromePill(
+                when (linkStep) {
+                    1 -> "Reading vendor apps…"
+                    2 -> "Stop and save ($heard heard)"
+                    else -> "Car link scan"
+                },
+                {
+                    when (linkStep) {
+                        0 -> scope.launch {
+                            linkStep = 1
+                            CarLinkScan.scan(context) { done, total -> message = "Reading vendor apps… $done / $total" }
+                            val n = CarLinkScan.startListening(context)
+                            linkStep = 2
+                            message = "Listening for $n car messages. Now press every steering-wheel button, play, pause and skip a " +
+                                "Bluetooth song, connect and disconnect your phone, open the radio and change station. Then come back and tap Stop and save."
+                        }
+                        2 -> scope.launch {
+                            CarLinkScan.stopListening(context)
+                            linkStep = 0
+                            message = CarLinkScan.save(context)?.let { "Saved mmi-carlink.txt to $it — send me that one file." }
+                                ?: "Couldn't save the file — the unit's storage refused."
+                        }
+                        else -> Unit
+                    }
+                },
+                MmiLine.HISTORY, Modifier.fillMaxWidth(),
+            )
             ChromePill(if (overlay) "Performance readout: on" else "Performance readout: off", {
                 prefs.setPerfOverlay(!overlay)
             }, MmiLine.HISTORY, Modifier.fillMaxWidth())
