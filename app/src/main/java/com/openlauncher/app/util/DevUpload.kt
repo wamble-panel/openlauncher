@@ -128,21 +128,47 @@ object DevUpload {
         return dir.listFiles { f -> f.isFile && f.length() > 0 }?.sortedBy { it.name }.orEmpty()
     }
 
-    /** Step 3: uploads every report file into a new dated folder; returns how many went up. */
+    /**
+     * Step 3: uploads every report file. An interrupted send resumes: the same
+     * folder is reused until everything is up, and files already there (same
+     * name and size) are skipped. Returns how many files are in the folder.
+     */
     suspend fun send(context: Context, files: List<File>, onProgress: (String) -> Unit): Result<Int> = withContext(Dispatchers.IO) {
         runCatching {
             val (code, _) = api(context, "GET", "https://api.github.com/repos/$REPO")
-            if (code == 401) { signOut(context); error("GitHub sign-in expired — tap Send to developer again") }
+            if (code == 401) { signOut(context); error("GitHub sign-in needed — tap Send to developer again") }
             if (code == 404) error("Private repo $REPO not found — create it on GitHub first")
             if (code != 200) error("GitHub answered $code")
-            val folder = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm", java.util.Locale.US).format(java.util.Date())
-            var sent = 0
-            files.filter { it.isFile }.forEachIndexed { i, f ->
-                withContext(Dispatchers.Main) { onProgress("Sending ${i + 1} / ${files.size}: ${f.name}") }
-                val up = putFile(context, "https://api.github.com/repos/$REPO/contents/$folder/${URLEncoder.encode(f.name, "UTF-8")}", f)
-                if (up in 200..299) sent++ else if (up == 401) { signOut(context); error("GitHub sign-in expired — tap Send to developer again") }
+            val folder = prefs(context).getString("send_folder", null)
+                ?: java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm", java.util.Locale.US).format(java.util.Date())
+                    .also { prefs(context).edit().putString("send_folder", it).apply() }
+            // What already made it into this folder on an earlier, interrupted try.
+            val (listCode, listing) = api(context, "GET", "https://api.github.com/repos/$REPO/contents/$folder")
+            val present = HashMap<String, Long>()
+            if (listCode == 200) runCatching {
+                val arr = org.json.JSONArray(listing)
+                for (i in 0 until arr.length()) arr.getJSONObject(i).let { present[it.getString("name")] = it.optLong("size") }
             }
-            sent
+            val todo = files.filter { it.isFile }
+            var done = 0
+            todo.forEachIndexed { i, f ->
+                if (present[f.name] == f.length()) { done++; return@forEachIndexed }
+                withContext(Dispatchers.Main) { onProgress("Sending ${i + 1} / ${todo.size}: ${f.name}") }
+                val url = "https://api.github.com/repos/$REPO/contents/$folder/${URLEncoder.encode(f.name, "UTF-8")}"
+                var up = runCatching { putFile(context, url, f) }.getOrDefault(-1)
+                if (up !in 200..299) {
+                    // One failed request isn't a lost sign-in: check, then try once more.
+                    if (api(context, "GET", "https://api.github.com/user").first == 401) {
+                        signOut(context)
+                        error("GitHub sign-in needed — tap Send to developer again; it continues where it stopped")
+                    }
+                    up = runCatching { putFile(context, url, f) }.getOrDefault(-1)
+                }
+                if (up in 200..299) done++ else error("Couldn't send ${f.name} (GitHub $up) — tap again to continue")
+            }
+            // Everything is up: the next send starts a new folder.
+            prefs(context).edit().remove("send_folder").apply()
+            done
         }
     }
 }
