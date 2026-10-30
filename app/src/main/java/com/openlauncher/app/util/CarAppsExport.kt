@@ -20,7 +20,7 @@ object CarAppsExport {
     // steering wheel, service, reverse, climate, CarSetting, EQ, car info, car
     // choice, AUX and framework.jar. Next: the vendor home screen ("Theme") and
     // CarMate, to see exactly what the original home sends to the car.
-    private val PACKAGES = listOf("com.dofun.variety", "com.dofun.carassistant.car")
+    private val PACKAGES = listOf("com.dofun.variety", "com.dofun.carassistant.car", "com.tw.carinfoservice")
     // GitHub's web upload takes files up to 25 MB: parts stay well below that.
     private const val PART_LIMIT = 20L * 1024 * 1024
     private const val CHUNK = 15L * 1024 * 1024

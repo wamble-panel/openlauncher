@@ -169,6 +169,12 @@ internal fun MmiCleanupPage() {
                 }
             }, MmiLine.OPEN, Modifier.fillMaxWidth())
             sendStatus?.let { Text(it, color = MmiCyan, fontFamily = MmiFont, fontSize = 14.sp) }
+            // Probe: may MMI read the car library directly (voltage, doors, radar, TPMS)?
+            ChromePill("Test car data access (30 s)", {
+                scope.launch {
+                    message = com.openlauncher.app.util.TwDirect.probe { message = it }
+                }
+            }, MmiLine.HISTORY, Modifier.fillMaxWidth())
             // Wi-Fi share: a phone on the same hotspot downloads the report files from the unit.
             var sharing by remember { mutableStateOf(WifiShare.running) }
             ChromePill(if (sharing) "Stop sharing over Wi-Fi" else "Share files over Wi-Fi", {

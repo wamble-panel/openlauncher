@@ -200,6 +200,9 @@ object TwBridge {
         }
     }
 
+    /** Adds a line to mmi-twlog.txt (used by the car-library probe too). */
+    fun log(line: String) = record(line)
+
     private fun record(line: String) {
         val stamp = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
         synchronized(log) {
