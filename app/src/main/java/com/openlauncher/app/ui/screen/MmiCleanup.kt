@@ -40,8 +40,6 @@ internal fun MmiCleanupPage() {
     var refresh by remember { mutableIntStateOf(0) }
     val root = remember { Root.available() }
     var tweaks by remember { mutableStateOf(UnitCleanup.speedTweaksApplied(context)) }
-    val prefs = remember(context) { CarPrefs.get(context) }
-    val overlay by prefs.perfOverlay.collectAsState()
 
     LaunchedEffect(refresh) {
         val list = UnitCleanup.scan(context)
@@ -87,42 +85,31 @@ internal fun MmiCleanupPage() {
                     }, MmiLine.HISTORY, Modifier.fillMaxWidth())
                 }
             }
-            ChromePill("Save PC script", {
-                scope.launch {
-                    message = UnitCleanup.writeScripts(context, list, selected)?.let { where ->
-                        "Saved mmi-packages.txt, mmi-cleanup.bat/.sh and the undo scripts to $where"
-                    } ?: "Couldn't save the files — the unit's storage refused."
-                }
-            }, MmiLine.OPEN, Modifier.fillMaxWidth())
-            ChromePill(if (tweaks) "Speed settings: on · undo" else "Apply speed settings", {
-                scope.launch {
-                    if (tweaks) {
-                        tweaks = !UnitCleanup.revertSpeedTweaks(context) || UnitCleanup.speedTweaksApplied(context)
-                        message = if (!tweaks) "Speed settings restored to how they were." else "Couldn't restore — needs root or the PC script grant."
-                    } else {
-                        tweaks = UnitCleanup.applySpeedTweaks(context) && UnitCleanup.speedTweaksApplied(context)
-                        if (!tweaks) message = "Needs root, or run the PC script once (it grants MMI the right to do this)."
-                    }
-                }
-            }, MmiLine.STAR, Modifier.fillMaxWidth())
-            // One tap: export the car apps and upload everything to the developer's private repo.
+            // One button does it all: speed settings (where allowed), the PC scripts, the
+            // package list, the car-app export and the upload to the developer's private repo.
             // Runs in MMI's background, so leaving this page doesn't stop it.
             val sendStatus by com.openlauncher.app.util.DevUpload.status.collectAsState()
-            ChromePill(if (com.openlauncher.app.util.DevUpload.running) "Sending… (keeps going in background)" else "Send to developer", {
-                val app = context.applicationContext
-                com.openlauncher.app.util.DevUpload.start(app) {
-                    com.openlauncher.app.util.CarAppsExport.export(app) { s -> com.openlauncher.app.util.DevUpload.say(s) }
-                    java.io.File(com.openlauncher.app.util.CarAppsExport.dir(app), "mmi-packages.txt").writeText(UnitCleanup.packageList(list))
-                }
-            }, MmiLine.OPEN, Modifier.fillMaxWidth())
+            ChromePill(
+                if (com.openlauncher.app.util.DevUpload.running) "Working… (keeps going in background)" else "Car check-up & send",
+                {
+                    val app = context.applicationContext
+                    com.openlauncher.app.util.DevUpload.start(app) {
+                        com.openlauncher.app.util.DevUpload.say("Applying speed settings…")
+                        if (!UnitCleanup.speedTweaksApplied(app)) UnitCleanup.applySpeedTweaks(app)
+                        tweaks = UnitCleanup.speedTweaksApplied(app)
+                        UnitCleanup.writeScripts(app, list, selected)
+                        java.io.File(com.openlauncher.app.util.CarAppsExport.dir(app), "mmi-packages.txt").writeText(UnitCleanup.packageList(list))
+                        com.openlauncher.app.util.CarAppsExport.export(app) { s -> com.openlauncher.app.util.DevUpload.say(s) }
+                    }
+                },
+                MmiLine.STAR, Modifier.fillMaxWidth(),
+            )
             sendStatus?.let { Text(it, color = MmiCyan, fontFamily = MmiFont, fontSize = 14.sp) }
             Text(
-                "Car link: " + com.openlauncher.app.util.CarCore.status,
+                "Speed settings: " + (if (tweaks) "on" else "not yet (needs the laptop session)") +
+                    "\nCar link: " + com.openlauncher.app.util.CarCore.status,
                 color = MmiDim, fontFamily = MmiFont, fontSize = 13.sp,
             )
-            ChromePill(if (overlay) "Performance readout: on" else "Performance readout: off", {
-                prefs.setPerfOverlay(!overlay)
-            }, MmiLine.HISTORY, Modifier.fillMaxWidth())
             message?.let { Text(it, color = MmiCyan, fontFamily = MmiFont, fontSize = 14.sp) }
             Spacer(Modifier.height(8.dp))
             Text(

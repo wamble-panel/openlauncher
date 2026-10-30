@@ -63,6 +63,7 @@ adb shell pm grant %PKG% android.permission.ACCESS_COARSE_LOCATION
 adb shell pm grant %PKG% android.permission.READ_CONTACTS
 adb shell pm grant %PKG% android.permission.READ_CALL_LOG
 adb shell pm grant %PKG% android.permission.CALL_PHONE
+adb shell pm grant %PKG% android.permission.CAMERA
 adb shell pm grant %PKG% android.permission.READ_EXTERNAL_STORAGE
 adb shell pm grant %PKG% android.permission.WRITE_EXTERNAL_STORAGE
 adb shell pm grant %PKG% android.permission.WRITE_SECURE_SETTINGS

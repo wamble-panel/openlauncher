@@ -27,6 +27,7 @@ $ADB shell pm grant $PKG android.permission.ACCESS_COARSE_LOCATION
 $ADB shell pm grant $PKG android.permission.READ_CONTACTS
 $ADB shell pm grant $PKG android.permission.READ_CALL_LOG
 $ADB shell pm grant $PKG android.permission.CALL_PHONE
+$ADB shell pm grant $PKG android.permission.CAMERA
 $ADB shell pm grant $PKG android.permission.READ_EXTERNAL_STORAGE
 $ADB shell pm grant $PKG android.permission.WRITE_EXTERNAL_STORAGE
 $ADB shell pm grant $PKG android.permission.WRITE_SECURE_SETTINGS
