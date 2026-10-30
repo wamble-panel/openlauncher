@@ -16,6 +16,8 @@ android {
         // CI builds count up with the run number, so Settings → Software update can compare.
         versionCode    = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()?.plus(1000) ?: 21
         versionName    = "2.0.0-mmi"
+        // Head units are ARM: leave out the x86 builds of MapLibre and ML Kit (about half the APK).
+        ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
     }
 
     // CI points MMI_KEYSTORE at the owner's shared key, so every build installs
