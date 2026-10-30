@@ -1,0 +1,66 @@
+// Interface of the TS10 climate app's exported service (com.tw.ac/.AirService),
+// declared in the same method order so MMI can talk to it. Do not reorder.
+package com.tw.ac;
+import android.os.Bundle;
+
+interface IAirConditionReceive {
+    void onLeftTemp(float temp);
+    void onRightTemp(float temp);
+    void onWindType(int type);
+    void onWindLevel(int level);
+    void onLoop(int type);
+    void onSwitch(int type);
+    void onAc(int type);
+    void onAuto(int type);
+    void onDual(int type);
+    void onBeforeDefrost(int type);
+    void onPostDefrost(int type);
+    void onMaxAc(int type);
+    void onLeftHeatedSeat(int type);
+    void onRightHeatedSeat(int type);
+    void onLeftSeatVentilation(int type);
+    void onRightSeatVentilation(int type);
+    void onAutomaticSteering(int type);
+    void onRearviewMirrorHeating(int type);
+    void onECO(int type);
+    void onFrontWindowHeating(int type);
+    void onMAXFRONTLamp(int type);
+    void onREARLamp(int type);
+    void onAQS(int type);
+    void onVolutionInstructions(int type);
+    void onRearKey(int type);
+    void onAutomaticFrontBlowing(int type);
+    void onRearTemp(float leftTemp,float rightTemp);
+    void onOperatingMode(int type);
+    void onCompressorCommissioningInstructionss(int type);
+    void onDebugFrequency(int type,String unit);
+    void onInternalFanCommissioningInstructions(int type);
+    void onDebuggingSpeedOfInternalFan(int type,String unit);
+    int onHighVoltageRequest(int type);
+    int onHighVoltageRequestOnPTC(int type);
+    int onCoolingFanOnRequest(int type);
+    void onCommunicationFail(int type);
+    void onOutdoorTemp(float temp);
+    void onExtendedInterface(in Bundle bundle);
+    void onLeftTempLO(boolean isLO);
+    void onLeftTempHI(boolean isHI);
+    void onRightTempLO(boolean isLO);
+    void onRightTempHI(boolean isHI);
+    void onRaerLeftTempLO(boolean isLO);
+    void onRaerLeftTempHI(boolean isHI);
+    void onRaerRightTempLO(boolean isLO);
+    void onRaerRightTempHI(boolean isHI);
+    void onUnit(String mUnit);
+    void onRightWindType(int type);
+    void onSYNC(int type);
+    void onRightWindLevel(int mLevel);
+    int onPollenClear(boolean is);
+    void onShow();
+    void onHide();
+    void onLeftTempNULL(boolean isNULL);
+    void onRightTempNULL(boolean isNULL);
+    void onRearLeftTempNULL(boolean isNULL);
+    void onRearRightTempNULL(boolean isNULL);
+    void onAirControl(boolean isControl);
+    void onRearWindType(int type);
+}

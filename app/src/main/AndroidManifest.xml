@@ -80,6 +80,9 @@
 
     <!-- Required on API 30+ so PackageManager returns ALL launcher apps -->
     <queries>
+        <!-- TS10 car apps whose services MMI binds (needed on Android 11+ units). -->
+        <package android:name="com.tw.ac" />
+        <package android:name="com.tw.service.xt" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />

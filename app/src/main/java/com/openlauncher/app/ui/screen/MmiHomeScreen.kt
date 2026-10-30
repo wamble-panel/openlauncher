@@ -375,6 +375,7 @@ fun MmiHomeScreen(
         }
         HazardBanner(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
         CallBar(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
+        ClimatePopup(Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp))
         HomeAppPrompt()
         PerfReadout(Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 6.dp))
     }
@@ -537,6 +538,66 @@ private fun CallBar(modifier: Modifier) {
                     .pressable { com.openlauncher.app.util.TwBridge.hangUp() },
                 contentAlignment = Alignment.Center,
             ) { MmiLineIcon(MmiLine.CLOSE, Color.White, Modifier.size(22.dp)) }
+        }
+    }
+}
+
+/** MMI's climate pop-up: shown for a few seconds whenever temperature, fan or airflow changes. */
+@Composable
+private fun ClimatePopup(modifier: Modifier) {
+    val climate by com.openlauncher.app.util.Climate.state.collectAsStateWithLifecycle()
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(climate.changedAt) {
+        if (climate.changedAt == 0L || !com.openlauncher.app.util.Climate.replaceVendorPopup()) return@LaunchedEffect
+        visible = true
+        delay(3500)
+        visible = false
+    }
+    fun temp(t: Float?, lo: Boolean, hi: Boolean) = when {
+        lo -> "LO"
+        hi -> "HI"
+        t == null -> "--"
+        t % 1f == 0f -> "${t.toInt()}°"
+        else -> "%.1f°".format(t)
+    }
+    val airflow = when (climate.airflow) {
+        1 -> "Feet"; 2 -> "Face"; 3 -> "Face + feet"; 4 -> "Feet + windscreen"; 5 -> "Windscreen"; 6 -> "Face + windscreen"; 7 -> "All"
+        else -> ""
+    }
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible, modifier = modifier,
+        enter = fadeIn(tween(180)) + androidx.compose.animation.slideInVertically { it / 2 },
+        exit = fadeOut(tween(300)),
+    ) {
+        Row(
+            Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xF0101215))
+                .border(1.dp, Color(0xFF3A3F46), RoundedCornerShape(6.dp)).padding(horizontal = 28.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(temp(climate.left, climate.leftLo, climate.leftHi), color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 40.sp)
+            Spacer(Modifier.width(32.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                // Fan level as bars.
+                Row(verticalAlignment = Alignment.Bottom) {
+                    repeat(7) { i ->
+                        Box(
+                            Modifier.padding(horizontal = 2.dp).size(width = 7.dp, height = (8 + i * 3).dp)
+                                .background(if (i < climate.fan) MmiCyan else Color(0xFF2A2E34)),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    listOfNotNull(
+                        airflow.ifEmpty { null },
+                        "A/C".takeIf { climate.ac }, "AUTO".takeIf { climate.auto }, "Recirc".takeIf { climate.recirculation },
+                        "Defrost".takeIf { climate.frontDefrost },
+                    ).joinToString("  ·  ").ifEmpty { if (climate.on) "Climate" else "Climate off" },
+                    color = MmiDim, fontFamily = MmiFont, fontSize = 14.sp,
+                )
+            }
+            Spacer(Modifier.width(32.dp))
+            Text(temp(climate.right, climate.rightLo, climate.rightHi), color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 40.sp)
         }
     }
 }
@@ -1182,6 +1243,7 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
         }
     }
     var silentUpdates by remember { mutableStateOf(updater.isDeviceOwner(context)) }
+    var mmiClimatePopup by remember { mutableStateOf(runCatching { com.openlauncher.app.util.Climate.replaceVendorPopup() }.getOrDefault(true)) }
     var keepReverseMusic by remember { mutableStateOf(com.openlauncher.app.util.TwBridge.keepMusicInReverse()) }
     var popupsHidden by remember { mutableStateOf(com.openlauncher.app.service.MediaListenerService.popupsHidden(context)) }
     val rows: List<Pair<String, () -> Unit>> = listOfNotNull(
@@ -1221,6 +1283,10 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
         },
         "Navigation" to { onOpen(MmiPage.NAV_SETTINGS) },
         (if (metric) "Units: km/h, metres" else "Units: mph, feet") to { onSetMetric(!metric) },
+        (if (mmiClimatePopup) "Climate pop-up: MMI style" else "Climate pop-up: car's own") to {
+            mmiClimatePopup = !mmiClimatePopup
+            com.openlauncher.app.util.Climate.setReplaceVendorPopup(mmiClimatePopup)
+        },
         (if (keepReverseMusic) "Music while reversing: keeps playing" else "Music while reversing: muted, resumes after") to {
             keepReverseMusic = !keepReverseMusic
             com.openlauncher.app.util.TwBridge.setKeepMusicInReverse(keepReverseMusic)

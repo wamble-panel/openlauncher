@@ -59,6 +59,8 @@ android {
     buildFeatures {
         compose = true
         buildConfig = false
+        // Interfaces of the TS10 car apps' exported services (src/main/aidl).
+        aidl = true
     }
 }
 

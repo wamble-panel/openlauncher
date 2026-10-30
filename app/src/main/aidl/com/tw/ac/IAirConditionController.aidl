@@ -1,0 +1,60 @@
+// Interface of the TS10 climate app's exported service (com.tw.ac/.AirService),
+// declared in the same method order so MMI can talk to it. Do not reorder.
+package com.tw.ac;
+import com.tw.ac.IAirConditionReceive;
+import android.os.Bundle;
+
+interface IAirConditionController {
+    void setShowLauncherIocn(boolean isShow);
+    void registerAirConditionCallBack(IAirConditionReceive iAirConditionReceive);
+    void unRegisterAirConditionCallBack(IAirConditionReceive iAirConditionReceive);
+    int setSwitch();
+    int setAC();
+    int setAuto();
+    int setDual();
+    int setBeforeDefrost();
+    int setPostDefrost();
+    int setMaxAc();
+    int setHeatedLeftSeat();
+    int setHeatedRightSeat();
+    int setLeftSeatVentilation();
+    int setRightSeatVentilation();
+    int setAutomaticSteering();
+    int setRearviewMirrorHeating();
+    int setECO();
+    int setFrontWindowHeating();
+    int setMAXFRONTLamp();
+    int setREARLamp();
+    int setAQS();
+    int seteEvolutionInstructions();
+    int seteRearKey();
+    int setAutomaticFrontBlowing();
+    int setLeftTempKeyAdd();
+    int setLeftTempKeyLess();
+    int setRightTempKeyAdd();
+    int setRightTempKeyLess();
+    int setLoop();
+    int setWindType();
+    int setWindType1(int type);
+    int setWindLevelAdd();
+    int setWindLevelLess();
+    int setWindLevelCycle();
+    int setWindLevelType(int type);
+    int setOperatingMode();
+    int setOperatingMode1(int type);
+    int setDebugFrequencyORDebuggingSpeedOfInternalFan(int type,int type1);
+    int setCommunicationFai();
+    Bundle extendedInterface(in Bundle bundle);
+    int setRightWindType();
+    int setRightWindType1(int type);
+    int getRightWindSpeed();
+    int setRightWindLevelAdd();
+    int setRightWindLevelLess();
+    void airShow(boolean isShow);
+    int setPollenClear();
+    int setSync();
+    int setRearWindLevelAdd();
+    int setRearWindLevelLess();
+    int setRearWindType();
+    int setRearWindType1();
+}

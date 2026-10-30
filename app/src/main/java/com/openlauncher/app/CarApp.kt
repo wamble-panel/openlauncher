@@ -24,6 +24,7 @@ class CarApp : Application() {
             NavigationEngine.init(this)
             CarAudio.init(this)
             BtConnect.init(this)
+            com.openlauncher.app.util.Climate.init(this)
             // Only restarts MMI for an update while the car stands still.
             com.openlauncher.app.util.AppUpdater.startBackground(this) {
                 (com.openlauncher.app.util.CarLocation.get(this).location.value?.speedMps ?: 0f) < 0.5f
