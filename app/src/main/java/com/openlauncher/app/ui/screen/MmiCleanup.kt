@@ -87,7 +87,7 @@ internal fun MmiCleanupPage() {
                     } ?: "Couldn't write to Download — allow file access in Permissions."
                 }
             }, MmiLine.OPEN, Modifier.fillMaxWidth())
-            ChromePill(if (tweaks) "Speed settings: on (tap to undo)" else "Apply speed settings", {
+            ChromePill(if (tweaks) "Speed settings: on · undo" else "Apply speed settings", {
                 scope.launch {
                     if (tweaks) {
                         tweaks = !UnitCleanup.revertSpeedTweaks(context) || UnitCleanup.speedTweaksApplied(context)

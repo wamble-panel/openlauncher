@@ -50,6 +50,7 @@ internal fun runtimePermissions(): List<String> = buildList {
     add(Manifest.permission.READ_CALL_LOG)
     add(Manifest.permission.CALL_PHONE)
     if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) add(Manifest.permission.READ_EXTERNAL_STORAGE)
+    if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
 }
 
 private class PermissionItem(val label: String, val detail: String, val granted: Boolean, val open: () -> Unit)
@@ -107,7 +108,7 @@ internal fun MmiPermissionsPage() {
         val pkgUri = Uri.parse("package:${context.packageName}")
         buildList {
             add(PermissionItem(
-                "Location, Bluetooth, contacts, calls", "Navigation, pairing phones, calling from MMI",
+                "Location, Bluetooth, contacts, calls, files", "Navigation, pairing phones, calling, saving to Download",
                 runtimePermissions().all { context.isGranted(it) },
             ) { ask.launch(runtimePermissions().toTypedArray()) })
             add(PermissionItem(
