@@ -99,7 +99,8 @@ internal fun MmiReversePage(onClose: () -> Unit) {
                                 cam.setPreviewCallbackWithBuffer { data, c ->
                                     val now = System.currentTimeMillis()
                                     if (now < busyUntil) { c.addCallbackBuffer(data); return@setPreviewCallbackWithBuffer }
-                                    busyUntil = now + 250 // ~4 detections a second leaves the CPU for everything else
+                                    // ~4 detections a second, fewer when the chip is busy (PerfGovernor).
+                                    busyUntil = now + com.openlauncher.app.util.PerfGovernor.detectionIntervalMs
                                     val image = InputImage.fromByteArray(data, s.width, s.height, 0, InputImage.IMAGE_FORMAT_NV21)
                                     detector.process(image)
                                         .addOnSuccessListener { list ->

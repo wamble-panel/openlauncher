@@ -446,6 +446,10 @@ private fun NavMap(
         map.easeCamera(cameraTo(lat, lon, bearing), gap.toInt() + 60, false)
     }
 
+    // Map frame cap follows the performance governor (30, or 24 when the chip is busy).
+    val perfLevel by com.openlauncher.app.util.PerfGovernor.level.collectAsStateWithLifecycle()
+    LaunchedEffect(perfLevel) { runCatching { mapView.setMaximumFps(com.openlauncher.app.util.PerfGovernor.mapMaxFps) } }
+
     // Driving: drop what nobody reads at speed (buildings, land use, shop dots,
     // service roads), so the weak GPU keeps up. Parked or browsing shows everything.
     var driving by remember { mutableStateOf(false) }

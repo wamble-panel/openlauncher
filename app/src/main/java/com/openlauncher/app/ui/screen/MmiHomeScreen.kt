@@ -790,7 +790,10 @@ private fun DateBar(height: Dp) {
 private fun DriveTrails(carX: Dp, carY: Dp, carW: Dp, carH: Dp, intro: Float) {
     // Pulses flow only while driving; parked, the trails stand still so the home screen isn't redrawn every frame.
     val context = LocalContext.current
-    val moving = (com.openlauncher.app.util.CarLocation.get(context).location.collectAsStateWithLifecycle().value?.speedMps ?: 0f) > 0f
+    val perfLevel by com.openlauncher.app.util.PerfGovernor.level.collectAsStateWithLifecycle()
+    // Decorative: pauses whenever the chip needs its time for something that matters.
+    val moving = perfLevel == 0 &&
+        (com.openlauncher.app.util.CarLocation.get(context).location.collectAsStateWithLifecycle().value?.speedMps ?: 0f) > 0f
     val phase = if (moving) {
         val flow = rememberInfiniteTransition(label = "trails")
         flow.animateFloat(0f, 1f, infiniteRepeatable(tween(2400, easing = androidx.compose.animation.core.LinearEasing)), label = "trail_phase").value
