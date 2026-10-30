@@ -16,10 +16,12 @@ import java.util.zip.ZipOutputStream
  * offers to the browser.
  */
 object CarAppsExport {
+    // Only what hasn't been received yet: the Bluetooth, music, radio, steering-wheel,
+    // service and reverse apps and the system library (framework.jar) are already in.
+    // com.tw.canuart / com.tw.car hold the CAN data (doors, climate, voltage).
     private val PACKAGES = listOf(
-        "com.tw.bt", "com.tw.music", "com.tw.radio", "com.tw.keypad", "com.tw.service", "com.tw.service.xt",
-        "com.tw.core", "com.tw.coreservice", "com.tw.reverse", "com.tw.eq", "com.tw.carchoose", "com.tw.auxin", "com.tw.ac",
-        "com.dofun.carsetting",
+        "com.tw.ac", "com.dofun.carsetting", "com.tw.eq", "com.tw.canuart", "com.tw.car",
+        "com.tw.carchoose", "com.tw.auxin",
     )
     // GitHub's web upload takes files up to 25 MB: parts stay well below that.
     private const val PART_LIMIT = 20L * 1024 * 1024
@@ -83,9 +85,9 @@ object CarAppsExport {
                     ?.forEach { files += "apps/$pkg/oat/${it.parentFile?.name}/${it.name}" to it }
             }
         }
-        withContext(Dispatchers.Main) { onProgress("Looking for the car library…") }
-        frameworkFiles().forEach { files += "framework/${it.parentFile?.name}/${it.name}" to it }
-        nativeLibs().forEach { files += "lib/${it.parentFile?.name}/${it.name}" to it }
+        // The car library's native side, if readable (framework.jar is already in).
+        nativeLibs().filter { it.name.contains("twutil", ignoreCase = true) || it.name.startsWith("libtw") }
+            .forEach { files += "lib/${it.parentFile?.name}/${it.name}" to it }
         if (files.isEmpty()) return@withContext null
 
         val names = ArrayList<String>()
