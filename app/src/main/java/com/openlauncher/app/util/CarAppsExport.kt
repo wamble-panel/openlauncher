@@ -21,7 +21,9 @@ object CarAppsExport {
         "com.tw.core", "com.tw.coreservice", "com.tw.reverse", "com.tw.eq", "com.tw.carchoose", "com.tw.auxin", "com.tw.ac",
         "com.dofun.carsetting",
     )
-    private const val PART_LIMIT = 18L * 1024 * 1024
+    // GitHub's web upload takes files up to 25 MB: parts stay well below that.
+    private const val PART_LIMIT = 20L * 1024 * 1024
+    private const val CHUNK = 15L * 1024 * 1024
     private val MARKER = "android/tw/john".toByteArray()
 
     fun dir(context: Context) = File(context.filesDir, "reports").apply { mkdirs() }
@@ -90,21 +92,53 @@ object CarAppsExport {
         var part = 0
         var zip: ZipOutputStream? = null
         var current: File? = null
+        var entries = 0
         fun next() {
             zip?.close()
             part++
             current = File(out, "mmi-car-apps-$part.zip").also { names += it.name }
             zip = ZipOutputStream(current!!.outputStream().buffered())
+            entries = 0
+        }
+        fun add(name: String, write: (java.io.OutputStream) -> Unit) {
+            runCatching {
+                zip!!.putNextEntry(ZipEntry(name))
+                write(zip!!)
+                zip!!.closeEntry()
+                zip!!.flush()
+                entries++
+            }
         }
         next()
         files.forEachIndexed { i, (path, file) ->
-            if (current!!.length() > PART_LIMIT) next()
             withContext(Dispatchers.Main) { onProgress("Packing ${i + 1} / ${files.size}…") }
-            runCatching {
-                zip!!.putNextEntry(ZipEntry(path))
-                file.inputStream().use { it.copyTo(zip!!) }
-                zip!!.closeEntry()
-                zip!!.flush()
+            val size = file.length()
+            if (size > PART_LIMIT) {
+                // Too big for one upload: split into numbered pieces, each in its own zip.
+                file.inputStream().use { input ->
+                    var piece = 0
+                    val buf = ByteArray(64 * 1024)
+                    while (true) {
+                        if (entries > 0) next()
+                        var written = 0L
+                        var ended = false
+                        add("$path.%03d".format(piece)) { o ->
+                            while (written < CHUNK) {
+                                val n = input.read(buf, 0, minOf(buf.size.toLong(), CHUNK - written).toInt())
+                                if (n < 0) { ended = true; break }
+                                o.write(buf, 0, n)
+                                written += n
+                            }
+                        }
+                        piece++
+                        if (ended || written < CHUNK) break
+                    }
+                }
+                next()
+            } else {
+                // Start a new part when this file would push the current one over the limit.
+                if (entries > 0 && current!!.length() + size > PART_LIMIT) next()
+                add(path) { o -> file.inputStream().use { it.copyTo(o) } }
             }
         }
         zip?.close()
