@@ -1,0 +1,184 @@
+KEEP	on	- MB	com.android.inputmethod.latin	Android Keyboard (AOSP)	Core Android
+KEEP	on	- MB	android.ext.services	Android Services Library	Core Android
+KEEP	on	- MB	android.ext.shared	Android Shared Library	Core Android
+KEEP	on	- MB	android	Android System	Core Android
+KEEP	on	- MB	com.android.webview	Android System WebView	Core Android
+KEEP	on	- MB	com.google.android.webview	Android System WebView	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1024x600	android.overlay.sysbar_1024x600	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1024x768	android.overlay.sysbar_1024x768	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1024x820	android.overlay.sysbar_1024x820	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1080x1920	android.overlay.sysbar_1080x1920	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1200x1600	android.overlay.sysbar_1200x1600	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1200x1920	android.overlay.sysbar_1200x1920	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1200x2000	android.overlay.sysbar_1200x2000	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1200x800	android.overlay.sysbar_1200x800	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1250x1562	android.overlay.sysbar_1250x1562	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1280x480	android.overlay.sysbar_1280x480	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1280x640	android.overlay.sysbar_1280x640	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1280x720	android.overlay.sysbar_1280x720	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1280x960	android.overlay.sysbar_1280x960	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1440x1050	android.overlay.sysbar_1440x1050	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1440x540	android.overlay.sysbar_1440x540	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1600x1200	android.overlay.sysbar_1600x1200	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1600x720	android.overlay.sysbar_1600x720	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1920x1080	android.overlay.sysbar_1920x1080	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1920x1200	android.overlay.sysbar_1920x1200	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1920x720	android.overlay.sysbar_1920x720	Core Android
+KEEP	on	- MB	android.overlay.sysbar_1920x860	android.overlay.sysbar_1920x860	Core Android
+KEEP	on	- MB	android.overlay.sysbar_2000x1200	android.overlay.sysbar_2000x1200	Core Android
+KEEP	on	- MB	android.overlay.sysbar_2400x900	android.overlay.sysbar_2400x900	Core Android
+KEEP	on	- MB	android.overlay.sysbar_600x1024	android.overlay.sysbar_600x1024	Core Android
+KEEP	on	- MB	android.overlay.sysbar_720x1280	android.overlay.sysbar_720x1280	Core Android
+KEEP	on	- MB	android.overlay.sysbar_720x1600	android.overlay.sysbar_720x1600	Core Android
+KEEP	on	- MB	android.overlay.sysbar_720x1920	android.overlay.sysbar_720x1920	Core Android
+KEEP	on	- MB	android.overlay.sysbar_768x1024	android.overlay.sysbar_768x1024	Core Android
+KEEP	on	- MB	android.overlay.sysbar_800x1280	android.overlay.sysbar_800x1280	Core Android
+KEEP	on	- MB	android.overlay.sysbar_800x480	android.overlay.sysbar_800x480	Core Android
+KEEP	on	- MB	android.overlay.sysbar_800x600	android.overlay.sysbar_800x600	Core Android
+KEEP	on	- MB	com.android.providers.blockednumber	Blocked Numbers Storage	Core Android
+KEEP	on	- MB	com.tw.bt	Bluetooth	Car hardware (bluetooth)
+KEEP	on	- MB	com.android.bluetooth	Bluetooth	Core Android
+KEEP	on	- MB	com.android.bluetoothmidiservice	Bluetooth MIDI Service	Core Android
+KEEP	on	- MB	com.android.providers.calendar	Calendar Storage	Core Android
+KEEP	on	- MB	com.android.server.telecom	Call Management	Core Android
+KEEP	on	- MB	com.tw.carinfoservice	Car Info Service	Car hardware (carinfo)
+KEEP	on	- MB	com.android.certinstaller	Certificate Installer	Core Android
+KEEP	on	- MB	com.android.providers.partnerbookmarks	com.android.providers.partnerbookmarks	Core Android
+KEEP	on	- MB	com.android.networkstack.permissionconfig	com.android.server.NetworkPermissionConfig	Core Android
+KEEP	on	- MB	com.tw.radio.theme	com.tw.radio.theme	Car hardware (radio)
+KEEP	on	- MB	com.android.providers.contacts	Contacts Storage	Core Android
+KEEP	on	- MB	com.android.providers.downloads	Download Manager	Core Android
+KEEP	on	- MB	com.android.providers.downloads.ui	Downloads	Core Android
+KEEP	on	- MB	com.android.externalstorage	External Storage	Core Android
+KEEP	on	- MB	com.android.location.fused	Fused Location	Core Android
+KEEP	on	- MB	com.android.inputdevices	Input Devices	Core Android
+KEEP	on	- MB	com.android.statementservice	Intent Filter Verification Service	Core Android
+KEEP	on	- MB	com.android.keychain	Key Chain	Core Android
+KEEP	on	- MB	com.android.providers.media	Media Storage	Core Android
+KEEP	on	- MB	com.openlauncher.app	MMI	MMI itself
+KEEP	on	- MB	com.android.phone	Mobile Data	Core Android
+KEEP	on	- MB	com.android.providers.telephony	Mobile Network Configuration	Core Android
+KEEP	on	- MB	com.android.networkstack.inprocess	NetworkStack	Core Android
+KEEP	on	- MB	com.android.nfc	Nfc Service	Core Android
+KEEP	on	- MB	com.android.packageinstaller	Package installer	Core Android
+KEEP	on	- MB	com.android.permissioncontroller	Permission controller	Core Android
+KEEP	on	- MB	com.tw.radio	Radio	Car hardware (radio)
+KEEP	on	- MB	com.android.se	SecureElementApplication	Core Android
+KEEP	on	- MB	com.android.settings	Settings	Core Android
+KEEP	on	- MB	com.android.providers.settings	Settings Storage	Core Android
+KEEP	on	- MB	com.android.shell	Shell	Core Android
+KEEP	on	- MB	com.tw.keypad	Steering Wheel	Car hardware (steer)
+KEEP	on	- MB	com.tw.reverse	Stream media	Car hardware (reverse)
+KEEP	on	- MB	com.android.systemui	System UI	Core Android
+KEEP	on	- MB	com.android.providers.userdictionary	User Dictionary	Core Android
+KEEP	on	- MB	com.android.vpndialogs	VpnDialogs	Core Android
+OFF	on	- MB	com.android.dreams.basic	Basic Daydreams	Not needed in a car (dreams)
+OFF	on	- MB	com.android.theme.color.black	Black	Not needed in a car (theme)
+OFF	on	- MB	com.android.bookmarkprovider	Bookmark Provider	Not needed in a car (bookmark)
+OFF	on	- MB	com.android.chrome	Chrome	Not needed in a car (chrome)
+OFF	on	- MB	com.android.theme.color.cinnamon	Cinnamon	Not needed in a car (theme)
+OFF	on	- MB	com.android.theme.icon_pack.circular.themepicker	Circular	Not needed in a car (theme)
+OFF	on	- MB	com.android.theme.icon_pack.circular.settings	Circular	Not needed in a car (theme)
+OFF	on	- MB	com.android.theme.icon_pack.circular.systemui	Circular	Not needed in a car (theme)
+OFF	on	- MB	com.android.theme.icon_pack.circular.android	Circular	Not needed in a car (theme)
+OFF	on	- MB	com.android.wallpapercropper	com.android.wallpapercropper	Not needed in a car (wallpaper)
+OFF	on	- MB	com.tw.bt.theme	com.tw.bt.theme	Not needed in a car (theme)
+OFF	on	- MB	com.tw.video.theme	com.tw.video.theme	Not needed in a car (video)
+OFF	on	- MB	com.dofun.market	DoFun Play	Not needed in a car (market)
+OFF	on	- MB	com.facebook.katana	Facebook	Not needed in a car (facebook)
+OFF	on	- MB	com.android.theme.icon_pack.filled.settings	Filled	Not needed in a car (theme)
+OFF	on	- MB	com.android.theme.icon_pack.filled.systemui	Filled	Not needed in a car (theme)
+OFF	on	- MB	com.android.theme.icon_pack.filled.android	Filled	Not needed in a car (theme)
+OFF	on	- MB	com.android.theme.icon_pack.filled.themepicker	Filled	Not needed in a car (theme)
+OFF	on	- MB	com.android.theme.color.green	Green	Not needed in a car (theme)
+OFF	on	- MB	yuku.mp3recorder.full	Hi-Q MP3 Recorder	Not needed in a car (recorder)
+OFF	on	- MB	com.android.theme.font.notoserifsource	Noto Serif / Source Sans Pro	Not needed in a car (theme)
+OFF	on	- MB	com.android.theme.color.ocean	Ocean	Not needed in a car (theme)
+OFF	on	- MB	com.android.theme.color.orchid	Orchid	Not needed in a car (theme)
+OFF	on	- MB	com.android.printspooler	Print Spooler	Not needed in a car (printspooler)
+OFF	on	- MB	com.android.theme.color.purple	Purple	Not needed in a car (theme)
+OFF	on	- MB	com.android.theme.icon_pack.rounded.systemui	Rounded	Not needed in a car (theme)
+OFF	on	- MB	com.android.theme.icon_pack.rounded.android	Rounded	Not needed in a car (theme)
+OFF	on	- MB	com.android.theme.icon_pack.rounded.settings	Rounded	Not needed in a car (theme)
+OFF	on	- MB	com.android.theme.icon.roundedrect	Rounded Rectangle	Not needed in a car (theme)
+OFF	on	- MB	com.android.theme.color.space	Space	Not needed in a car (theme)
+OFF	on	- MB	com.android.theme.icon.square	Square	Not needed in a car (theme)
+OFF	on	- MB	com.android.theme.icon.squircle	Squircle	Not needed in a car (theme)
+OFF	on	- MB	com.android.theme.icon.teardrop	Teardrop	Not needed in a car (theme)
+OFF	on	- MB	com.dofun.variety	Theme	Not needed in a car (theme)
+OFF	on	- MB	com.tw.video	Video	Not needed in a car (video)
+OFF	on	- MB	com.dofun.dofunweather.main	Weather	Not needed in a car (weather)
+OFF	on	- MB	com.google.android.youtube	YouTube	Not needed in a car (youtube)
+UNSURE	on	- MB	com.android.internal.systemui.navbar.twobutton	2 Button Navigation Bar	System app, unknown purpose
+UNSURE	on	- MB	com.android.internal.systemui.navbar.threebutton	3 Button Navigation Bar	System app, unknown purpose
+UNSURE	off	- MB	cn.cardoor.zt360	360°Safety	System app, unknown purpose
+UNSURE	on	- MB	com.tw.ac	AirCondition	Installed by you
+UNSURE	on	- MB	com.huawei.hisight	AirSharingClient	System app, unknown purpose
+UNSURE	on	- MB	com.allwinnertech.packageoverride	Allwinner Package Override Application	System app, unknown purpose
+UNSURE	on	- MB	com.google.android.verifier	Android Developer Verifier	Installed by you
+UNSURE	on	- MB	com.google.android.contactkeys	Android System Key Verifier	Installed by you
+UNSURE	on	- MB	android.auto_generated_rro_vendor__	android.auto_generated_rro_vendor__	System app, unknown purpose
+UNSURE	on	- MB	com.androits.gps.test.pro	AndroiTS GPS Test Pro	Installed by you
+UNSURE	on	- MB	com.toralabs.apkextractor	Apk Extractor	Installed by you
+UNSURE	on	- MB	com.tw.auxin	AUX	System app, unknown purpose
+UNSURE	on	- MB	com.tw.bootanimation	Boot Animation	Might be in use (ota)
+UNSURE	on	- MB	com.tw.bug.report	BugReport	System app, unknown purpose
+UNSURE	on	- MB	com.android.captiveportallogin	CaptivePortalLogin	System app, unknown purpose
+UNSURE	on	- MB	com.tw.carchoose	Car Choose	System app, unknown purpose
+UNSURE	on	- MB	com.tw.car	Car Settings	Possibly car-related (setting)
+UNSURE	on	- MB	com.dofun.carassistant.car	CarMate	Might be in use (assistant)
+UNSURE	on	- MB	com.google.android.ims	Carrier Services	Possibly car-related (service)
+UNSURE	on	- MB	com.android.theme.icon_pack.circular.launcher	Circular	Spare home screen — keep one
+UNSURE	on	- MB	com.tw.color	Color	System app, unknown purpose
+UNSURE	on	- MB	com.android.backupconfirm	com.android.backupconfirm	System app, unknown purpose
+UNSURE	on	- MB	com.android.localtransport	com.android.localtransport	System app, unknown purpose
+UNSURE	on	- MB	com.android.provision	com.android.provision	System app, unknown purpose
+UNSURE	on	- MB	com.android.sharedstoragebackup	com.android.sharedstoragebackup	System app, unknown purpose
+UNSURE	on	- MB	com.google.android.overlay.gmsconfig	com.google.android.overlay.gmsconfig	Might be in use (gms)
+UNSURE	on	- MB	com.google.android.overlay.gmsgoconfig	com.google.android.overlay.gmsgoconfig	Might be in use (gms)
+UNSURE	on	- MB	com.google.android.packageinstaller.overlay	com.google.android.packageinstaller.overlay	System app, unknown purpose
+UNSURE	off	- MB	com.tw.dvr	com.tw.dvr.common.DVRApplication	System app, unknown purpose
+UNSURE	on	- MB	com.tw.music.theme	com.tw.music.theme	Might be in use (music)
+UNSURE	on	- MB	com.android.companiondevicemanager	Companion Device Manager	System app, unknown purpose
+UNSURE	on	- MB	com.android.internal.display.cutout.emulation.corner	Corner cutout	System app, unknown purpose
+UNSURE	on	- MB	com.huawei.dmsdpdevice	DMSDP	System app, unknown purpose
+UNSURE	on	- MB	com.android.internal.display.cutout.emulation.double	Double cutout	System app, unknown purpose
+UNSURE	on	- MB	com.tw.eq	EQ	Possibly car-related (eq)
+UNSURE	on	- MB	com.tw.twfileexplore	File manager	System app, unknown purpose
+UNSURE	on	- MB	com.android.theme.icon_pack.filled.launcher	Filled	Spare home screen — keep one
+UNSURE	on	- MB	com.android.internal.systemui.navbar.gestural_wide_back	Gestural Navigation Bar	System app, unknown purpose
+UNSURE	on	- MB	com.android.internal.systemui.navbar.gestural_extra_wide_back	Gestural Navigation Bar	System app, unknown purpose
+UNSURE	on	- MB	com.android.internal.systemui.navbar.gestural	Gestural Navigation Bar	System app, unknown purpose
+UNSURE	on	- MB	com.android.internal.systemui.navbar.gestural_narrow_back	Gestural Navigation Bar	System app, unknown purpose
+UNSURE	on	- MB	com.google.android.googlequicksearchbox	Google	Might be in use (googlequicksearchbox)
+UNSURE	on	- MB	com.google.android.partnersetup	Google Partner Setup	System app, unknown purpose
+UNSURE	on	- MB	com.google.android.gms	Google Play services	Might be in use (gms)
+UNSURE	on	- MB	com.android.vending	Google Play Store	Might be in use (vending)
+UNSURE	on	- MB	com.google.android.gsf	Google Services Framework	Might be in use (gsf)
+UNSURE	on	- MB	com.android.htmlviewer	HTML Viewer	System app, unknown purpose
+UNSURE	on	- MB	com.huawei.nearby	HwNearby	System app, unknown purpose
+UNSURE	on	- MB	com.google.android.apps.maps	Maps	Might be in use (maps)
+UNSURE	on	- MB	com.android.modulemetadata	Module Metadata	System app, unknown purpose
+UNSURE	on	- MB	com.ms.ms2160	MS9120	System app, unknown purpose
+UNSURE	on	- MB	com.tw.music	Music	Might be in use (music)
+UNSURE	on	- MB	com.android.pacprocessor	PacProcessor	System app, unknown purpose
+UNSURE	on	- MB	com.android.printservice.recommendation	Print Service Recommendation Service	Possibly car-related (service)
+UNSURE	on	- MB	com.android.proxyhandler	ProxyHandler	System app, unknown purpose
+UNSURE	on	- MB	com.alensw.PicFolder	QuickPic	Installed by you
+UNSURE	on	- MB	com.tw.rightview	Right view	Might be in use (tv)
+UNSURE	on	- MB	com.android.theme.icon_pack.rounded.launcher	Rounded	Spare home screen — keep one
+UNSURE	on	- MB	com.dofun.carsetting	Settings	Possibly car-related (setting)
+UNSURE	on	- MB	com.android.settings.intelligence	Settings Suggestions	Possibly car-related (setting)
+UNSURE	on	- MB	com.android.storagemanager	Storage Manager	System app, unknown purpose
+UNSURE	on	- MB	com.abupdate.fota_demo_iot	System Update	Might be in use (update)
+UNSURE	on	- MB	com.ab2update.fota_demo_iot	System Update	Might be in use (update)
+UNSURE	on	- MB	com.android.apps.tag	Tags	System app, unknown purpose
+UNSURE	on	- MB	com.android.internal.display.cutout.emulation.tall	Tall cutout	System app, unknown purpose
+UNSURE	on	- MB	com.tw.coreservice	TDService	Possibly car-related (service)
+UNSURE	on	- MB	com.zjinnova.zlink	Tlink5	Might be in use (zlink)
+UNSURE	on	- MB	com.tw.tv	TV	Might be in use (tv)
+UNSURE	on	- MB	com.tw.service	TW	Possibly car-related (service)
+UNSURE	on	- MB	com.tw.core	TWCore	System app, unknown purpose
+UNSURE	on	- MB	com.tw.net	UIAuthorizeService	Possibly car-related (service)
+UNSURE	on	- MB	com.android.managedprovisioning	Work Setup	System app, unknown purpose
+UNSURE	on	- MB	com.tw.service.xt	XTService	Possibly car-related (service)
