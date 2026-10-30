@@ -18,6 +18,8 @@ adb shell cmd package set-home-activity %PKG%/.MainActivity
 adb shell dumpsys deviceidle whitelist +%PKG%
 rem Lets MMI apply its speed settings itself (Settings > Unit cleanup & speed)
 adb shell pm grant %PKG% android.permission.WRITE_SECURE_SETTINGS
+rem Pre-compile MMI fully so every screen opens without stutter
+adb shell cmd package compile -m speed -f %PKG%
 adb shell am start -n %PKG%/.MainActivity
 
 echo.

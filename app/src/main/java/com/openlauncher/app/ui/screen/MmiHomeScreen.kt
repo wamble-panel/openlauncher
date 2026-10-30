@@ -96,7 +96,7 @@ private enum class MmiPage(val title: String?, val inSettings: Boolean = false) 
     HOME(null), DASHBOARD("Dashboard"), SETTINGS("Settings"),
     MUSIC("Music"), RADIO("Radio"), BT_HUB("Bluetooth"), PHONE("Telephone"), CONTACTS("Contacts"), APPS("Apps"),
     NAV("Navigation"), SYSTEM("System check", true),
-    PERMISSIONS("Permissions", true), CLEANUP("Unit cleanup & speed", true), STORAGE("Storage & about", true), DISPLAY("Display", true), SOUND("Sound", true), BLUETOOTH("Bluetooth devices", true), NAV_SETTINGS("Navigation settings", true),
+    PERMISSIONS("Permissions", true), CLEANUP("Unit cleanup & speed", true), TUNER("System tuning", true), STORAGE("Storage & about", true), DISPLAY("Display", true), SOUND("Sound", true), BLUETOOTH("Bluetooth devices", true), NAV_SETTINGS("Navigation settings", true),
 }
 
 /**
@@ -294,6 +294,7 @@ fun MmiHomeScreen(
                     MmiPage.DISPLAY -> MmiDisplayPage()
                     MmiPage.PERMISSIONS -> MmiPermissionsPage()
                     MmiPage.CLEANUP -> MmiCleanupPage()
+                    MmiPage.TUNER -> MmiTunerPage()
                     MmiPage.STORAGE -> MmiStoragePage()
                     MmiPage.SOUND -> MmiSoundPage(apps, onLaunchPackage)
                     MmiPage.BLUETOOTH -> MmiBluetoothPage(apps, onLaunchPackage, startPairing = pairOnOpen)
@@ -1025,6 +1026,7 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
         "Permissions" to { onOpen(MmiPage.PERMISSIONS) },
         "Date & time" to { context.launchFirst(Intent(Settings.ACTION_DATE_SETTINGS)); Unit },
         "Unit cleanup & speed" to { onOpen(MmiPage.CLEANUP) },
+        "System tuning" to { onOpen(MmiPage.TUNER) },
         "Storage & about" to { onOpen(MmiPage.STORAGE) },
         "System check" to { onOpen(MmiPage.SYSTEM) },
         "Android settings" to openSystem,
