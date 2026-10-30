@@ -200,6 +200,11 @@ object UnitCleanup {
      * files are world-readable, so this needs no root. Returns how many were copied.
      */
     suspend fun exportApks(context: Context, onProgress: (Int, Int) -> Unit): Int = withContext(Dispatchers.IO) {
+        // Never crash: a unit that refuses writing to Download just reports 0 copied.
+        runCatching { exportApksOrThrow(context, onProgress) }.getOrDefault(0)
+    }
+
+    private suspend fun exportApksOrThrow(context: Context, onProgress: (Int, Int) -> Unit): Int {
         val dl = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "mmi-apks").apply { mkdirs() }
         val pm = context.packageManager
         @Suppress("DEPRECATION")
@@ -215,12 +220,14 @@ object UnitCleanup {
                 }
                 done++
             }
-            onProgress(i + 1, apps.size)
+            withContext(Dispatchers.Main) { onProgress(i + 1, apps.size) }
         }
-        File(dl, "packages.txt").writeText(apps.joinToString("\n") {
-            "${it.packageName}\t${runCatching { pm.getApplicationLabel(it) }.getOrDefault("")}\t${it.sourceDir}"
-        })
-        done
+        runCatching {
+            File(dl, "packages.txt").writeText(apps.joinToString("\n") {
+                "${it.packageName}\t${runCatching { pm.getApplicationLabel(it) }.getOrDefault("")}\t${it.sourceDir}"
+            })
+        }
+        return done
     }
 
     /** Settings changed by the speed tweaks, with the value applied. */
