@@ -110,6 +110,12 @@ internal fun MmiCleanupPage() {
                     "\nCar link: " + com.openlauncher.app.util.CarCore.status,
                 color = MmiDim, fontFamily = MmiFont, fontSize = 13.sp,
             )
+            // Button tester: shows the code of every car button as it's pressed.
+            val carKey by com.openlauncher.app.util.CarCore.lastKey.collectAsState()
+            Text(
+                carKey?.let { "Last car button: code ${it.code} (press ${it.press})" } ?: "Last car button: press any dash or steering button",
+                color = MmiCyan, fontFamily = MmiFont, fontSize = 16.sp,
+            )
             message?.let { Text(it, color = MmiCyan, fontFamily = MmiFont, fontSize = 14.sp) }
             Spacer(Modifier.height(8.dp))
             Text(

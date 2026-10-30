@@ -37,7 +37,18 @@ object CarCore {
     private const val RADAR = 1287
     private const val RADAR_SIDE = 1294
     private const val REVERSE = 40732
-    private val IDS = shortArrayOf(KEY.toShort(), RADIO.toShort(), CANBOX.toShort(), RADAR.toShort(), RADAR_SIDE.toShort(), REVERSE.toShort())
+    private const val FOREGROUND = 40448 // 0x9E00: which vendor screen is in front
+    private const val SOURCE = 40465 // 0x9E11: audio source requests
+    private val IDS = shortArrayOf(
+        KEY.toShort(), RADIO.toShort(), CANBOX.toShort(), RADAR.toShort(), RADAR_SIDE.toShort(), REVERSE.toShort(),
+        FOREGROUND.toShort(), SOURCE.toShort(), 515.toShort(), 769.toShort(),
+    )
+
+    /** Last button from the car (dash panel, steering wheel, knobs): press type and code. */
+    data class CarKey(val code: Int, val press: Int, val at: Long)
+    private val _lastKey = MutableStateFlow<CarKey?>(null)
+    val lastKey: StateFlow<CarKey?> = _lastKey
+    private var keysLogged = 0
 
     private val _data = MutableStateFlow(CarData())
     val data: StateFlow<CarData> = _data
@@ -108,8 +119,13 @@ object CarCore {
     private fun onMessage(m: Message) {
         val b = m.obj as? ByteArray
         val kind = (m.what.toLong() shl 32) or (m.arg1.toLong() and 0xFFFFFFFFL)
+        if (m.what == KEY) {
+            // Every button press is logged (capped), so each panel button's code can be mapped.
+            _lastKey.value = CarKey(m.arg2, m.arg1, System.currentTimeMillis())
+            if (keysLogged++ < 400) TwBridge.log("CARKEY code=${m.arg2} press=${m.arg1}")
+        }
         val n = seen.getOrDefault(kind, 0)
-        if (n < 3 && seen.size < 200) {
+        if (m.what != KEY && n < 3 && seen.size < 200) {
             seen[kind] = n + 1
             TwBridge.log("CAR what=${m.what} arg1=${m.arg1} arg2=${m.arg2} obj=" + (b?.joinToString(" ") { "%02X".format(it) } ?: m.obj?.toString().orEmpty()))
         }
