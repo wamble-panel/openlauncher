@@ -40,9 +40,12 @@ object TwBridge {
 
     private const val ID3 = "com.unisound.intent.action.SEND_ID3_INFO"
     private const val CALL = "com.unisound.intent.action.SEND_CALL_INFO"
+    // Sent by com.tw.service whenever reverse gear or a call changes; extras "reverse" and "call".
+    private const val MUTE = "com.unisound.intent.action.DO_MUTE"
+    private const val UNMUTE = "com.unisound.intent.action.DO_UNMUTE"
 
     private val ACTIONS = listOf(
-        ID3, CALL, "com.tw.bt_phone_info", "com.tw.radio.state", "com.tw.radio.av", "com.tw.bt.av.play",
+        ID3, CALL, MUTE, UNMUTE, "com.tw.bt_phone_info", "com.tw.radio.state", "com.tw.radio.av", "com.tw.bt.av.play",
         "com.android.bt.connected", "com.android.bt.disconnected", "com.tw.launcher.theme", "com.tw.launcher.dvrinfo",
         "action.bt.AIOS_INCOMING_RINGING", "action.bt.AIOS_INCOMING_OFFHOOK", "action.bt.AIOS_INCOMING_IDLE",
         "action.bt.AIOS_OUTGOING_RINGING", "action.bt.AIOS_OUTGOING_OFFHOOK", "action.bt.AIOS_OUTGOING_IDLE",
@@ -55,6 +58,10 @@ object TwBridge {
     val btTrack: StateFlow<BtTrack?> = _btTrack
     private val _phoneConnected = MutableStateFlow<Boolean?>(null)
     val phoneConnected: StateFlow<Boolean?> = _phoneConnected
+    private val _reversing = MutableStateFlow(false)
+    /** True while reverse gear is engaged (the car service's own signal). */
+    val reversing: StateFlow<Boolean> = _reversing
+    private var playingBeforeReverse = false
 
     private val log = ArrayDeque<String>()
     private lateinit var app: Context
@@ -78,6 +85,36 @@ object TwBridge {
         send(Intent("action.adapter.status.request"))
         send(Intent("com.unisound.intent.action.GET_ID3_INFO"))
         send(Intent("com.unisound.intent.action.GET_CALL_INFO"))
+        send(Intent("com.unisound.intent.action.GET_MUTE"))
+    }
+
+    private fun prefs() = app.getSharedPreferences("mmi_car", Context.MODE_PRIVATE)
+
+    /** Keep music playing (unmuted) while reversing instead of the car's automatic mute. */
+    fun keepMusicInReverse(): Boolean = prefs().getBoolean("keep_music_reverse", false)
+    fun setKeepMusicInReverse(on: Boolean) = prefs().edit().putBoolean("keep_music_reverse", on).apply()
+
+    private fun musicPlaying(): Boolean =
+        com.openlauncher.app.service.MediaListenerService.nowPlaying.value?.isPlaying == true || _btTrack.value?.playing == true
+
+    private fun onReverse(on: Boolean) {
+        if (on == _reversing.value) return
+        _reversing.value = on
+        if (on) {
+            playingBeforeReverse = musicPlaying()
+            // Optional: undo the car's reverse mute so music carries on.
+            if (keepMusicInReverse()) main.postDelayed({ send(Intent("com.unisound.unicar.action.unmute")) }, 300)
+        } else if (playingBeforeReverse) {
+            playingBeforeReverse = false
+            // Out of reverse: carry on with whatever was playing.
+            main.postDelayed({
+                if (!musicPlaying()) {
+                    val controller = com.openlauncher.app.service.MediaListenerService.nowPlaying.value?.controller
+                    // Play-if-paused only: re-requesting the Bluetooth source would toggle play/pause again.
+                    if (controller != null) controller.transportControls.play() else btMusic(BT_PLAY)
+                }
+            }, 1200)
+        }
     }
 
     /**
@@ -159,6 +196,7 @@ object TwBridge {
                 send(Intent("com.unisound.intent.action.GET_ID3_INFO"))
             }
             "com.android.bt.disconnected" -> { _phoneConnected.value = false; _btTrack.value = null }
+            MUTE, UNMUTE -> extras?.let { if (it.containsKey("reverse")) onReverse(it.getInt("reverse", 0) != 0) }
         }
     }
 

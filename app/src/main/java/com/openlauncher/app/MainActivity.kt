@@ -167,7 +167,8 @@ class MainActivity : ComponentActivity() {
         val wasPlaying = playingWhenPaused
         val away = android.os.SystemClock.elapsedRealtime() - pausedAt
         playingWhenPaused = false
-        if (wasPlaying && away < 3 * 60_000L) {
+        // TS10 units report reverse gear themselves (TwBridge resumes after it); this covers the rest.
+        if (wasPlaying && away < 3 * 60_000L && !com.openlauncher.app.util.TwBridge.available) {
             window.decorView.postDelayed({
                 if (vm.nowPlaying.value?.isPlaying != true) resumeMusic()
             }, 1500)

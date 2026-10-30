@@ -1182,6 +1182,7 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
         }
     }
     var silentUpdates by remember { mutableStateOf(updater.isDeviceOwner(context)) }
+    var keepReverseMusic by remember { mutableStateOf(com.openlauncher.app.util.TwBridge.keepMusicInReverse()) }
     var popupsHidden by remember { mutableStateOf(com.openlauncher.app.service.MediaListenerService.popupsHidden(context)) }
     val rows: List<Pair<String, () -> Unit>> = listOfNotNull(
         updateLabel to runUpdate,
@@ -1220,6 +1221,10 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
         },
         "Navigation" to { onOpen(MmiPage.NAV_SETTINGS) },
         (if (metric) "Units: km/h, metres" else "Units: mph, feet") to { onSetMetric(!metric) },
+        (if (keepReverseMusic) "Music while reversing: keeps playing" else "Music while reversing: muted, resumes after") to {
+            keepReverseMusic = !keepReverseMusic
+            com.openlauncher.app.util.TwBridge.setKeepMusicInReverse(keepReverseMusic)
+        },
         (if (popupsHidden) "Android pop-ups: hidden (tap to show)" else "Android pop-ups: shown (tap to hide)") to {
             popupsHidden = !popupsHidden
             com.openlauncher.app.service.MediaListenerService.setPopupsHidden(context, popupsHidden)
