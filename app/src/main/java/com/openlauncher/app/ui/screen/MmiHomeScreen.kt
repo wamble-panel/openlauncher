@@ -180,15 +180,40 @@ fun MmiHomeScreen(
         audio.dispatchMediaKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, code))
         audio.dispatchMediaKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, code))
     }
-    val playPause = { if (nowPlaying?.controller != null) onPlayPause() else mediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) }
-    val next = { if (nowPlaying?.controller != null) onNext() else mediaKey(android.view.KeyEvent.KEYCODE_MEDIA_NEXT) }
-    val prev = { if (nowPlaying?.controller != null) onPrev() else mediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS) }
+    // TS10 units: Bluetooth music is driven through the vendor Bluetooth app's commands.
+    val tw = com.openlauncher.app.util.TwBridge
+    val playPause = {
+        when {
+            nowPlaying?.controller != null -> onPlayPause()
+            tw.available -> tw.btToggle()
+            else -> mediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+        }
+    }
+    val next = {
+        when {
+            nowPlaying?.controller != null -> onNext()
+            tw.available -> tw.btNext()
+            else -> mediaKey(android.view.KeyEvent.KEYCODE_MEDIA_NEXT)
+        }
+    }
+    val prev = {
+        when {
+            nowPlaying?.controller != null -> onPrev()
+            tw.available -> tw.btPrev()
+            else -> mediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+        }
+    }
 
     // Idle: with no touch, no music playing and no phone connected for a while,
     // the screen fades over to the map, like a parked MMI.
     var lastTouch by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var idleFade by remember { mutableStateOf(false) }
     val playing = nowPlaying?.isPlaying == true
+    // Opening Music selects Bluetooth as the car's audio source, like the vendor
+    // launcher's Bluetooth page; otherwise the phone's music never reaches the speakers.
+    LaunchedEffect(page) {
+        if (page == MmiPage.MUSIC && tw.available && nowPlaying?.controller == null) tw.acquireBluetoothAudio(play = true)
+    }
     LaunchedEffect(page, lastTouch, playing) {
         // Like a parked MMI: only from the home screen, never while reading a page or playing music.
         if (page != MmiPage.HOME || playing) return@LaunchedEffect

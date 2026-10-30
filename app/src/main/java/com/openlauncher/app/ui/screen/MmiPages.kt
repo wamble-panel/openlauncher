@@ -224,7 +224,7 @@ internal fun MmiMusicPage(
                     }
                 } else {
                     Text(
-                        context.appLabel(state.controller?.packageName)?.uppercase() ?: "MEDIA",
+                        context.appLabel(state.controller?.packageName)?.uppercase() ?: if (state.controller == null) "BLUETOOTH AUDIO" else "MEDIA",
                         color = MmiCyan, fontFamily = MmiFont, fontSize = 13.sp, letterSpacing = 2.sp,
                     )
                     Spacer(Modifier.height(6.dp))

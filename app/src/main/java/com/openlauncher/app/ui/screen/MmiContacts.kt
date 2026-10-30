@@ -36,6 +36,11 @@ private data class RecentCall(val name: String, val number: String, val type: In
 
 /** Calls straight from MMI when allowed (calls go out over the connected phone), else via the dialer. */
 internal fun Context.placeCall(number: String) {
+    // TS10 units: the vendor Bluetooth app dials over its own Bluetooth module.
+    if (com.openlauncher.app.util.TwBridge.available) {
+        com.openlauncher.app.util.TwBridge.dial(number)
+        return
+    }
     val uri = Uri.parse("tel:" + Uri.encode(number))
     val direct = ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
     if (!(direct && launchFirst(Intent(Intent.ACTION_CALL, uri)))) launchFirst(Intent(Intent.ACTION_DIAL, uri))

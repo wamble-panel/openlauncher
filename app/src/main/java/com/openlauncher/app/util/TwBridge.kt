@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,19 +16,33 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Listens to the TS10 car apps (com.tw.*): they announce Bluetooth music, calls
- * and the radio to the vendor launcher with these broadcasts. MMI stands in for
- * that launcher. Every message is also logged to reports/mmi-twlog.txt (offered
- * by the MMI file picker), so the exact contents can be read back.
+ * Talks to the TS10 car apps (com.tw.*) the way their own launcher and voice
+ * assistant do, with plain broadcasts any app may send and receive:
+ * - Bluetooth audio only reaches the speakers while the car's source is
+ *   Bluetooth; [acquireBluetoothAudio] asks com.tw.service / com.tw.bt for it.
+ * - Bluetooth song info: GET_ID3_INFO once, then SEND_ID3_INFO on every change.
+ * - Bluetooth music control: com.tw.launcher.btmsg (msg codes below).
+ * - Calls: SEND_CALL_INFO (state, callName, callNumber), AIOS_ACCEPT/REJECT/DIAL.
+ * Every message is also logged to reports/mmi-twlog.txt.
  */
 object TwBridge {
     enum class CallState { NONE, INCOMING, OUTGOING, ACTIVE }
 
     data class Call(val state: CallState, val number: String?, val name: String?, val since: Long)
-    data class BtTrack(val title: String, val artist: String, val playing: Boolean)
+    data class BtTrack(val title: String, val artist: String, val playing: Boolean, val positionMs: Int = 0, val durationMs: Int = 0)
+
+    // com.tw.launcher.btmsg "msg" codes (com.tw.bt).
+    private const val BT_TOGGLE = 1
+    private const val BT_NEXT = 3
+    private const val BT_PREV = 4
+    private const val BT_PLAY = 5 // plays only if paused
+    private const val BT_PAUSE = 6 // pauses only if playing
+
+    private const val ID3 = "com.unisound.intent.action.SEND_ID3_INFO"
+    private const val CALL = "com.unisound.intent.action.SEND_CALL_INFO"
 
     private val ACTIONS = listOf(
-        "com.tw.launcher.btmsg", "com.tw.bt_phone_info", "com.tw.radio.state", "com.tw.radio.av", "com.tw.bt.av.play",
+        ID3, CALL, "com.tw.bt_phone_info", "com.tw.radio.state", "com.tw.radio.av", "com.tw.bt.av.play",
         "com.android.bt.connected", "com.android.bt.disconnected", "com.tw.launcher.theme", "com.tw.launcher.dvrinfo",
         "action.bt.AIOS_INCOMING_RINGING", "action.bt.AIOS_INCOMING_OFFHOOK", "action.bt.AIOS_INCOMING_IDLE",
         "action.bt.AIOS_OUTGOING_RINGING", "action.bt.AIOS_OUTGOING_OFFHOOK", "action.bt.AIOS_OUTGOING_IDLE",
@@ -42,6 +58,13 @@ object TwBridge {
 
     private val log = ArrayDeque<String>()
     private lateinit var app: Context
+    private val main = Handler(Looper.getMainLooper())
+    /** The song counts as playing while its position keeps moving (no play-state broadcast exists). */
+    private var lastProgressAt = 0L
+    private val stalled = Runnable { _btTrack.value?.let { if (it.playing) _btTrack.value = it.copy(playing = false) } }
+
+    /** Whether this unit runs the TS10 car apps at all. */
+    val available: Boolean get() = runCatching { app.packageManager.getPackageInfo("com.tw.bt", 0); true }.getOrDefault(false)
 
     fun init(context: Context) {
         app = context.applicationContext
@@ -51,49 +74,91 @@ object TwBridge {
         runCatching {
             ContextCompat.registerReceiver(app, receiver, IntentFilter().apply { ACTIONS.forEach(::addAction) }, ContextCompat.RECEIVER_EXPORTED)
         }
+        // Current state: is a phone connected, what's playing, is a call on.
+        send(Intent("action.adapter.status.request"))
+        send(Intent("com.unisound.intent.action.GET_ID3_INFO"))
+        send(Intent("com.unisound.intent.action.GET_CALL_INFO"))
     }
 
-    /** Asks the vendor Bluetooth app to answer or end the call (its voice-assistant commands). */
-    fun answer() = send("action.intent.AIOS_ACCEPT")
-    fun hangUp() = send("action.intent.AIOS_REJECT")
+    /**
+     * Makes the car play Bluetooth audio (its source switches to Bluetooth). The
+     * vendor launcher does this when its Bluetooth music page opens; without it
+     * the phone's music never reaches the speakers. The switch itself toggles
+     * play/pause, so a "play if paused" follows once it has settled.
+     */
+    fun acquireBluetoothAudio(play: Boolean = true) {
+        send(Intent("net.easyconn.a2dp.acquire").putExtra("bluetoothName", "MMI"))
+        if (play) main.postDelayed({ btMusic(BT_PLAY) }, 1500)
+    }
 
-    private fun send(action: String) {
-        runCatching { app.sendBroadcast(Intent(action).setPackage("com.tw.bt")) }
-        runCatching { app.sendBroadcast(Intent(action)) }
+    fun btPlay() { acquireBluetoothAudio(play = true) }
+    fun btPause() = btMusic(BT_PAUSE)
+    fun btToggle() = if (_btTrack.value?.playing == true) btPause() else btPlay()
+    fun btNext() = btMusic(BT_NEXT)
+    fun btPrev() = btMusic(BT_PREV)
+
+    private fun btMusic(code: Int) = send(Intent("com.tw.launcher.btmsg").putExtra("msg", code))
+
+    /** Asks the vendor Bluetooth app to answer, end or place a call. */
+    fun answer() = send(Intent("action.intent.AIOS_ACCEPT"))
+    fun hangUp() = send(Intent("action.intent.AIOS_REJECT"))
+    fun dial(number: String) = send(Intent("action.intent.AIOS_DIAL").putExtra("number", number))
+
+    private fun send(intent: Intent) {
+        runCatching { app.sendBroadcast(intent) }
     }
 
     private fun describe(extras: Bundle?): String = runCatching {
         extras?.keySet()?.joinToString(", ") { k -> "$k=${extras.get(k)}".take(200) } ?: ""
     }.getOrDefault("?")
 
-    /** First extra whose key contains any of [hints], as text. */
-    private fun pick(extras: Bundle?, vararg hints: String): String? = runCatching {
-        extras?.keySet()?.firstOrNull { k -> hints.any { k.contains(it, ignoreCase = true) } }
-            ?.let { extras.get(it)?.toString() }?.trim()?.takeIf { it.isNotEmpty() && it != "null" }
-    }.getOrNull()
+    private fun text(extras: Bundle?, key: String): String? =
+        extras?.get(key)?.toString()?.trim()?.takeIf { it.isNotEmpty() && it != "null" }
 
     private fun handle(intent: Intent) {
         val action = intent.action ?: return
         val extras = intent.extras
-        record("$action  ${describe(extras)}")
-        val number = pick(extras, "number", "phone", "num", "tel")
-        val name = pick(extras, "name", "contact")
+        // Position updates arrive every second while playing: logged only on a song change.
+        if (action != ID3 || text(extras, "musicTitle") != _btTrack.value?.title) record("$action  ${describe(extras)}")
         val now = System.currentTimeMillis()
         when (action) {
-            "action.bt.AIOS_INCOMING_RINGING" -> _call.value = Call(CallState.INCOMING, number, name, now)
-            "action.bt.AIOS_OUTGOING_RINGING" -> _call.value = Call(CallState.OUTGOING, number, name, now)
-            "action.bt.AIOS_INCOMING_OFFHOOK", "action.bt.AIOS_OUTGOING_OFFHOOK" ->
-                _call.value = _call.value.let { Call(CallState.ACTIVE, number ?: it.number, name ?: it.name, now) }
-            "action.bt.AIOS_INCOMING_IDLE", "action.bt.AIOS_OUTGOING_IDLE" -> _call.value = Call(CallState.NONE, null, null, 0L)
-            "com.android.bt.connected" -> _phoneConnected.value = true
-            "com.android.bt.disconnected" -> { _phoneConnected.value = false; _btTrack.value = null }
-            "com.tw.launcher.btmsg", "com.tw.bt.av.play" -> {
-                val title = pick(extras, "title", "song", "music")
-                if (title != null) {
-                    val playing = pick(extras, "play", "state", "status")?.let { it == "true" || it == "1" || it.contains("play", true) } ?: true
-                    _btTrack.value = BtTrack(title, pick(extras, "artist", "singer") ?: "", playing)
+            ID3 -> {
+                val title = text(extras, "musicTitle") ?: return
+                val position = extras?.getInt("musicProgress", 0) ?: 0
+                val previous = _btTrack.value
+                val moving = previous != null && previous.title == title && position != previous.positionMs
+                if (moving) lastProgressAt = now
+                _btTrack.value = BtTrack(
+                    title, text(extras, "musicArtist") ?: "",
+                    playing = moving || (previous?.playing == true && now - lastProgressAt < 3000),
+                    positionMs = position, durationMs = extras?.getInt("musicDuration", 0) ?: 0,
+                )
+                main.removeCallbacks(stalled)
+                main.postDelayed(stalled, 3000)
+            }
+            CALL -> {
+                val number = text(extras, "callNumber")
+                val name = text(extras, "callName")
+                _call.value = when (extras?.getInt("state", 0) ?: 0) {
+                    1 -> Call(CallState.INCOMING, number, name, now)
+                    2 -> _call.value.let { Call(CallState.ACTIVE, number ?: it.number, name ?: it.name, if (it.state == CallState.ACTIVE) it.since else now) }
+                    3 -> Call(CallState.OUTGOING, number, name, now)
+                    else -> Call(CallState.NONE, null, null, 0L)
                 }
             }
+            "action.bt.AIOS_INCOMING_RINGING" -> _call.value = Call(CallState.INCOMING, text(extras, "number"), text(extras, "name"), now)
+            "action.bt.AIOS_OUTGOING_RINGING" -> if (_call.value.state == CallState.NONE) _call.value = Call(CallState.OUTGOING, null, null, now)
+            "action.bt.AIOS_INCOMING_OFFHOOK", "action.bt.AIOS_OUTGOING_OFFHOOK" ->
+                _call.value = _call.value.let { if (it.state == CallState.ACTIVE) it else it.copy(state = CallState.ACTIVE, since = now) }
+            "action.bt.AIOS_INCOMING_IDLE", "action.bt.AIOS_OUTGOING_IDLE" -> _call.value = Call(CallState.NONE, null, null, 0L)
+            "com.android.bt.connected" -> {
+                val was = _phoneConnected.value
+                _phoneConnected.value = true
+                // Phone just connected: route its audio to the car, as the vendor launcher does.
+                if (was != true) acquireBluetoothAudio(play = false)
+                send(Intent("com.unisound.intent.action.GET_ID3_INFO"))
+            }
+            "com.android.bt.disconnected" -> { _phoneConnected.value = false; _btTrack.value = null }
         }
     }
 

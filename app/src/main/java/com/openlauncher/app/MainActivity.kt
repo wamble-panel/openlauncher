@@ -59,6 +59,16 @@ class MainActivity : ComponentActivity() {
         // grab the keys meant for Bluetooth music.
         val playingNow = com.openlauncher.app.service.MediaListenerService.nowPlaying.value?.takeIf { it.isPlaying }
         val controls = playingNow?.controller?.transportControls
+        val tw = com.openlauncher.app.util.TwBridge
+        if (controls == null && tw.available && tw.btTrack.value != null) {
+            // Bluetooth music on a TS10 unit: steering keys go to the vendor Bluetooth app.
+            val down = event.action == android.view.KeyEvent.ACTION_DOWN
+            when (event.keyCode) {
+                android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> { if (down) tw.btNext(); return true }
+                android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> { if (down) tw.btPrev(); return true }
+                android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, android.view.KeyEvent.KEYCODE_HEADSETHOOK -> { if (down) tw.btToggle(); return true }
+            }
+        }
         if (controls != null) {
             when (event.keyCode) {
                 android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> { if (event.action == android.view.KeyEvent.ACTION_DOWN) controls.skipToNext(); return true }
@@ -174,6 +184,8 @@ class MainActivity : ComponentActivity() {
         val controller = vm.nowPlaying.value?.controller
         if (controller != null) {
             controller.transportControls.play()
+        } else if (com.openlauncher.app.util.TwBridge.available) {
+            com.openlauncher.app.util.TwBridge.btPlay()
         } else {
             // Bluetooth music from the vendor app has no session: a play key reaches it.
             val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
