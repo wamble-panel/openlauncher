@@ -18,7 +18,7 @@ import kotlin.concurrent.thread
  * the server switches itself off after 15 minutes.
  */
 object WifiShare {
-    private val NAMES = listOf(
+    internal val NAMES = listOf(
         "mmi-carlink.txt", "mmi-packages.txt", "mmi-cleanup.bat", "mmi-cleanup.sh", "mmi-cleanup-undo.bat", "mmi-cleanup-undo.sh",
     )
     private var server: ServerSocket? = null
@@ -35,7 +35,7 @@ object WifiShare {
     }.getOrNull()
 
     /** Opens one of MMI's files wherever DownloadOut put it. */
-    private fun open(context: Context, name: String): InputStream? {
+    internal fun open(context: Context, name: String): InputStream? {
         File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), name)
             .takeIf { it.canRead() }?.let { f -> runCatching { return f.inputStream() } }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
