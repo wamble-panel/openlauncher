@@ -13,7 +13,8 @@ android {
         applicationId  = "com.openlauncher.app"
         minSdk         = 21
         targetSdk      = 36
-        versionCode    = 21
+        // CI builds count up with the run number, so Settings → Software update can compare.
+        versionCode    = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()?.plus(1000) ?: 21
         versionName    = "2.0.0-mmi"
     }
 

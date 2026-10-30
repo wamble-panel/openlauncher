@@ -61,6 +61,9 @@ jobs:
         run: |
           cp app/build/outputs/apk/release/*.apk MMI.apk
           gh release upload install-mmi MMI.apk --clobber
+          # Uploaded after the APK, so Settings → Software update never sees a version without its file.
+          echo $(( ${{ github.run_number }} + 1000 )) > version.txt
+          gh release upload install-mmi version.txt --clobber
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

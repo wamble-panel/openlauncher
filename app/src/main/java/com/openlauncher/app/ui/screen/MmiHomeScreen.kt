@@ -1045,7 +1045,43 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
     val pickPicture = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch { CarPicture.import(context, uri, carProfile) }
     }
+    // Software update from the GitHub release; checked quietly each time Settings opens.
+    val installedVersion = remember { com.openlauncher.app.util.AppUpdater.installedVersion(context) }
+    var latestVersion by remember { mutableStateOf<Long?>(null) }
+    var updateStatus by remember { mutableStateOf<String?>(null) }
+    var updateBusy by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { latestVersion = com.openlauncher.app.util.AppUpdater.latestVersion() }
+    val updateLabel = "Software update: " + when {
+        updateStatus != null -> updateStatus
+        latestVersion == null -> "tap to check"
+        latestVersion!! > installedVersion -> "new version, tap to install"
+        else -> "up to date"
+    }
+    val runUpdate: () -> Unit = {
+        if (!updateBusy) scope.launch {
+            updateBusy = true
+            try {
+                val latest = com.openlauncher.app.util.AppUpdater.latestVersion().also { latestVersion = it }
+                updateStatus = when {
+                    latest == null -> "no internet, connect Wi-Fi and tap again"
+                    latest <= installedVersion -> "up to date"
+                    else -> {
+                        updateStatus = "downloading 0%"
+                        val apk = com.openlauncher.app.util.AppUpdater.download(context) { updateStatus = "downloading $it%" }
+                        when {
+                            apk == null -> "download failed, tap to retry"
+                            com.openlauncher.app.util.AppUpdater.install(context, apk) -> "installing…"
+                            else -> "allow MMI to install apps, then tap again"
+                        }
+                    }
+                }
+            } finally {
+                updateBusy = false
+            }
+        }
+    }
     val rows: List<Pair<String, () -> Unit>> = listOf(
+        updateLabel to runUpdate,
         "Car: ${carName}" to {
             val next = com.openlauncher.app.map.CarProfile.entries[(RoadMemory.car.ordinal + 1) % com.openlauncher.app.map.CarProfile.entries.size]
             RoadMemory.setCar(next)

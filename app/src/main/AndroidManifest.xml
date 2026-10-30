@@ -5,6 +5,9 @@
     <!-- One-time map download over a phone hotspot -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Software update from Settings -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- Pick up map files from USB sticks, SD cards and the Download folder -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
@@ -142,6 +145,15 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths" />
+        </provider>
     </application>
 
 </manifest>
