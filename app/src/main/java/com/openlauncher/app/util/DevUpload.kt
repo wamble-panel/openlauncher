@@ -3,6 +3,7 @@ package com.openlauncher.app.util
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
@@ -23,6 +24,37 @@ object DevUpload {
     private const val REPO = "wamble-panel/mmi-unit-data"
 
     val configured: Boolean get() = CLIENT_ID.isNotEmpty()
+
+    // The whole send runs on MMI's own background scope: leaving the page doesn't stop it.
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+    private val _status = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    val status: kotlinx.coroutines.flow.StateFlow<String?> = _status
+    @Volatile var running = false
+        private set
+
+    fun say(text: String) { _status.value = text }
+
+    /** Signs in if needed, runs [prepare] (exports), then uploads every report file. */
+    fun start(context: Context, prepare: suspend () -> Unit) {
+        if (running) return
+        running = true
+        scope.launch {
+            try {
+                if (!configured) { say("Not set up yet: GitHub sign-in for MMI still needs its Client ID."); return@launch }
+                if (!signedIn(context)) {
+                    val code = requestCode() ?: run { say("No internet — connect Wi-Fi and tap again."); return@launch }
+                    say("On your phone open ${code.url} and enter  ${code.userCode}  — then wait.")
+                    if (!awaitApproval(context, code)) { say("Not approved — tap Send to developer to try again."); return@launch }
+                }
+                say("Packing the car apps…")
+                prepare()
+                val files = reportFiles(context)
+                say(send(context, files) { say(it) }.fold({ n -> "Sent $n files. Tell Claude \"sent\"." }, { e -> "Sending failed: ${e.message}" }))
+            } finally {
+                running = false
+            }
+        }
+    }
 
     private fun prefs(context: Context) = context.getSharedPreferences("mmi_dev_upload", Context.MODE_PRIVATE)
     fun signedIn(context: Context) = prefs(context).getString("token", null) != null
