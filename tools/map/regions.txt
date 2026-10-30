@@ -1,0 +1,8 @@
+# Areas kept in full detail (every street, shop and building).
+# Outside them the map keeps only main roads, city/town names, the Nile and lakes,
+# so routing between these areas still works.
+# name  min_lon,min_lat,max_lon,max_lat
+cairo-giza       30.75,29.75,31.95,30.40
+alex-northcoast  27.15,30.75,30.15,31.65
+ain-sokhna       32.20,29.25,32.70,29.80
+hurghada         33.55,26.65,34.00,27.50

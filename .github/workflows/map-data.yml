@@ -32,6 +32,23 @@ jobs:
       - name: Download Egypt OpenStreetMap extract
         run: curl -fsSL --retry 3 -o egypt.osm.pbf https://download.geofabrik.de/africa/egypt-latest.osm.pbf
 
+      # Full detail only where the car actually goes (tools/map/regions.txt);
+      # elsewhere just main roads, places and water, so the package is far smaller.
+      - name: Trim to the regions in regions.txt
+        run: |
+          sudo apt-get install -y -qq osmium-tool
+          mv egypt.osm.pbf egypt-full.osm.pbf
+          parts=""
+          grep -v '^#' tools/map/regions.txt | while read -r name bbox; do
+            [ -n "$name" ] || continue
+            osmium extract -b "$bbox" -s complete_ways --overwrite -o "region-$name.osm.pbf" egypt-full.osm.pbf
+          done
+          osmium tags-filter --overwrite -o rest.osm.pbf egypt-full.osm.pbf \
+            w/highway=motorway,motorway_link,trunk,trunk_link,primary,primary_link \
+            n/place=city,town wr/natural=water w/waterway=river r/boundary=administrative
+          osmium merge --overwrite -o egypt.osm.pbf region-*.osm.pbf rest.osm.pbf
+          ls -la egypt-full.osm.pbf egypt.osm.pbf
+
       - name: Build vector tiles
         run: |
           curl -fsSL --retry 3 -o planetiler.jar https://github.com/onthegomap/planetiler/releases/latest/download/planetiler.jar
@@ -53,7 +70,12 @@ jobs:
         continue-on-error: true
         run: |
           pip install --quiet overturemaps
-          overturemaps download --bbox=24.6,21.9,36.95,31.7 -f geojsonseq --type=place -o places.geojsonseq
+          : > places.geojsonseq
+          grep -v '^#' tools/map/regions.txt | while read -r name bbox; do
+            [ -n "$name" ] || continue
+            overturemaps download --bbox="$bbox" -f geojsonseq --type=place -o "places-$name.geojsonseq"
+            cat "places-$name.geojsonseq" >> places.geojsonseq
+          done
           ls -la places.geojsonseq
           python tools/map/merge_overture.py places.geojsonseq egypt-search.db
           ls -la egypt-search.db
