@@ -82,9 +82,9 @@ internal fun MmiCleanupPage() {
             }
             ChromePill("Save PC script", {
                 scope.launch {
-                    message = UnitCleanup.writeScripts(context, list, selected)?.let {
-                        "Saved mmi-cleanup.bat/.sh, the undo scripts and mmi-packages.txt to Download."
-                    } ?: "Couldn't write to Download — allow file access in Permissions."
+                    message = UnitCleanup.writeScripts(context, list, selected)?.let { where ->
+                        "Saved mmi-packages.txt, mmi-cleanup.bat/.sh and the undo scripts to $where"
+                    } ?: "Couldn't save the files — the unit's storage refused."
                 }
             }, MmiLine.OPEN, Modifier.fillMaxWidth())
             ChromePill(if (tweaks) "Speed settings: on · undo" else "Apply speed settings", {
@@ -103,7 +103,7 @@ internal fun MmiCleanupPage() {
                     message = "Copying apps…"
                     val n = UnitCleanup.exportApks(context) { done, total -> message = "Copying apps… $done / $total" }
                     message = if (n > 0) "Copied $n apps to Download/mmi-apks — move that folder to a USB stick and send it over."
-                    else "Couldn't copy — allow file access in Permissions."
+                    else "Couldn't copy — the unit's storage refused."
                 }
             }, MmiLine.OPEN, Modifier.fillMaxWidth())
             ChromePill(if (overlay) "Performance readout: on" else "Performance readout: off", {

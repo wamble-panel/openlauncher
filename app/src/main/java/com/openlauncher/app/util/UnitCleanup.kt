@@ -3,7 +3,6 @@ package com.openlauncher.app.util
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
-import android.os.Environment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -164,9 +163,8 @@ object UnitCleanup {
      * Writes cleanup + undo scripts and the package list to Download, for running
      * from a PC over ADB (no root needed) or sending over for review.
      */
-    suspend fun writeScripts(context: Context, apps: List<UnitApp>, off: Set<String>): File? = withContext(Dispatchers.IO) {
+    suspend fun writeScripts(context: Context, apps: List<UnitApp>, off: Set<String>): String? = withContext(Dispatchers.IO) {
         runCatching {
-            val dl = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).apply { mkdirs() }
             val tweaks = speedTweakCommands(context.packageName)
             val revert = revertCommands(context)
             val bat = buildString {
@@ -183,14 +181,15 @@ object UnitCleanup {
                 off.joinToString("") { "adb shell pm disable-user --user 0 $it\n" } +
                 tweaks.joinToString("") { "adb shell $it\n" } + "echo Done. Restart the unit.\n"
             val undo = off.joinToString("") { "adb shell pm enable $it\n" } + revert.joinToString("") { "adb shell $it\n" }
-            File(dl, "mmi-cleanup.bat").writeText(bat.replace("\n", "\r\n"))
-            File(dl, "mmi-cleanup.sh").writeText(sh)
-            File(dl, "mmi-cleanup-undo.bat").writeText(("@echo off\nadb devices\n" + undo + "pause\n").replace("\n", "\r\n"))
-            File(dl, "mmi-cleanup-undo.sh").writeText("#!/bin/sh\nadb devices\n$undo")
-            File(dl, "mmi-packages.txt").writeText(apps.joinToString("\n") {
+            // The package list first: it's the file worth sending over.
+            val where = DownloadOut.writeText(context, null, "mmi-packages.txt", apps.joinToString("\n") {
                 "${it.verdict.name}\t${if (it.enabled) "on" else "off"}\t${it.memoryMb ?: "-"} MB\t${it.pkg}\t${it.label}\t${it.reason}"
             })
-            dl
+            DownloadOut.writeText(context, null, "mmi-cleanup.bat", bat.replace("\n", "\r\n"))
+            DownloadOut.writeText(context, null, "mmi-cleanup.sh", sh)
+            DownloadOut.writeText(context, null, "mmi-cleanup-undo.bat", ("@echo off\nadb devices\n" + undo + "pause\n").replace("\n", "\r\n"))
+            DownloadOut.writeText(context, null, "mmi-cleanup-undo.sh", "#!/bin/sh\nadb devices\n$undo")
+            where
         }.getOrNull()
     }
 
@@ -205,7 +204,6 @@ object UnitCleanup {
     }
 
     private suspend fun exportApksOrThrow(context: Context, onProgress: (Int, Int) -> Unit): Int {
-        val dl = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "mmi-apks").apply { mkdirs() }
         val pm = context.packageManager
         @Suppress("DEPRECATION")
         val apps = pm.getInstalledApplications(PackageManager.GET_DISABLED_COMPONENTS)
@@ -216,14 +214,15 @@ object UnitCleanup {
                 val files = listOf(ai.sourceDir) + (ai.splitSourceDirs?.toList() ?: emptyList())
                 files.forEachIndexed { n, path ->
                     val name = if (n == 0) "${ai.packageName}.apk" else "${ai.packageName}.split$n.apk"
-                    File(path).copyTo(File(dl, name), overwrite = true)
+                    val out = DownloadOut.open(context, "mmi-apks", name, "application/octet-stream")
+                    out.stream.use { o -> File(path).inputStream().use { it.copyTo(o) } }
                 }
                 done++
             }
             withContext(Dispatchers.Main) { onProgress(i + 1, apps.size) }
         }
         runCatching {
-            File(dl, "packages.txt").writeText(apps.joinToString("\n") {
+            DownloadOut.writeText(context, "mmi-apks", "packages.txt", apps.joinToString("\n") {
                 "${it.packageName}\t${runCatching { pm.getApplicationLabel(it) }.getOrDefault("")}\t${it.sourceDir}"
             })
         }
