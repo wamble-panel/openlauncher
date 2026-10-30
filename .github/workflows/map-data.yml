@@ -49,12 +49,16 @@ jobs:
           osmium merge --overwrite -o egypt.osm.pbf region-*.osm.pbf rest.osm.pbf
           ls -la egypt-full.osm.pbf egypt.osm.pbf
 
+      # Layers the MMI style never draws are left out: smaller tiles that the
+      # A133 decodes faster while panning.
       - name: Build vector tiles
         run: |
           curl -fsSL --retry 3 -o planetiler.jar https://github.com/onthegomap/planetiler/releases/latest/download/planetiler.jar
           java -Xmx10g -jar planetiler.jar \
             --osm-path=egypt.osm.pbf --download \
             --languages=en,ar \
+            --exclude_layers=housenumber,mountain_peak,aerodrome_label \
+            --simplify_tolerance_at_max_zoom=0.125 \
             --output=egypt.mbtiles --force
           ls -la egypt.mbtiles
 

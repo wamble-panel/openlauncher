@@ -17,6 +17,7 @@ object SystemTuner {
         ZRAM("Compressed memory (ZRAM)", "About 1.5x usable RAM on 2 GB units; skipped if the unit already uses swap"),
         STORAGE("Faster storage", "Larger read-ahead and a weekly trim of the flash storage"),
         LOGGING("Lighter system logging", "Smaller log buffer, less background writing"),
+        CPU("Full CPU speed", "The 4 cores stay at top speed instead of ramping up: smoother map, the unit runs a little warmer"),
     }
 
     private fun prefs(context: Context) = context.getSharedPreferences("mmi_tuner", Context.MODE_PRIVATE)
@@ -44,6 +45,7 @@ object SystemTuner {
             }
         }
         Tweak.LOGGING -> "logcat -G 256K"
+        Tweak.CPU -> "for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo performance > \$g; done"
     }
 
     /** Applies every switched-on root tweak (at boot and when switched on). */
