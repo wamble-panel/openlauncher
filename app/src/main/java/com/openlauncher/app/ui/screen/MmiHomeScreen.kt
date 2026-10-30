@@ -602,6 +602,60 @@ private fun DateBar(height: Dp) {
 
 // ── Orbit menu ───────────────────────────────────────────────────────────────
 
+/**
+ * Light trails under the car, like the MMI start screen: cyan streaks run along the
+ * floor from under the car back past its tail, with bright pulses flowing backwards
+ * as if it were driving. Only this small canvas redraws for the animation.
+ */
+@Composable
+private fun DriveTrails(carX: Dp, carY: Dp, carW: Dp, carH: Dp, intro: Float) {
+    val flow = rememberInfiniteTransition(label = "trails")
+    val phase by flow.animateFloat(0f, 1f, infiniteRepeatable(tween(2400, easing = androidx.compose.animation.core.LinearEasing)), label = "trail_phase")
+    Canvas(Modifier.fillMaxSize()) {
+        if (intro <= 0.01f) return@Canvas
+        val cw = carW.toPx()
+        // Ground line under the wheels; the car faces front-right, so "behind" is left and a little up.
+        val groundY = carY.toPx() + carH.toPx() * 0.9f
+        val frontX = carX.toPx() + cw * 0.95f
+        val length = cw * 1.9f * intro
+        val dx = -1f
+        val dy = -0.10f
+        val norm = kotlin.math.sqrt(dx * dx + dy * dy)
+        val ux = dx / norm
+        val uy = dy / norm
+        val lanes = listOf(-0.050f to 0.55f, -0.018f to 0.9f, 0.016f to 1f, 0.048f to 0.6f)
+        lanes.forEachIndexed { i, (offset, strength) ->
+            val start = Offset(frontX, groundY + size.height * offset)
+            val end = Offset(start.x + ux * length, start.y + uy * length + size.height * offset * 0.6f)
+            val trail = Brush.linearGradient(
+                0f to Color.Transparent,
+                0.12f to MmiCyan.copy(alpha = 0.85f * strength),
+                0.45f to MmiCyan.copy(alpha = 0.45f * strength),
+                1f to Color.Transparent,
+                start = start, end = end,
+            )
+            // Soft glow, then the crisp streak.
+            drawLine(trail, start, end, 9.dp.toPx() * strength, StrokeCap.Round, alpha = 0.25f)
+            drawLine(trail, start, end, 1.6.dp.toPx(), StrokeCap.Round)
+            // A bright pulse flowing backwards along the streak.
+            val t = (phase + i * 0.27f) % 1f
+            val p0 = Offset(start.x + (end.x - start.x) * t, start.y + (end.y - start.y) * t)
+            val seg = 0.16f
+            val p1 = Offset(p0.x + (end.x - start.x) * seg, p0.y + (end.y - start.y) * seg)
+            drawLine(
+                Brush.linearGradient(listOf(Color(0xFFE6FAFF).copy(alpha = (1f - t) * strength), Color.Transparent), p0, p1),
+                p0, p1, 2.4.dp.toPx(), StrokeCap.Round,
+            )
+        }
+        // Cyan floor glow right under the car.
+        val gx = carX.toPx() + cw * 0.5f
+        drawOval(
+            Brush.radialGradient(listOf(MmiCyan.copy(alpha = 0.30f * intro), Color.Transparent), Offset(gx, groundY), cw * 0.55f),
+            topLeft = Offset(gx - cw * 0.55f, groundY - size.height * 0.035f), size = Size(cw * 1.1f, size.height * 0.07f),
+        )
+    }
+}
+
 /** Ring centre line in the Orbit's own coordinates (from a theme pack background). */
 private data class OrbitRing(val cx: Dp, val cy: Dp, val rx: Dp, val ry: Dp)
 
@@ -656,7 +710,8 @@ private fun Orbit(
         val iconSize = h * 0.13f
         val labelSize = with(LocalDensity.current) { (h * 0.05f).toSp() }
         // With theme artwork the car sits inside that ring's disc; otherwise the drawn layout.
-        val carW = if (ring != null) rx * 1.1f else w * 0.46f
+        // The car stands in the middle of the ring's disc (drawn or theme artwork).
+        val carW = rx * 1.05f
         // The owner's own photo of the selected car (imported in Settings), else the built-in one.
         val carProfile by RoadMemory.carState.collectAsStateWithLifecycle()
         val pictureVersion by CarPicture.version.collectAsStateWithLifecycle()
@@ -666,8 +721,8 @@ private fun Orbit(
         }
         val astra = carProfile == com.openlauncher.app.map.CarProfile.ASTRA_J
         val carH = carW * (ownPicture?.let { it.height.toFloat() / it.width } ?: if (astra) 540f / 900f else 473f / 900f)
-        val carX = if (ring != null) cx - carW * 0.62f else w * 0.03f
-        val carY = if (ring != null) cy - carH * 0.6f else h * 0.15f
+        val carX = cx - carW / 2
+        val carY = cy - carH * 0.55f
 
         Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = (intro.value * 1.6f).coerceAtMost(1f) }) {
             val c = Offset(cx.toPx(), cy.toPx())
@@ -718,28 +773,13 @@ private fun Orbit(
 
             val gy = carY.toPx() + carH.toPx() * 0.93f
             val gx = carX.toPx() + carW.toPx() * 0.47f
-            val gw = carW.toPx() * 0.62f * intro.value
-            if (gw > 1f) {
-                drawOval(
-                    Brush.horizontalGradient(
-                        listOf(Color.Transparent, MmiCyan.copy(alpha = 0.35f), Color.Transparent),
-                        startX = gx - gw, endX = gx + gw,
-                    ),
-                    topLeft = Offset(gx - gw, gy - size.height * 0.03f), size = Size(gw * 2, size.height * 0.06f),
-                )
-                drawOval(
-                    Brush.horizontalGradient(
-                        listOf(Color.Transparent, MmiCyan, Color(0xFFBFF1FF), MmiCyan, Color.Transparent),
-                        startX = gx - gw * 0.85f, endX = gx + gw * 0.85f,
-                    ),
-                    topLeft = Offset(gx - gw * 0.85f, gy - size.height * 0.007f), size = Size(gw * 1.7f, size.height * 0.014f),
-                )
-            }
             drawOval(
                 Color(0xB0000000),
                 topLeft = Offset(gx - carW.toPx() * 0.34f, gy - size.height * 0.04f), size = Size(carW.toPx() * 0.68f, size.height * 0.045f),
             )
         }
+
+        DriveTrails(carX, carY, carW, carH, intro.value)
 
         val slide = with(LocalDensity.current) { 60.dp.toPx() }
         val carModifier = Modifier.offset(x = carX, y = carY).size(carW, carH).graphicsLayer {
