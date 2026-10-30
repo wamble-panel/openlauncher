@@ -284,7 +284,13 @@ private fun rememberCover(state: NowPlayingState?): ImageBitmap? {
     }
     val bitmap = state?.albumArt
     val fromMetadata = remember(bitmap) { bitmap?.asImageBitmap() }
-    return fromUri ?: fromMetadata
+    // Bluetooth music on this unit carries no picture: look the cover up by artist and title.
+    val needLookup = uri == null && bitmap == null && state != null && state.controller == null
+    val looked by produceState<ImageBitmap?>(null, needLookup, state?.artist, state?.title) {
+        value = if (!needLookup) null
+        else com.openlauncher.app.util.CoverLookup.cover(context, state!!.artist, state.title)?.asImageBitmap()
+    }
+    return fromUri ?: fromMetadata ?: looked
 }
 
 @Composable
@@ -323,11 +329,18 @@ private fun CoverArt(state: NowPlayingState?, size: Dp) {
 
 @Composable
 private fun MusicProgress(state: NowPlayingState) {
+    // Bluetooth music on TS10 units: position and length come from the vendor Bluetooth app.
+    val bt by com.openlauncher.app.util.TwBridge.btTrack.collectAsStateWithLifecycle()
+    val btTrack = bt?.takeIf { state.controller == null && it.title == state.title }
     var positionMs by remember(state.title) { mutableLongStateOf(state.controller?.playbackState?.position ?: 0L) }
-    val durationMs = state.controller?.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+    val durationMs = btTrack?.durationMs?.toLong()?.takeIf { it > 0 }
+        ?: state.controller?.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+    LaunchedEffect(btTrack?.positionMs) { btTrack?.let { positionMs = it.positionMs.toLong() } }
     LaunchedEffect(state.isPlaying, state.title) {
         while (state.isPlaying) {
-            positionMs = state.controller?.playbackState?.position ?: positionMs
+            positionMs = state.controller?.playbackState?.position
+                // Between the Bluetooth app's updates, keep counting so the time moves smoothly.
+                ?: (positionMs + 500).coerceAtMost(if (durationMs > 0) durationMs else Long.MAX_VALUE)
             delay(500)
         }
     }
