@@ -5,6 +5,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -47,6 +50,17 @@ jobs:
           name: openlauncher-INSTALL-THIS-${{ github.sha }}
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+
+      # Plain .apk download (no zip): each mbux build replaces MMI.apk on the
+      # owner's existing "install-mmi" release, so the link never changes.
+      - name: Attach MMI.apk to the install-mmi release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/mbux'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cp app/build/outputs/apk/release/*.apk MMI.apk
+          gh release upload install-mmi MMI.apk --clobber
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
