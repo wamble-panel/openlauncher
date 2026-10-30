@@ -48,4 +48,12 @@ $ADB shell cmd package compile -m speed -f $PKG
 $ADB shell dpm set-device-owner $PKG/.AdminReceiver  || echo   Silent updates not enabled: remove accounts in Android Settings and rerun this step.
 echo "[5/5] Vendor bloat OFF (undo: mmi-session-undo.sh)"
 for a in com.dofun.market com.dofun.dofunweather.main com.facebook.katana com.google.android.youtube yuku.mp3recorder.full com.android.printspooler com.android.dreams.basic com.android.bookmarkprovider com.android.wallpapercropper com.huawei.dmsdpdevice com.huawei.hisight com.huawei.nearby com.android.theme.color.black com.android.theme.color.cinnamon com.android.theme.color.green com.android.theme.color.ocean com.android.theme.color.orchid com.android.theme.color.purple com.android.theme.color.space com.android.theme.font.notoserifsource com.android.theme.icon.roundedrect com.android.theme.icon.square com.android.theme.icon.squircle com.android.theme.icon.teardrop com.android.theme.icon_pack.circular.themepicker com.android.theme.icon_pack.circular.settings com.android.theme.icon_pack.circular.systemui com.android.theme.icon_pack.circular.android com.android.theme.icon_pack.filled.themepicker com.android.theme.icon_pack.filled.settings com.android.theme.icon_pack.filled.systemui com.android.theme.icon_pack.filled.android com.android.theme.icon_pack.rounded.settings com.android.theme.icon_pack.rounded.systemui com.android.theme.icon_pack.rounded.android; do $ADB shell pm disable-user --user 0 $a >/dev/null 2>&1 && echo "  off: $a"; done
+
+echo "[optional] Opel boot animation"
+if [ -f opel-bootanimation-1280x800.zip ] && [ "$ROOT" = 1 ]; then
+  $ADB shell "cp /data/local/bootanimation.zip /data/local/bootanimation.zip.bak" 2>/dev/null
+  $ADB push opel-bootanimation-1280x800.zip /data/local/bootanimation.zip
+  $ADB shell "chmod 755 /data/local/bootanimation.zip"
+  echo "  Opel boot animation installed. Restore: rename bootanimation.zip.bak"
+fi
 echo "Done. Restart the unit. MMI starts as the home screen."
