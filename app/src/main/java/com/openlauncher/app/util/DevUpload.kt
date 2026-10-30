@@ -20,7 +20,7 @@ import java.net.URLEncoder
  */
 object DevUpload {
     /** Client ID of the owner's "MMI" OAuth app (device flow enabled). Empty until set up. */
-    const val CLIENT_ID = ""
+    const val CLIENT_ID = "Ov23limBTF4PpuP8nyzN"
     private const val REPO = "wamble-panel/openlauncher"
     private const val TAG = "install-mmi"
     private val SKIP = setOf("MMI.apk", "version.txt") // the release's own files

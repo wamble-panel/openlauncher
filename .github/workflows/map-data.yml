@@ -114,4 +114,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: gh release upload maps-egypt egypt-safety.db egypt-routing.graph egypt-search.db egypt.mbtiles --clobber
+        run: |
+          # Fingerprints the app checks after downloading each map file.
+          sha256sum egypt-safety.db egypt-routing.graph egypt-search.db egypt.mbtiles > maps.sha256
+          gh release upload maps-egypt egypt-safety.db egypt-routing.graph egypt-search.db egypt.mbtiles --clobber
+          gh release upload maps-egypt maps.sha256 --clobber

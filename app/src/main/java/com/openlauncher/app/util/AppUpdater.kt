@@ -79,6 +79,19 @@ object AppUpdater {
         throw java.io.IOException("too many redirects")
     }
 
+    fun sha256(file: File): String {
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buf = ByteArray(64 * 1024)
+            while (true) {
+                val n = input.read(buf)
+                if (n < 0) break
+                md.update(buf, 0, n)
+            }
+        }
+        return md.digest().joinToString("") { "%02x".format(it) }
+    }
+
     private fun apkFile(context: Context) = File(context.cacheDir, "updates/MMI.apk")
     private fun prefs(context: Context) = context.getSharedPreferences("mmi_update", Context.MODE_PRIVATE)
 
@@ -143,6 +156,12 @@ object AppUpdater {
                 }
             }
             if (total > 0 && part.length() != total) throw java.io.IOException("incomplete download")
+            // The build's published fingerprint must match before anything is installed.
+            val expected = runCatching { open(BASE + "MMI.sha256").inputStream.bufferedReader().use { it.readText().trim() } }.getOrNull()
+            if (expected != null && !sha256(part).equals(expected, ignoreCase = true)) {
+                part.delete()
+                throw java.io.IOException("fingerprint mismatch")
+            }
             if (!part.renameTo(target)) throw java.io.IOException("couldn't keep the download")
             target
         }.getOrNull()

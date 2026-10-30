@@ -62,6 +62,12 @@ object MapInstaller {
             _state.value = InstallState(running = true, source = "Downloading")
             runCatching {
                 val sizes = FILES.associateWith { remoteSize(it) }
+                // Published fingerprints ("hash  name" per line); older packages have none.
+                val hashes = runCatching {
+                    open("maps.sha256").inputStream.bufferedReader().use { r ->
+                        r.readLines().mapNotNull { l -> l.trim().split(Regex("\\s+")).takeIf { it.size == 2 }?.let { it[1].removePrefix("*") to it[0] } }.toMap()
+                    }
+                }.getOrDefault(emptyMap())
                 val total = sizes.values.sum()
                 var before = 0L
                 for (name in FILES) {
@@ -74,7 +80,14 @@ object MapInstaller {
                     fetch(name, File(dest.parentFile, "$name.part"), size) { got ->
                         _state.value = _state.value.copy(file = name, doneBytes = before + got, totalBytes = total)
                     }
-                    File(dest.parentFile, "$name.part").renameTo(dest)
+                    val part = File(dest.parentFile, "$name.part")
+                    hashes[name]?.let { expected ->
+                        if (!com.openlauncher.app.util.AppUpdater.sha256(part).equals(expected, ignoreCase = true)) {
+                            part.delete()
+                            throw java.io.IOException("Fingerprint mismatch for $name")
+                        }
+                    }
+                    part.renameTo(dest)
                     before += size
                 }
             }.onSuccess {
