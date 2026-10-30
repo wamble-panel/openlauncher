@@ -90,8 +90,6 @@ dependencies {
     // Offline vector maps (MMI navigation)
     implementation("org.maplibre.gl:android-sdk:11.5.2")
 
-    // Reverse view: on-device object detection (bundled model, works offline).
-    implementation("com.google.mlkit:object-detection:17.0.2")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")

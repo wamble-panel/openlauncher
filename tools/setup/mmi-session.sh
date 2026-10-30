@@ -56,7 +56,7 @@ echo "  Backup done. Copy the $OUT folder to a cloud drive or USB disk and keep 
 ask "Continue with the MMI setup (all reversible)?" || { echo "Stopped after the backup. Nothing on the unit was changed."; exit 0; }
 
 echo "[4/6] MMI: permissions, pre-compile, speed settings"
-for g in ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION READ_CONTACTS READ_CALL_LOG CALL_PHONE CAMERA READ_EXTERNAL_STORAGE WRITE_EXTERNAL_STORAGE WRITE_SECURE_SETTINGS; do
+for g in ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION READ_CONTACTS READ_CALL_LOG CALL_PHONE READ_EXTERNAL_STORAGE WRITE_EXTERNAL_STORAGE WRITE_SECURE_SETTINGS; do
   $ADB shell pm grant $PKG android.permission.$g >/dev/null 2>&1
 done
 $ADB shell appops set $PKG WRITE_SETTINGS allow

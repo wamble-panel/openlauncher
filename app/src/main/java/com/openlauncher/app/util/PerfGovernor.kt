@@ -61,9 +61,6 @@ object PerfGovernor {
         Choreographer.getInstance().postFrameCallback(callback)
     }
 
-    /** Milliseconds between object-detection runs in the reverse view. */
-    val detectionIntervalMs: Long get() = when (_level.value) { 0 -> 250L; 1 -> 500L; else -> 1000L }
-
     /** Map frame cap. */
     val mapMaxFps: Int get() = if (_level.value >= 2) 24 else 30
 }

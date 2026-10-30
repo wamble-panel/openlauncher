@@ -385,13 +385,6 @@ fun MmiHomeScreen(
         CallBar(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
         ClimatePopup(Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp))
         DoorBanner(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
-        // MMI's reverse view: from Settings, or automatically on reverse gear when switched on.
-        val reverseOpen by ReverseView.open.collectAsStateWithLifecycle()
-        val reversing by com.openlauncher.app.util.TwBridge.reversing.collectAsStateWithLifecycle()
-        LaunchedEffect(reversing) {
-            if (ReverseView.auto(context)) ReverseView.open.value = reversing
-        }
-        if (reverseOpen) MmiReversePage(onClose = { ReverseView.open.value = false })
         HomeAppPrompt()
         PerfReadout(Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 6.dp))
     }
@@ -1293,7 +1286,6 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
     var silentUpdates by remember { mutableStateOf(updater.isDeviceOwner(context)) }
     var mmiCallBar by remember { mutableStateOf(runCatching { com.openlauncher.app.util.TwBridge.mmiCallBar() }.getOrDefault(true)) }
     var mmiClimatePopup by remember { mutableStateOf(runCatching { com.openlauncher.app.util.Climate.replaceVendorPopup() }.getOrDefault(true)) }
-    var reverseAuto by remember { mutableStateOf(ReverseView.auto(context)) }
     var keepReverseMusic by remember { mutableStateOf(com.openlauncher.app.util.TwBridge.keepMusicInReverse()) }
     var popupsHidden by remember { mutableStateOf(com.openlauncher.app.service.MediaListenerService.popupsHidden(context)) }
     val rows: List<Pair<String, () -> Unit>> = listOfNotNull(
@@ -1340,11 +1332,6 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
         (if (mmiClimatePopup) "Climate pop-up: MMI style" else "Climate pop-up: car's own") to {
             mmiClimatePopup = !mmiClimatePopup
             com.openlauncher.app.util.Climate.setReplaceVendorPopup(mmiClimatePopup)
-        },
-        "Reverse camera: open MMI view" to { ReverseView.open.value = true },
-        (if (reverseAuto) "Reverse gear shows: MMI view" else "Reverse gear shows: car's own screen") to {
-            reverseAuto = !reverseAuto
-            ReverseView.setAuto(context, reverseAuto)
         },
         (if (keepReverseMusic) "Music while reversing: keeps playing" else "Music while reversing: muted, resumes after") to {
             keepReverseMusic = !keepReverseMusic

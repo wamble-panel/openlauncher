@@ -49,7 +49,6 @@ internal fun runtimePermissions(): List<String> = buildList {
     add(Manifest.permission.READ_CONTACTS)
     add(Manifest.permission.READ_CALL_LOG)
     add(Manifest.permission.CALL_PHONE)
-    add(Manifest.permission.CAMERA)
     if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) add(Manifest.permission.READ_EXTERNAL_STORAGE)
     if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
 }

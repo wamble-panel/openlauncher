@@ -90,7 +90,7 @@ if errorlevel 2 (echo Stopped after the backup. Nothing on the unit was changed.
 
 echo.
 echo [4/6] MMI: permissions, pre-compile, speed settings
-for %%g in (ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION READ_CONTACTS READ_CALL_LOG CALL_PHONE CAMERA READ_EXTERNAL_STORAGE WRITE_EXTERNAL_STORAGE WRITE_SECURE_SETTINGS) do adb shell pm grant %PKG% android.permission.%%g >nul 2>&1
+for %%g in (ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION READ_CONTACTS READ_CALL_LOG CALL_PHONE READ_EXTERNAL_STORAGE WRITE_EXTERNAL_STORAGE WRITE_SECURE_SETTINGS) do adb shell pm grant %PKG% android.permission.%%g >nul 2>&1
 adb shell appops set %PKG% WRITE_SETTINGS allow
 adb shell appops set %PKG% REQUEST_INSTALL_PACKAGES allow
 adb shell cmd notification allow_listener %PKG%/%PKG%.service.MediaListenerService

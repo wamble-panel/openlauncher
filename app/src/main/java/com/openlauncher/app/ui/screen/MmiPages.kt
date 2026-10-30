@@ -345,10 +345,34 @@ private fun MusicProgress(state: NowPlayingState) {
             delay(500)
         }
     }
-    val fraction = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
-    val shown by animateFloatAsState(fraction, tween(450), label = "progress")
+    // Drag to seek only works with a real media session (phone music apps). The
+    // vendor Bluetooth module has no seek, so its bar is a plain indicator.
+    val seekable = state.controller?.transportControls != null &&
+        (state.controller.playbackState?.actions?.and(android.media.session.PlaybackState.ACTION_SEEK_TO) ?: 0L) != 0L
+    var dragFraction by remember { mutableStateOf<Float?>(null) }
+    val fraction = dragFraction ?: if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
+    val glide by animateFloatAsState(fraction, tween(450), label = "progress")
+    val shown = if (dragFraction != null) fraction else glide
     Column {
-        Canvas(Modifier.fillMaxWidth().height(14.dp)) {
+        Canvas(
+            Modifier.fillMaxWidth().height(28.dp).then(
+                if (!seekable) Modifier else Modifier.pointerInput(durationMs) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { pos -> dragFraction = (pos.x / size.width).coerceIn(0f, 1f) },
+                        onDragEnd = {
+                            dragFraction?.let { state.controller?.transportControls?.seekTo((it * durationMs).toLong()) }
+                            dragFraction = null
+                        },
+                        onDragCancel = { dragFraction = null },
+                    ) { change, _ -> change.consume(); dragFraction = (change.position.x / size.width).coerceIn(0f, 1f) }
+                }.pointerInput(durationMs) {
+                    detectTapGestures { pos ->
+                        val f = (pos.x / size.width).coerceIn(0f, 1f)
+                        state.controller?.transportControls?.seekTo((f * durationMs).toLong())
+                    }
+                }
+            ),
+        ) {
             val y = size.height / 2f
             val track = 4.dp.toPx()
             drawLine(Color(0xFF2A2E34), Offset(0f, y), Offset(size.width, y), track, StrokeCap.Round)
