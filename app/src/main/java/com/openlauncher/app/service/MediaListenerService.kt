@@ -21,10 +21,23 @@ class MediaListenerService : NotificationListenerService() {
         override fun onSessionDestroyed()                          = refreshNowPlaying()
     }
 
+    // Bluetooth music apps on head units often start a media session without
+    // posting a notification, so sessions are watched directly as well.
+    private val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { refreshNowPlaying() }
+
+    private fun watchSessions(on: Boolean) {
+        val msm = getSystemService(MEDIA_SESSION_SERVICE) as? MediaSessionManager ?: return
+        runCatching {
+            if (on) msm.addOnActiveSessionsChangedListener(sessionsListener, ComponentName(this, MediaListenerService::class.java))
+            else msm.removeOnActiveSessionsChangedListener(sessionsListener)
+        }
+    }
+
     override fun onListenerConnected() {
         super.onListenerConnected()
         instance = this
         isConnected.value = true
+        watchSessions(true)
         refreshNowPlaying()
         runCatching { activeNotifications?.forEach { NavigationTracker.onPosted(it, this) } }
     }
@@ -33,6 +46,7 @@ class MediaListenerService : NotificationListenerService() {
         super.onListenerDisconnected()
         instance = null
         isConnected.value = false
+        watchSessions(false)
         clearController()
         _nowPlaying.value = null
         NavigationTracker.clear()
@@ -50,6 +64,7 @@ class MediaListenerService : NotificationListenerService() {
 
     override fun onDestroy() {
         instance = null
+        watchSessions(false)
         clearController()
         // Clear the static flow so the UI doesn't keep showing a dead session
         // (and pinning its album-art bitmap) after the service is killed
