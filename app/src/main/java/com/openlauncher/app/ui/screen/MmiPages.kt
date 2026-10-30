@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
@@ -182,8 +183,18 @@ internal fun MmiMusicPage(
     onPrev: () -> Unit,
     onOpenSource: () -> Unit,
     onOpenMusicApp: () -> Unit,
+    onOpenBluetooth: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    // Music comes from the phone over Bluetooth, or from a USB stick: nothing stored
+    // on the unit. With neither connected, show the source picker instead of a player.
+    val phone by com.openlauncher.app.util.TwBridge.phoneConnected.collectAsStateWithLifecycle()
+    val usb = rememberUsbInserted()
+    val btConnected = phone == true || remember(state) { com.openlauncher.app.util.BtConnect.anyConnected() }
+    if (state == null && !btConnected) {
+        MusicSourcePicker(usb, onOpenBluetooth, onOpenSource)
+        return
+    }
     BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 8.dp)) {
         val cover = minOf(maxHeight * 0.66f, maxWidth * 0.32f)
         Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
@@ -209,7 +220,7 @@ internal fun MmiMusicPage(
                         Spacer(Modifier.width(22.dp))
                         ChromeButton(MmiLine.NEXT, 64.dp, onNext)
                         Spacer(Modifier.width(36.dp))
-                        ChromePill("Music app", onOpenMusicApp, MmiLine.NOTE)
+                        ChromePill("Source", onOpenBluetooth, MmiLine.BLUETOOTH)
                     }
                 } else {
                     Text(
@@ -786,3 +797,64 @@ private fun CompassGauge(bearing: Float, modifier: Modifier) {
         )
     }
 }
+
+/** Whether a USB stick (or SD card) is mounted, re-checked every few seconds. */
+@Composable
+private fun rememberUsbInserted(): Boolean {
+    val context = LocalContext.current
+    var inserted by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val sm = context.getSystemService(Context.STORAGE_SERVICE) as android.os.storage.StorageManager
+        while (true) {
+            inserted = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N && runCatching {
+                sm.storageVolumes.any { it.isRemovable && it.state == android.os.Environment.MEDIA_MOUNTED }
+            }.getOrDefault(false)
+            kotlinx.coroutines.delay(3000)
+        }
+    }
+    return inserted
+}
+
+/**
+ * No phone and no USB music: like the Audi "Media · Source" screen, a clear
+ * message and big source tiles. Bluetooth goes straight to pairing.
+ */
+@Composable
+private fun MusicSourcePicker(usb: Boolean, onBluetooth: () -> Unit, onUsb: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Spacer(Modifier.weight(0.6f))
+        Text("No media source connected.", color = MmiInk, fontFamily = MmiFont, fontSize = 26.sp)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Connect your phone over Bluetooth, or insert a USB stick.",
+            color = MmiDim, fontFamily = MmiFont, fontSize = 17.sp,
+        )
+        Spacer(Modifier.height(28.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            SourceTile("Bluetooth", "Connect phone", MmiLine.BLUETOOTH, enabled = true, onClick = onBluetooth)
+            SourceTile("USB device", if (usb) "Play from USB" else "Not inserted", MmiLine.OPEN, enabled = usb, onClick = onUsb)
+        }
+        Spacer(Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun SourceTile(title: String, detail: String, icon: MmiLine, enabled: Boolean, onClick: () -> Unit) {
+    val ink = if (enabled) MmiInk else MmiDim.copy(alpha = 0.5f)
+    Column(
+        Modifier.size(width = 220.dp, height = 150.dp)
+            .then(if (enabled) Modifier.pressable(onClick) else Modifier)
+            .mmiPanel().padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        MmiLineIcon(icon, if (enabled) MmiCyan else ink, Modifier.size(40.dp))
+        Spacer(Modifier.height(12.dp))
+        Text(title, color = ink, fontFamily = MmiFont, fontSize = 20.sp)
+        Text(detail, color = MmiDim.copy(alpha = if (enabled) 1f else 0.5f), fontFamily = MmiFont, fontSize = 14.sp)
+    }
+}
+

@@ -104,11 +104,23 @@ class LocationCompassManager(context: Context) {
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
     }
 
-    /** GPS drifts a few km/h while parked; anything below walking pace, or within the fix's own error, reads as 0. */
+    /**
+     * GPS (Doppler) speed is accurate to about 1 km/h once moving, but drifts a few
+     * km/h while parked. Two thresholds: the car counts as moving above 5 km/h and
+     * as stopped again below 2 km/h, so crawling in traffic still shows its speed
+     * while a parked car reads a steady 0. A reading within its own error is 0 too.
+     */
+    @Volatile private var moving = false
+
     private fun parkedAsZero(loc: Location): Float {
-        if (!loc.hasSpeed() || loc.speed < 1.6f) return 0f
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && loc.hasSpeedAccuracy() && loc.speedAccuracyMetersPerSecond >= loc.speed) return 0f
-        return loc.speed
+        if (!loc.hasSpeed()) return 0f
+        val v = loc.speed
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && loc.hasSpeedAccuracy() && loc.speedAccuracyMetersPerSecond >= v) {
+            moving = false
+            return 0f
+        }
+        moving = if (moving) v > 0.55f else v > 1.4f
+        return if (moving) v else 0f
     }
 
     private val locationListener = object : LocationListener {

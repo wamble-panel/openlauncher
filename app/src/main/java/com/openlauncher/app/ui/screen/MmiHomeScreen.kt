@@ -322,6 +322,7 @@ fun MmiHomeScreen(
                         onPlayPause = playPause, onNext = next, onPrev = prev,
                         onOpenSource = openMusicApp,
                         onOpenMusicApp = openMusicApp,
+                        onOpenBluetooth = { page = MmiPage.BT_HUB },
                     )
                     MmiPage.RADIO -> MmiRadioPage(
                         radio = hardwareRadio,
