@@ -4,7 +4,6 @@ import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
@@ -13,17 +12,15 @@ import java.net.URLEncoder
 
 /**
  * "Send to developer": uploads MMI's reports and car-app exports straight to the
- * owner's GitHub repo (as files on the install-mmi release), so nothing has to
- * be picked by hand in a browser. Signing in uses GitHub's device flow: MMI shows
+ * owner's PRIVATE GitHub repo (call logs and vendor software never go public),
+ * one dated folder per send, so nothing has to be picked by hand in a browser. Signing in uses GitHub's device flow: MMI shows
  * a short code once, the owner approves it on their phone, and the token is kept
  * on the unit for later uploads.
  */
 object DevUpload {
     /** Client ID of the owner's "MMI" OAuth app (device flow enabled). Empty until set up. */
     const val CLIENT_ID = "Ov23limBTF4PpuP8nyzN"
-    private const val REPO = "wamble-panel/openlauncher"
-    private const val TAG = "install-mmi"
-    private val SKIP = setOf("MMI.apk", "version.txt") // the release's own files
+    private const val REPO = "wamble-panel/mmi-unit-data"
 
     val configured: Boolean get() = CLIENT_ID.isNotEmpty()
 
@@ -48,7 +45,7 @@ object DevUpload {
     /** Step 1: the code to type at github.com/login/device. */
     suspend fun requestCode(): Code? = withContext(Dispatchers.IO) {
         runCatching {
-            val r = form("https://github.com/login/device/code", mapOf("client_id" to CLIENT_ID, "scope" to "public_repo"))
+            val r = form("https://github.com/login/device/code", mapOf("client_id" to CLIENT_ID, "scope" to "repo"))
             Code(r.getString("user_code"), r.getString("verification_uri"), r.getString("device_code"), r.optInt("interval", 5))
         }.getOrNull()
     }
@@ -103,26 +100,23 @@ object DevUpload {
         return dir.listFiles { f -> f.isFile && f.length() > 0 }?.sortedBy { it.name }.orEmpty()
     }
 
-    /** Step 3: uploads every report file; returns how many went up, or an error message. */
+    /** Step 3: uploads every report file into a new dated folder; returns how many went up. */
     suspend fun send(context: Context, files: List<File>, onProgress: (String) -> Unit): Result<Int> = withContext(Dispatchers.IO) {
         runCatching {
-            val (code, release) = api(context, "GET", "https://api.github.com/repos/$REPO/releases/tags/$TAG")
+            val (code, _) = api(context, "GET", "https://api.github.com/repos/$REPO")
             if (code == 401) { signOut(context); error("GitHub sign-in expired — tap Send to developer again") }
+            if (code == 404) error("Private repo $REPO not found — create it on GitHub first")
             if (code != 200) error("GitHub answered $code")
-            val json = JSONObject(release)
-            val id = json.getLong("id")
-            val existing = json.optJSONArray("assets") ?: JSONArray()
+            val folder = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm", java.util.Locale.US).format(java.util.Date())
             var sent = 0
-            files.filter { it.isFile && it.name !in SKIP }.forEachIndexed { i, f ->
+            files.filter { it.isFile }.forEachIndexed { i, f ->
                 withContext(Dispatchers.Main) { onProgress("Sending ${i + 1} / ${files.size}: ${f.name}") }
-                // Replace an older copy of the same file.
-                for (a in 0 until existing.length()) {
-                    val asset = existing.getJSONObject(a)
-                    if (asset.getString("name") == f.name) api(context, "DELETE", "https://api.github.com/repos/$REPO/releases/assets/${asset.getLong("id")}")
-                }
+                val body = JSONObject()
+                    .put("message", "MMI unit data: ${f.name}")
+                    .put("content", android.util.Base64.encodeToString(f.readBytes(), android.util.Base64.NO_WRAP))
                 val (up, _) = api(
-                    context, "POST", "https://uploads.github.com/repos/$REPO/releases/$id/assets?name=${URLEncoder.encode(f.name, "UTF-8")}",
-                    f.readBytes(), "application/octet-stream",
+                    context, "PUT", "https://api.github.com/repos/$REPO/contents/$folder/${URLEncoder.encode(f.name, "UTF-8")}",
+                    body.toString().toByteArray(),
                 )
                 if (up in 200..299) sent++
             }
