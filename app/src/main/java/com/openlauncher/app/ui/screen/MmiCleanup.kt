@@ -155,11 +155,18 @@ internal fun MmiCleanupPage() {
                     WifiShare.stop()
                     sharing = false
                     message = null
-                } else {
+                } else scope.launch {
                     val ip = WifiShare.address()
-                    sharing = ip != null && WifiShare.start(context)
-                    message = if (sharing) "On your phone (on the same hotspot), open  http://$ip:${WifiShare.PORT}  and tap each file to download it."
-                    else "Connect the unit to your phone's hotspot first (Settings → Wi-Fi), then tap again."
+                    if (ip == null) {
+                        message = "Connect the unit to your phone's hotspot first (Settings → Wi-Fi), then tap again."
+                        return@launch
+                    }
+                    val problem = WifiShare.start(context)
+                    sharing = WifiShare.running
+                    message = if (problem == null) {
+                        "Sharing. On your phone (same hotspot), type exactly:  http://$ip:${WifiShare.port}  " +
+                            "— on this unit's browser: http://127.0.0.1:${WifiShare.port}"
+                    } else problem
                 }
             }, MmiLine.OPEN, Modifier.fillMaxWidth())
             ChromePill(if (overlay) "Performance readout: on" else "Performance readout: off", {

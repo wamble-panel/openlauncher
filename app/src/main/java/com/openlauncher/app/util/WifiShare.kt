@@ -18,7 +18,6 @@ import kotlin.concurrent.thread
  * the server switches itself off after 15 minutes.
  */
 object WifiShare {
-    const val PORT = 8080
     private val NAMES = listOf(
         "mmi-carlink.txt", "mmi-packages.txt", "mmi-cleanup.bat", "mmi-cleanup.sh", "mmi-cleanup-undo.bat", "mmi-cleanup-undo.sh",
     )
@@ -57,22 +56,55 @@ object WifiShare {
         return null
     }
 
-    fun start(context: Context): Boolean {
-        if (running) return true
+    /** Port actually in use (8080 may already be taken by vendor software). */
+    @Volatile var port = 0
+        private set
+    @Volatile var visits = 0
+        private set
+
+    /**
+     * Starts sharing and checks it from the unit itself. Returns null when it
+     * works, or the reason it doesn't, to show on screen.
+     */
+    suspend fun start(context: Context): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        if (running) return@withContext null
         val app = context.applicationContext
-        val socket = runCatching { ServerSocket(PORT) }.getOrNull() ?: return false
+        var lastError: Throwable? = null
+        val socket = listOf(8080, 8765, 8888, 0).firstNotNullOfOrNull { p ->
+            runCatching {
+                ServerSocket().apply { reuseAddress = true; bind(java.net.InetSocketAddress(p)) }
+            }.onFailure { lastError = it }.getOrNull()
+        } ?: return@withContext "Couldn't open a port: ${lastError?.javaClass?.simpleName} ${lastError?.message.orEmpty()}"
         server = socket
+        port = socket.localPort
+        visits = 0
         running = true
         val until = System.currentTimeMillis() + 15 * 60_000L
         thread(name = "mmi-share", isDaemon = true) {
-            socket.soTimeout = 2000
+            runCatching { socket.soTimeout = 2000 }
             while (running && System.currentTimeMillis() < until) {
-                val client = runCatching { socket.accept() }.getOrNull() ?: continue
+                val client = try {
+                    socket.accept()
+                } catch (_: java.net.SocketTimeoutException) {
+                    continue
+                } catch (_: Throwable) {
+                    break
+                }
+                visits++
                 thread(isDaemon = true) { runCatching { serve(app, client) }; runCatching { client.close() } }
             }
             stop()
         }
-        return true
+        // Self-test: fetch the page from the unit itself.
+        runCatching {
+            Socket("127.0.0.1", port).use { s ->
+                s.soTimeout = 5000
+                s.getOutputStream().write("GET / HTTP/1.0\r\n\r\n".toByteArray())
+                val line = s.getInputStream().bufferedReader().readLine().orEmpty()
+                if (!line.contains("200")) return@withContext "Started, but the self-test got: $line"
+            }
+        }.onFailure { return@withContext "Started, but the self-test failed: ${it.javaClass.simpleName} ${it.message.orEmpty()}" }
+        null
     }
 
     fun stop() {
