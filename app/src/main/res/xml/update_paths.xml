@@ -2,6 +2,4 @@
 <!-- Downloaded MMI updates, handed to Android's installer. -->
 <paths>
     <cache-path name="updates" path="updates/" />
-    <!-- Report files offered to browsers by the MMI file picker. -->
-    <files-path name="reports" path="reports/" />
 </paths>

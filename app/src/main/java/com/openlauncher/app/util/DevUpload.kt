@@ -151,14 +151,9 @@ object DevUpload {
         return c.responseCode
     }
 
-    /** MMI's report files (scan, package list, car-message log, car-app zips) gathered in one folder. */
-    fun reportFiles(context: Context): List<File> {
-        val dir = File(context.filesDir, "reports").apply { mkdirs() }
-        WifiShare.NAMES.filter { it.endsWith(".txt") }.forEach { name ->
-            runCatching { WifiShare.open(context, name)?.use { i -> File(dir, name).outputStream().use { i.copyTo(it) } } }
-        }
-        return dir.listFiles { f -> f.isFile && f.length() > 0 }?.sortedBy { it.name }.orEmpty()
-    }
+    /** MMI's report files (package list, car-message log, car-app zips) gathered in one folder. */
+    fun reportFiles(context: Context): List<File> =
+        CarAppsExport.dir(context).listFiles { f -> f.isFile && f.length() > 0 }?.sortedBy { it.name }.orEmpty()
 
     /**
      * Step 3: uploads every report file. An interrupted send resumes: the same

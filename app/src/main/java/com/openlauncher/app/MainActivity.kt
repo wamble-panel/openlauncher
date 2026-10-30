@@ -52,7 +52,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
-        com.openlauncher.app.util.CarLinkScan.onKey(event)
         // Steering-wheel keys reach the foreground app as media keys; send them to
         // whatever is playing instead of letting them fall on the home screen.
         // Only while something is actually playing: a paused USB-music session must not

@@ -24,42 +24,8 @@ object CarAppsExport {
     // GitHub's web upload takes files up to 25 MB: parts stay well below that.
     private const val PART_LIMIT = 20L * 1024 * 1024
     private const val CHUNK = 15L * 1024 * 1024
-    private val MARKER = "android/tw/john".toByteArray()
 
     fun dir(context: Context) = File(context.filesDir, "reports").apply { mkdirs() }
-
-    /** Whether a byte stream contains the TW library's class path. */
-    private fun contains(input: InputStream): Boolean {
-        val buf = ByteArray(1 shl 16)
-        var carry = ByteArray(0)
-        while (true) {
-            val n = input.read(buf)
-            if (n < 0) return false
-            val chunk = carry + buf.copyOf(n)
-            outer@ for (i in 0..chunk.size - MARKER.size) {
-                for (j in MARKER.indices) if (chunk[i + j] != MARKER[j]) continue@outer
-                return true
-            }
-            carry = chunk.copyOfRange(maxOf(0, chunk.size - MARKER.size), chunk.size)
-        }
-    }
-
-    /** System framework files that hold the TW car library. */
-    private fun frameworkFiles(): List<File> {
-        val roots = listOf(File("/system/framework"), File("/system_ext/framework"), File("/vendor/framework"))
-        return roots.flatMap { r -> r.walkTopDown().maxDepth(2).filter { it.isFile && it.canRead() }.toList() }
-            .filter { f ->
-                runCatching {
-                    when {
-                        f.name.endsWith(".jar") || f.name.endsWith(".apk") -> ZipFile(f).use { z ->
-                            z.entries().asSequence().any { e -> e.name.endsWith(".dex") && z.getInputStream(e).use { contains(it) } }
-                        }
-                        f.name.endsWith(".vdex") || f.name.endsWith(".odex") || f.name.endsWith(".oat") -> f.inputStream().use { contains(it) }
-                        else -> false
-                    }
-                }.getOrDefault(false)
-            }
-    }
 
     /** Native libraries the TW apps and services load. */
     private fun nativeLibs(): List<File> =

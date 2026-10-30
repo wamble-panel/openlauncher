@@ -18,12 +18,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openlauncher.app.data.CarPrefs
-import com.openlauncher.app.util.CarLinkScan
 import com.openlauncher.app.util.Root
 import com.openlauncher.app.util.UnitApp
 import com.openlauncher.app.util.UnitCleanup
 import com.openlauncher.app.util.Verdict
-import com.openlauncher.app.util.WifiShare
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -107,96 +105,21 @@ internal fun MmiCleanupPage() {
                     }
                 }
             }, MmiLine.STAR, Modifier.fillMaxWidth())
-            ChromePill("Export vendor apps", {
-                scope.launch {
-                    message = "Copying apps…"
-                    val n = UnitCleanup.exportApks(context) { done, total -> message = "Copying apps… $done / $total" }
-                    message = if (n > 0) "Copied $n apps to Download/mmi-apks — move that folder to a USB stick and send it over."
-                    else "Couldn't copy — the unit's storage refused."
-                }
-            }, MmiLine.OPEN, Modifier.fillMaxWidth())
-            // Car link scan: learns the vendor's broadcasts on the unit, saved as one small text file.
-            var linkStep by remember { mutableIntStateOf(if (CarLinkScan.listening) 2 else 0) }
-            var heard by remember { mutableIntStateOf(0) }
-            LaunchedEffect(linkStep) {
-                while (linkStep == 2) { heard = CarLinkScan.eventCount(); delay(1000) }
-            }
-            ChromePill(
-                when (linkStep) {
-                    1 -> "Reading vendor apps…"
-                    2 -> "Stop and save ($heard heard)"
-                    else -> "Car link scan"
-                },
-                {
-                    when (linkStep) {
-                        0 -> scope.launch {
-                            linkStep = 1
-                            CarLinkScan.scan(context) { done, total -> message = "Reading vendor apps… $done / $total" }
-                            val n = CarLinkScan.startListening(context)
-                            linkStep = 2
-                            message = "Listening for $n car messages. Now press every steering-wheel button, play, pause and skip a " +
-                                "Bluetooth song, connect and disconnect your phone, open the radio and change station. Then come back and tap Stop and save."
-                        }
-                        2 -> scope.launch {
-                            CarLinkScan.stopListening(context)
-                            linkStep = 0
-                            message = CarLinkScan.save(context)?.let { "Saved mmi-carlink.txt to $it — send me that one file." }
-                                ?: "Couldn't save the file — the unit's storage refused."
-                        }
-                        else -> Unit
-                    }
-                },
-                MmiLine.HISTORY, Modifier.fillMaxWidth(),
-            )
-            ChromePill("Export car apps (for upload)", {
-                scope.launch {
-                    message = "Packing the car apps…"
-                    val zips = com.openlauncher.app.util.CarAppsExport.export(context) { message = it }
-                    message = zips?.let {
-                        "Ready: ${it.joinToString()}. Upload them from the browser with the MMI file picker (choose files → MMI files)."
-                    } ?: "Couldn't read the car apps."
-                }
-            }, MmiLine.OPEN, Modifier.fillMaxWidth())
-            // One tap: export the car apps and upload everything to the developer's GitHub.
-            // One tap: export the car apps and upload everything to the developer's GitHub.
+            // One tap: export the car apps and upload everything to the developer's private repo.
             // Runs in MMI's background, so leaving this page doesn't stop it.
             val sendStatus by com.openlauncher.app.util.DevUpload.status.collectAsState()
             ChromePill(if (com.openlauncher.app.util.DevUpload.running) "Sending… (keeps going in background)" else "Send to developer", {
                 val app = context.applicationContext
                 com.openlauncher.app.util.DevUpload.start(app) {
                     com.openlauncher.app.util.CarAppsExport.export(app) { s -> com.openlauncher.app.util.DevUpload.say(s) }
-                    UnitCleanup.writeScripts(app, list, selected)
+                    java.io.File(com.openlauncher.app.util.CarAppsExport.dir(app), "mmi-packages.txt").writeText(UnitCleanup.packageList(list))
                 }
             }, MmiLine.OPEN, Modifier.fillMaxWidth())
             sendStatus?.let { Text(it, color = MmiCyan, fontFamily = MmiFont, fontSize = 14.sp) }
-            // Probe: may MMI read the car library directly (voltage, doors, radar, TPMS)?
-            ChromePill("Test car data access (30 s)", {
-                scope.launch {
-                    message = com.openlauncher.app.util.TwDirect.probe { message = it } +
-                        "  ·  MMI Car Core: " + com.openlauncher.app.util.CarCore.status
-                }
-            }, MmiLine.HISTORY, Modifier.fillMaxWidth())
-            // Wi-Fi share: a phone on the same hotspot downloads the report files from the unit.
-            var sharing by remember { mutableStateOf(WifiShare.running) }
-            ChromePill(if (sharing) "Stop sharing over Wi-Fi" else "Share files over Wi-Fi", {
-                if (sharing) {
-                    WifiShare.stop()
-                    sharing = false
-                    message = null
-                } else scope.launch {
-                    val ip = WifiShare.address()
-                    if (ip == null) {
-                        message = "Connect the unit to your phone's hotspot first (Settings → Wi-Fi), then tap again."
-                        return@launch
-                    }
-                    val problem = WifiShare.start(context)
-                    sharing = WifiShare.running
-                    message = if (problem == null) {
-                        "Sharing. On your phone (same hotspot), type exactly:  http://$ip:${WifiShare.port}  " +
-                            "— on this unit's browser: http://127.0.0.1:${WifiShare.port}"
-                    } else problem
-                }
-            }, MmiLine.OPEN, Modifier.fillMaxWidth())
+            Text(
+                "Car link: " + com.openlauncher.app.util.CarCore.status,
+                color = MmiDim, fontFamily = MmiFont, fontSize = 13.sp,
+            )
             ChromePill(if (overlay) "Performance readout: on" else "Performance readout: off", {
                 prefs.setPerfOverlay(!overlay)
             }, MmiLine.HISTORY, Modifier.fillMaxWidth())

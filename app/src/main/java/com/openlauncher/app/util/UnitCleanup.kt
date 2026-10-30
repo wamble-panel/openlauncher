@@ -159,6 +159,11 @@ object UnitCleanup {
         RootResult(done.size, off.filter { it !in done })
     }
 
+    /** One line per installed app: verdict, state, memory, package, label, reason. */
+    fun packageList(apps: List<UnitApp>): String = apps.joinToString("\n") {
+        "${it.verdict.name}\t${if (it.enabled) "on" else "off"}\t${it.memoryMb ?: "-"} MB\t${it.pkg}\t${it.label}\t${it.reason}"
+    }
+
     /**
      * Writes cleanup + undo scripts and the package list to Download, for running
      * from a PC over ADB (no root needed) or sending over for review.
@@ -182,51 +187,13 @@ object UnitCleanup {
                 tweaks.joinToString("") { "adb shell $it\n" } + "echo Done. Restart the unit.\n"
             val undo = off.joinToString("") { "adb shell pm enable $it\n" } + revert.joinToString("") { "adb shell $it\n" }
             // The package list first: it's the file worth sending over.
-            val where = DownloadOut.writeText(context, null, "mmi-packages.txt", apps.joinToString("\n") {
-                "${it.verdict.name}\t${if (it.enabled) "on" else "off"}\t${it.memoryMb ?: "-"} MB\t${it.pkg}\t${it.label}\t${it.reason}"
-            })
+            val where = DownloadOut.writeText(context, null, "mmi-packages.txt", packageList(apps))
             DownloadOut.writeText(context, null, "mmi-cleanup.bat", bat.replace("\n", "\r\n"))
             DownloadOut.writeText(context, null, "mmi-cleanup.sh", sh)
             DownloadOut.writeText(context, null, "mmi-cleanup-undo.bat", ("@echo off\nadb devices\n" + undo + "pause\n").replace("\n", "\r\n"))
             DownloadOut.writeText(context, null, "mmi-cleanup-undo.sh", "#!/bin/sh\nadb devices\n$undo")
             where
         }.getOrNull()
-    }
-
-    /**
-     * Copies the APK of every vendor/system app (Google apps skipped) to
-     * Download/mmi-apks, so the vendor's car software can be studied. System app
-     * files are world-readable, so this needs no root. Returns how many were copied.
-     */
-    suspend fun exportApks(context: Context, onProgress: (Int, Int) -> Unit): Int = withContext(Dispatchers.IO) {
-        // Never crash: a unit that refuses writing to Download just reports 0 copied.
-        runCatching { exportApksOrThrow(context, onProgress) }.getOrDefault(0)
-    }
-
-    private suspend fun exportApksOrThrow(context: Context, onProgress: (Int, Int) -> Unit): Int {
-        val pm = context.packageManager
-        @Suppress("DEPRECATION")
-        val apps = pm.getInstalledApplications(PackageManager.GET_DISABLED_COMPONENTS)
-            .filter { it.flags and ApplicationInfo.FLAG_SYSTEM != 0 && !it.packageName.startsWith("com.google.") }
-        var done = 0
-        apps.forEachIndexed { i, ai ->
-            runCatching {
-                val files = listOf(ai.sourceDir) + (ai.splitSourceDirs?.toList() ?: emptyList())
-                files.forEachIndexed { n, path ->
-                    val name = if (n == 0) "${ai.packageName}.apk" else "${ai.packageName}.split$n.apk"
-                    val out = DownloadOut.open(context, "mmi-apks", name, "application/octet-stream")
-                    out.stream.use { o -> File(path).inputStream().use { it.copyTo(o) } }
-                }
-                done++
-            }
-            withContext(Dispatchers.Main) { onProgress(i + 1, apps.size) }
-        }
-        runCatching {
-            DownloadOut.writeText(context, "mmi-apks", "packages.txt", apps.joinToString("\n") {
-                "${it.packageName}\t${runCatching { pm.getApplicationLabel(it) }.getOrDefault("")}\t${it.sourceDir}"
-            })
-        }
-        return done
     }
 
     /** Settings changed by the speed tweaks, with the value applied. */

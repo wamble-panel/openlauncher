@@ -77,8 +77,17 @@ object CarCore {
 
     private fun update(change: (CarData) -> CarData) { _data.value = change(_data.value) }
 
+    // The first few frames of each kind go to mmi-twlog.txt, to check the Astra's exact layouts.
+    private val seen = HashMap<Long, Int>()
+
     private fun onMessage(m: Message) {
         val b = m.obj as? ByteArray
+        val kind = (m.what.toLong() shl 32) or (m.arg1.toLong() and 0xFFFFFFFFL)
+        val n = seen.getOrDefault(kind, 0)
+        if (n < 3 && seen.size < 200) {
+            seen[kind] = n + 1
+            TwBridge.log("CAR what=${m.what} arg1=${m.arg1} arg2=${m.arg2} obj=" + (b?.joinToString(" ") { "%02X".format(it) } ?: m.obj?.toString().orEmpty()))
+        }
         when (m.what) {
             CANBOX -> if (b != null && b.isNotEmpty()) canBox(m.arg1, b)
             RADAR -> if (b != null && b.size >= 20) {
