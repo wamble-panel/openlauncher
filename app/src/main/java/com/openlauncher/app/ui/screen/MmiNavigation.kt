@@ -85,6 +85,7 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -132,7 +133,7 @@ internal object PersistentMap {
         MapLibre.getInstance(context.applicationContext)
         // SurfaceView rendering (faster than TextureView on Mali/PowerVR head units), capped
         // at 30 fps so the map leaves CPU for audio, GPS and the rest of the UI.
-        val v = MapView(context, MapLibreMapOptions.createFromAttributes(context, null).textureMode(false)).apply {
+        val v = MapView(context, MapLibreMapOptions.createFromAttributes(context, null).textureMode(false).crossSourceCollisions(false)).apply {
             onCreate(null)
             setMaximumFps(30)
         }
@@ -396,8 +397,14 @@ private fun NavMap(
     var zoomOffset by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(zoomBand) { zoom.animateTo(15f + zoomBand * 0.5f, tween(1500)) }
 
+    // Starting guidance always brings the camera back onto the car.
+    LaunchedEffect(route != null, destination) { if (route != null) following = true }
+
     LaunchedEffect(here, course) {
         val pos = here ?: return@LaunchedEffect
+        // Parked: GPS jitter of a metre or two would otherwise keep the map redrawing non-stop.
+        if (!shown[0].isNaN() && distanceMeters(shown[0], shown[1], pos.latitude, pos.longitude) < 3.0 &&
+            abs(((course - shown[2]) % 360.0 + 540.0) % 360.0 - 180.0) < 3.0) return@LaunchedEffect
         val now = System.currentTimeMillis()
         val gap = if (lastFixAt == 0L) 0L else (now - lastFixAt).coerceIn(300L, 1500L)
         lastFixAt = now
@@ -981,7 +988,8 @@ private fun DetailsPanel(
             Spacer(Modifier.height(6.dp))
             Text(place.subtitle, color = MmiDim, fontFamily = MmiFont, fontSize = 18.sp)
             Text("%.5f, %.5f".format(place.lat, place.lon), color = MmiDim.copy(alpha = 0.7f), fontFamily = MmiFont, fontSize = 14.sp)
-            Spacer(Modifier.weight(1f))
+            // Distance and Start sit high on the page, within easy reach from the driver's seat.
+            Spacer(Modifier.height(20.dp))
             if (distance != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     MmiLineIcon(MmiLine.FLAG, MmiInk, Modifier.size(20.dp))
@@ -992,7 +1000,7 @@ private fun DetailsPanel(
                 Spacer(Modifier.height(14.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                ChromePill("Start", onStart, MmiLine.FLAG, Modifier.width(200.dp))
+                ChromePill("Start", onStart, MmiLine.FLAG, Modifier.width(320.dp))
             }
         }
     }

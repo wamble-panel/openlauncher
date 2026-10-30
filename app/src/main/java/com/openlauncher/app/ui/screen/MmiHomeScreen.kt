@@ -459,7 +459,7 @@ private fun HazardBanner(modifier: Modifier) {
     }
 }
 
-private const val IDLE_TO_MAP_MS = 10_000L
+private const val IDLE_TO_MAP_MS = 120_000L
 
 // ── Backdrop ─────────────────────────────────────────────────────────────────
 
@@ -609,8 +609,13 @@ private fun DateBar(height: Dp) {
  */
 @Composable
 private fun DriveTrails(carX: Dp, carY: Dp, carW: Dp, carH: Dp, intro: Float) {
-    val flow = rememberInfiniteTransition(label = "trails")
-    val phase by flow.animateFloat(0f, 1f, infiniteRepeatable(tween(2400, easing = androidx.compose.animation.core.LinearEasing)), label = "trail_phase")
+    // Pulses flow only while driving; parked, the trails stand still so the home screen isn't redrawn every frame.
+    val context = LocalContext.current
+    val moving = (com.openlauncher.app.util.CarLocation.get(context).location.collectAsStateWithLifecycle().value?.speedMps ?: 0f) > 0f
+    val phase = if (moving) {
+        val flow = rememberInfiniteTransition(label = "trails")
+        flow.animateFloat(0f, 1f, infiniteRepeatable(tween(2400, easing = androidx.compose.animation.core.LinearEasing)), label = "trail_phase").value
+    } else 0.35f
     Canvas(Modifier.fillMaxSize()) {
         if (intro <= 0.01f) return@Canvas
         val cw = carW.toPx()

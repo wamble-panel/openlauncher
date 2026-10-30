@@ -104,6 +104,13 @@ class LocationCompassManager(context: Context) {
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
     }
 
+    /** GPS drifts a few km/h while parked; anything below walking pace, or within the fix's own error, reads as 0. */
+    private fun parkedAsZero(loc: Location): Float {
+        if (!loc.hasSpeed() || loc.speed < 1.6f) return 0f
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && loc.hasSpeedAccuracy() && loc.speedAccuracyMetersPerSecond >= loc.speed) return 0f
+        return loc.speed
+    }
+
     private val locationListener = object : LocationListener {
         override fun onLocationChanged(loc: Location) {
             val best = bestLocation
@@ -115,7 +122,7 @@ class LocationCompassManager(context: Context) {
                 longitude = loc.longitude,
                 altitude  = loc.altitude,
                 accuracy  = loc.accuracy,
-                speedMps  = if (loc.hasSpeed()) loc.speed else 0f,
+                speedMps  = parkedAsZero(loc),
                 satellitesVisible = satellitesVisible,
                 satellitesUsed = satellitesUsed,
                 timestamp = loc.time
