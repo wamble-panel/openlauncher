@@ -194,6 +194,35 @@ object UnitCleanup {
         }.getOrNull()
     }
 
+    /**
+     * Copies the APK of every vendor/system app (Google apps skipped) to
+     * Download/mmi-apks, so the vendor's car software can be studied. System app
+     * files are world-readable, so this needs no root. Returns how many were copied.
+     */
+    suspend fun exportApks(context: Context, onProgress: (Int, Int) -> Unit): Int = withContext(Dispatchers.IO) {
+        val dl = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "mmi-apks").apply { mkdirs() }
+        val pm = context.packageManager
+        @Suppress("DEPRECATION")
+        val apps = pm.getInstalledApplications(PackageManager.GET_DISABLED_COMPONENTS)
+            .filter { it.flags and ApplicationInfo.FLAG_SYSTEM != 0 && !it.packageName.startsWith("com.google.") }
+        var done = 0
+        apps.forEachIndexed { i, ai ->
+            runCatching {
+                val files = listOf(ai.sourceDir) + (ai.splitSourceDirs?.toList() ?: emptyList())
+                files.forEachIndexed { n, path ->
+                    val name = if (n == 0) "${ai.packageName}.apk" else "${ai.packageName}.split$n.apk"
+                    File(path).copyTo(File(dl, name), overwrite = true)
+                }
+                done++
+            }
+            onProgress(i + 1, apps.size)
+        }
+        File(dl, "packages.txt").writeText(apps.joinToString("\n") {
+            "${it.packageName}\t${runCatching { pm.getApplicationLabel(it) }.getOrDefault("")}\t${it.sourceDir}"
+        })
+        done
+    }
+
     /** Settings changed by the speed tweaks, with the value applied. */
     private val SPEED_SETTINGS = listOf(
         "window_animation_scale" to "0.5",

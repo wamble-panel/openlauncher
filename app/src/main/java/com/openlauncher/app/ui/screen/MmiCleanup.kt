@@ -98,6 +98,14 @@ internal fun MmiCleanupPage() {
                     }
                 }
             }, MmiLine.STAR, Modifier.fillMaxWidth())
+            ChromePill("Export vendor apps", {
+                scope.launch {
+                    message = "Copying apps…"
+                    val n = UnitCleanup.exportApks(context) { done, total -> message = "Copying apps… $done / $total" }
+                    message = if (n > 0) "Copied $n apps to Download/mmi-apks — move that folder to a USB stick and send it over."
+                    else "Couldn't copy — allow file access in Permissions."
+                }
+            }, MmiLine.OPEN, Modifier.fillMaxWidth())
             ChromePill(if (overlay) "Performance readout: on" else "Performance readout: off", {
                 prefs.setPerfOverlay(!overlay)
             }, MmiLine.HISTORY, Modifier.fillMaxWidth())
