@@ -179,6 +179,5 @@ class MediaListenerService : NotificationListenerService() {
 
         /** Never dismissed: ongoing ones, the car's own apps, navigation and Android itself. */
         private val KEEP_PREFIXES = listOf("com.tw.", "com.android.", "android", "com.google.android.apps.maps", "com.waze")
-        }
     }
 }
