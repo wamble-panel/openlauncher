@@ -40,6 +40,8 @@ object CarLinkScan {
     private val DOTTED = Regex("^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z0-9_\\-]+){2,}$")
     private val SKIP_PREFIX = listOf("android.support.", "androidx.", "java.", "javax.", "kotlin.", "kotlinx.", "com.google.", "org.", "dalvik.", "sun.", "libcore.")
     private val CAR_HINTS = listOf("bt", "bluetooth", "music", "radio", "fm", "car", "can", "mcu", "launcher", "media", "avrcp", "a2dp", "settings", "systemui", "phone", "dialer", "video", "canbus")
+    // The TS10 apps' own messages (e.g. com.tw.launcher.btmsg) have lower-case names.
+    private val VENDOR_PREFIX = listOf("com.tw.", "dofun.", "net.easyconn.", "com.android.bt.")
     private val DEX_ENTRY = Regex("classes\\d*\\.dex")
     private val PATH_PREFIX = listOf("/dev/", "/sys/", "/proc/", "/data/", "/mnt/", "/storage/")
 
@@ -125,6 +127,7 @@ object CarLinkScan {
     private fun looksLikeAction(s: String): Boolean {
         val last = s.substringAfterLast('.')
         return s.contains("action", ignoreCase = true) || s.contains("intent") ||
+            VENDOR_PREFIX.any { s.startsWith(it) } ||
             (last.length >= 3 && last.all { it.isUpperCase() || it.isDigit() || it == '_' })
     }
 
@@ -181,6 +184,9 @@ object CarLinkScan {
                 appendLine()
                 appendLine("== Heard while listening ==")
                 synchronized(events) { events.forEach { appendLine(it) } }
+                appendLine()
+                appendLine("== Car messages since MMI started ==")
+                TwBridge.recent().forEach { appendLine(it) }
                 appendLine()
                 apps.sortedBy { it.pkg }.forEach { a ->
                     appendLine("== ${a.pkg}  (${a.label}) ==")

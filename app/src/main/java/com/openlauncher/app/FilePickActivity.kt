@@ -79,7 +79,7 @@ class FilePickActivity : ComponentActivity() {
             }.getOrNull()
         }
         // Car app zips from "Export car apps" are written straight into this folder.
-        val zips = dir.listFiles { f -> f.name.startsWith("mmi-car-apps") }?.sortedBy { it.name }.orEmpty()
+        val zips = dir.listFiles { f -> f.name.startsWith("mmi-car-apps") || f.name == "mmi-twlog.txt" }?.sortedBy { it.name }.orEmpty()
         return reports + zips
     }
 

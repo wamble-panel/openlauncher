@@ -88,8 +88,14 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ── Now Playing ───────────────────────────────────────────────────────────
-    val nowPlaying: StateFlow<NowPlayingState?> = MediaListenerService.nowPlaying
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    // A real media session first; else the song the vendor Bluetooth app announced
+    // to its launcher (it has no media session of its own).
+    val nowPlaying: StateFlow<NowPlayingState?> =
+        combine(MediaListenerService.nowPlaying, com.openlauncher.app.util.TwBridge.btTrack) { session, bt ->
+            session?.takeIf { it.isPlaying || bt == null }
+                ?: bt?.let { NowPlayingState(title = it.title, artist = it.artist, albumArt = null, isPlaying = it.playing, controller = null) }
+                ?: session
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun playPause() { nowPlaying.value?.controller?.also { ctrl ->
         val state = ctrl.playbackState?.state

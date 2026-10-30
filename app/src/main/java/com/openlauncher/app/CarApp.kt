@@ -17,5 +17,6 @@ class CarApp : Application() {
         BtConnect.init(this)
         RoadMemory.init(this)
         ThemePack.init(this)
+        com.openlauncher.app.util.TwBridge.init(this)
     }
 }

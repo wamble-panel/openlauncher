@@ -345,6 +345,7 @@ fun MmiHomeScreen(
             if (!fullScreen) DateBar(barHeight)
         }
         HazardBanner(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
+        CallBar(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
         HomeAppPrompt()
         PerfReadout(Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 6.dp))
     }
@@ -455,6 +456,58 @@ private fun HazardBanner(modifier: Modifier) {
                 (current?.type?.label ?: "") + "  " + (current?.let { com.openlauncher.app.map.formatDistance(it.distanceM, metric) } ?: ""),
                 color = Color.Black, fontFamily = MmiFont, fontWeight = FontWeight.Medium, fontSize = 22.sp,
             )
+        }
+    }
+}
+
+/**
+ * Slim MMI call bar, driven by the vendor Bluetooth app's call messages: who is
+ * calling, a timer once connected, and answer / hang up.
+ */
+@Composable
+private fun CallBar(modifier: Modifier) {
+    val call by com.openlauncher.app.util.TwBridge.call.collectAsStateWithLifecycle()
+    val state = call.state
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(state) {
+        while (state == com.openlauncher.app.util.TwBridge.CallState.ACTIVE) { now = System.currentTimeMillis(); delay(1000) }
+    }
+    androidx.compose.animation.AnimatedVisibility(
+        visible = state != com.openlauncher.app.util.TwBridge.CallState.NONE, modifier = modifier,
+        enter = fadeIn(tween(200)) + androidx.compose.animation.slideInVertically { -it / 2 },
+        exit = fadeOut(tween(250)),
+    ) {
+        val who = call.name ?: call.number ?: "Phone"
+        val status = when (state) {
+            com.openlauncher.app.util.TwBridge.CallState.INCOMING -> "Incoming call"
+            com.openlauncher.app.util.TwBridge.CallState.OUTGOING -> "Calling…"
+            else -> ((now - call.since).coerceAtLeast(0) / 1000).let { "%d:%02d".format(it / 60, it % 60) }
+        }
+        Row(
+            Modifier.widthIn(min = 420.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xF0101215))
+                .border(1.dp, Color(0xFF3A3F46), RoundedCornerShape(6.dp)).padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            MmiLineIcon(MmiLine.CALL, MmiCyan, Modifier.size(26.dp))
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f, fill = false)) {
+                Text(who, color = MmiInk, fontFamily = MmiFont, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(status, color = MmiDim, fontFamily = MmiFont, fontSize = 14.sp)
+            }
+            Spacer(Modifier.width(20.dp))
+            if (state == com.openlauncher.app.util.TwBridge.CallState.INCOMING) {
+                Box(
+                    Modifier.size(48.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF2E9E4F))
+                        .pressable { com.openlauncher.app.util.TwBridge.answer() },
+                    contentAlignment = Alignment.Center,
+                ) { MmiLineIcon(MmiLine.CALL, Color.White, Modifier.size(24.dp)) }
+                Spacer(Modifier.width(12.dp))
+            }
+            Box(
+                Modifier.size(48.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFFD23C3C))
+                    .pressable { com.openlauncher.app.util.TwBridge.hangUp() },
+                contentAlignment = Alignment.Center,
+            ) { MmiLineIcon(MmiLine.CLOSE, Color.White, Modifier.size(22.dp)) }
         }
     }
 }
