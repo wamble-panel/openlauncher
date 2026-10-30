@@ -168,6 +168,14 @@ object TwBridge {
         )
     }
 
+    /** Real tuner state from the car library (MMI Car Core): frequency and station name. */
+    fun onRadioFromCore(am: Boolean, freq: Float, name: String?) {
+        radioPrefs().edit().putBoolean("am", am).putFloat(if (am) "am_freq" else "fm_freq", freq).apply()
+        publishRadio(am, freq, name)
+    }
+
+    fun onReverseFromCore(on: Boolean) = onReverse(on)
+
     fun radioLast(): Pair<Boolean, Float> {
         val am = radioPrefs().getBoolean("am", false)
         return am to radioPrefs().getFloat(if (am) "am_freq" else "fm_freq", if (am) 1170f else 98.5f)

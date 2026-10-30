@@ -172,7 +172,8 @@ internal fun MmiCleanupPage() {
             // Probe: may MMI read the car library directly (voltage, doors, radar, TPMS)?
             ChromePill("Test car data access (30 s)", {
                 scope.launch {
-                    message = com.openlauncher.app.util.TwDirect.probe { message = it }
+                    message = com.openlauncher.app.util.TwDirect.probe { message = it } +
+                        "  ·  MMI Car Core: " + com.openlauncher.app.util.CarCore.status
                 }
             }, MmiLine.HISTORY, Modifier.fillMaxWidth())
             // Wi-Fi share: a phone on the same hotspot downloads the report files from the unit.

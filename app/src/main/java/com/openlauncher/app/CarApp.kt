@@ -25,6 +25,8 @@ class CarApp : Application() {
             CarAudio.init(this)
             BtConnect.init(this)
             com.openlauncher.app.util.Climate.init(this)
+            // MMI's own link to the car library (switches itself off if not allowed).
+            com.openlauncher.app.util.CarCore.start()
             // Only restarts MMI for an update while the car stands still.
             com.openlauncher.app.util.AppUpdater.startBackground(this) {
                 (com.openlauncher.app.util.CarLocation.get(this).location.value?.speedMps ?: 0f) < 0.5f

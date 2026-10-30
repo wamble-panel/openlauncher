@@ -382,6 +382,7 @@ fun MmiHomeScreen(
         HazardBanner(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
         CallBar(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
         ClimatePopup(Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp))
+        DoorBanner(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
         HomeAppPrompt()
         PerfReadout(Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 6.dp))
     }
@@ -544,6 +545,28 @@ private fun CallBar(modifier: Modifier) {
                     .pressable { com.openlauncher.app.util.TwBridge.hangUp() },
                 contentAlignment = Alignment.Center,
             ) { MmiLineIcon(MmiLine.CLOSE, Color.White, Modifier.size(22.dp)) }
+        }
+    }
+}
+
+/** MMI's door warning: which door, boot or bonnet is open (MMI Car Core). */
+@Composable
+private fun DoorBanner(modifier: Modifier) {
+    val car by com.openlauncher.app.util.CarCore.data.collectAsStateWithLifecycle()
+    val text = com.openlauncher.app.util.CarCore.doorsText(car.doors)
+    androidx.compose.animation.AnimatedVisibility(
+        visible = text != null, modifier = modifier,
+        enter = fadeIn(tween(200)) + androidx.compose.animation.slideInVertically { -it / 2 },
+        exit = fadeOut(tween(300)),
+    ) {
+        Row(
+            Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xF0101215))
+                .border(1.dp, Color(0xFFE39A12), RoundedCornerShape(6.dp)).padding(horizontal = 20.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            MmiLineIcon(MmiLine.CLOSE, Color(0xFFE39A12), Modifier.size(22.dp))
+            Spacer(Modifier.width(12.dp))
+            Text(text ?: "", color = MmiInk, fontFamily = MmiFont, fontSize = 20.sp)
         }
     }
 }
@@ -1123,7 +1146,10 @@ private fun DriveCard(location: LocationData?, bearing: Float, voltage: Float?, 
         }
         DriveRow(MmiLine.MOUNTAIN, location?.let { "${(if (metric) it.altitude else it.altitude * 3.281).roundToInt()} ${if (metric) "m" else "ft"}" } ?: "--")
         DriveRow(MmiLine.LOCATE, location?.satellitesUsed?.takeIf { it >= 0 }?.let { "$it satellites" } ?: if (location != null) "GPS fix" else "Searching")
-        DriveRow(MmiLine.BATTERY, voltage?.let { "%.1f V".format(it) } ?: "--")
+        // The car's own battery voltage and range when MMI Car Core reads them.
+        val car = com.openlauncher.app.util.CarCore.data.collectAsStateWithLifecycle().value
+        DriveRow(MmiLine.BATTERY, (car.voltage ?: voltage)?.let { "%.1f V".format(it) } ?: "--")
+        car.rangeKm?.let { DriveRow(MmiLine.FUEL, "$it km range") }
         // Outside temperature from the car (TS10 climate service).
         val outdoor = com.openlauncher.app.util.Climate.state.collectAsStateWithLifecycle().value.outdoor
         if (outdoor != null) DriveRow(MmiLine.GLOBE, "%.0f° outside".format(outdoor))
