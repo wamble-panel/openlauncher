@@ -91,6 +91,34 @@ object DevUpload {
         return code to text
     }
 
+    /**
+     * PUT a file to the contents API, streamed: the JSON body is written piece by
+     * piece with the file base64-encoded on the fly, so a 20 MB zip never sits in
+     * memory (the unit gives MMI only 128 MB).
+     */
+    private fun putFile(context: Context, url: String, file: File): Int {
+        val c = URL(url).openConnection() as HttpURLConnection
+        c.requestMethod = "PUT"
+        c.doOutput = true
+        c.connectTimeout = 20_000
+        c.readTimeout = 180_000
+        c.setRequestProperty("Authorization", "Bearer " + prefs(context).getString("token", ""))
+        c.setRequestProperty("Accept", "application/vnd.github+json")
+        c.setRequestProperty("Content-Type", "application/json")
+        val head = "{\"message\":\"MMI unit data: ${file.name}\",\"content\":\"".toByteArray()
+        val tail = "\"}".toByteArray()
+        // Exact length: base64 of n bytes is 4 * ceil(n / 3) characters.
+        c.setFixedLengthStreamingMode(head.size + 4L * ((file.length() + 2) / 3) + tail.size)
+        c.outputStream.use { out ->
+            out.write(head)
+            val b64 = android.util.Base64OutputStream(out, android.util.Base64.NO_WRAP or android.util.Base64.NO_CLOSE)
+            file.inputStream().use { it.copyTo(b64, 48 * 1024) }
+            b64.close()
+            out.write(tail)
+        }
+        return c.responseCode
+    }
+
     /** MMI's report files (scan, package list, car-message log, car-app zips) gathered in one folder. */
     fun reportFiles(context: Context): List<File> {
         val dir = File(context.filesDir, "reports").apply { mkdirs() }
@@ -111,14 +139,8 @@ object DevUpload {
             var sent = 0
             files.filter { it.isFile }.forEachIndexed { i, f ->
                 withContext(Dispatchers.Main) { onProgress("Sending ${i + 1} / ${files.size}: ${f.name}") }
-                val body = JSONObject()
-                    .put("message", "MMI unit data: ${f.name}")
-                    .put("content", android.util.Base64.encodeToString(f.readBytes(), android.util.Base64.NO_WRAP))
-                val (up, _) = api(
-                    context, "PUT", "https://api.github.com/repos/$REPO/contents/$folder/${URLEncoder.encode(f.name, "UTF-8")}",
-                    body.toString().toByteArray(),
-                )
-                if (up in 200..299) sent++
+                val up = putFile(context, "https://api.github.com/repos/$REPO/contents/$folder/${URLEncoder.encode(f.name, "UTF-8")}", f)
+                if (up in 200..299) sent++ else if (up == 401) { signOut(context); error("GitHub sign-in expired — tap Send to developer again") }
             }
             sent
         }
