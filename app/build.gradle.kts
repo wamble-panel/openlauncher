@@ -18,6 +18,19 @@ android {
         versionName    = "2.0.0-mmi"
     }
 
+    // CI points MMI_KEYSTORE at the owner's shared key, so every build installs
+    // over the last one. Without it, the machine's own debug key is used.
+    signingConfigs {
+        getByName("debug") {
+            System.getenv("MMI_KEYSTORE")?.takeIf { File(it).isFile }?.let {
+                storeFile = File(it)
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+
     buildTypes {
         debug {
             // Default signing config for normal device testing (restores app visibility)

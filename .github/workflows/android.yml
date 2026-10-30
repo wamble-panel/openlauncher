@@ -34,14 +34,22 @@ jobs:
           DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
         if: env.DEBUG_KEYSTORE_BASE64 != ''
         run: |
-          mkdir -p ~/.android
-          echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
+          # Passed to Gradle explicitly: the runner's Android setup ignores ~/.android.
+          echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/mmi.keystore"
+          echo "MMI_KEYSTORE=$RUNNER_TEMP/mmi.keystore" >> "$GITHUB_ENV"
 
       - name: Unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
 
       - name: Assemble APKs
         run: ./gradlew --no-daemon assembleDebug assembleRelease
+
+      # A build signed with any other key can't update MMI on the car, so stop here.
+      - name: Check signing key
+        if: env.MMI_KEYSTORE != ''
+        run: |
+          keytool -printcert -jarfile app/build/outputs/apk/release/*.apk | grep -q "9B:96:7D:15:FE:98:2A:B9:68:89:39:94:DE:61:97:35:61:8F:A8:48" \
+            || { echo "Release APK is not signed with the shared key"; exit 1; }
 
       # Install this one on the car: optimised, not debuggable, much smoother.
       - name: Upload fast APK
