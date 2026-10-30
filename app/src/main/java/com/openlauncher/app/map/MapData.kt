@@ -144,14 +144,20 @@ class PlaceSearch(private val file: File) {
         if (terms.isEmpty()) return@withContext emptyList()
         val match = terms.joinToString(" ") { it.replace("\"", "") + "*" }
         val db = open() ?: return@withContext emptyList()
-        val rows = runCatching {
-            db.rawQuery(
-                "SELECT p.id, p.name, p.name_en, p.name_ar, p.kind, p.lat, p.lon, p.rank " +
-                    "FROM places_fts f JOIN places p ON p.id = f.rowid WHERE f.search MATCH ? LIMIT 400",
-                arrayOf(match),
-            ).use { it.toPlaces() }
+        // The most important matches anywhere, plus every match around the car, so
+        // a big hospital far away and the café round the corner both make the list.
+        val select = "SELECT p.id, p.name, p.name_en, p.name_ar, p.kind, p.lat, p.lon, p.rank " +
+            "FROM places_fts f JOIN places p ON p.id = f.rowid WHERE f.search MATCH ?"
+        val top = runCatching {
+            db.rawQuery("$select ORDER BY p.rank DESC LIMIT 300", arrayOf(match)).use { it.toPlaces() }
         }.getOrDefault(emptyList())
-        rank(rows, nearLat, nearLon).take(60)
+        val near = if (nearLat != null && nearLon != null) runCatching {
+            db.rawQuery(
+                "$select AND p.lat BETWEEN ? AND ? AND p.lon BETWEEN ? AND ? LIMIT 300",
+                arrayOf(match, (nearLat - 0.25).toString(), (nearLat + 0.25).toString(), (nearLon - 0.3).toString(), (nearLon + 0.3).toString()),
+            ).use { it.toPlaces() }
+        }.getOrDefault(emptyList()) else emptyList()
+        rank((top + near).distinctBy { it.id }, nearLat, nearLon).take(60)
     }
 
     /** Points of interest of the given OSM kinds within ~[radiusKm] of a position. */

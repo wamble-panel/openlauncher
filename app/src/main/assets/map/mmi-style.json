@@ -731,6 +731,261 @@
    }
   },
   {
+   "id": "poi-dot",
+   "type": "circle",
+   "source": "omt",
+   "source-layer": "poi",
+   "minzoom": 14,
+   "filter": [
+    "any",
+    [
+     "!=",
+     [
+      "get",
+      "class"
+     ],
+     "place_of_worship"
+    ],
+    [
+     ">=",
+     [
+      "zoom"
+     ],
+     16
+    ]
+   ],
+   "paint": {
+    "circle-radius": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     3,
+     18,
+     5.5
+    ],
+    "circle-color": [
+     "match",
+     [
+      "get",
+      "class"
+     ],
+     [
+      "hospital",
+      "pharmacy",
+      "doctors",
+      "dentist",
+      "clinic"
+     ],
+     "#FF6B6B",
+     [
+      "restaurant",
+      "cafe",
+      "fast_food",
+      "bar",
+      "ice_cream",
+      "bakery",
+      "food_court"
+     ],
+     "#FFB547",
+     [
+      "fuel",
+      "car",
+      "car_repair",
+      "parking"
+     ],
+     "#4FC3F7",
+     [
+      "shop",
+      "grocery",
+      "clothing_store",
+      "mall",
+      "supermarket",
+      "department_store"
+     ],
+     "#C792EA",
+     [
+      "college",
+      "school",
+      "university",
+      "kindergarten",
+      "library"
+     ],
+     "#8BD46A",
+     [
+      "bank",
+      "atm",
+      "post",
+      "police",
+      "town_hall",
+      "embassy"
+     ],
+     "#E8D36A",
+     [
+      "place_of_worship"
+     ],
+     "#8E99A8",
+     "#7FD3E6"
+    ],
+    "circle-stroke-color": "#05080D",
+    "circle-stroke-width": 1.2,
+    "circle-opacity": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     0.85,
+     16,
+     1
+    ]
+   }
+  },
+  {
+   "id": "poi-label",
+   "type": "symbol",
+   "source": "omt",
+   "source-layer": "poi",
+   "minzoom": 15,
+   "filter": [
+    "any",
+    [
+     "!=",
+     [
+      "get",
+      "class"
+     ],
+     "place_of_worship"
+    ],
+    [
+     ">=",
+     [
+      "zoom"
+     ],
+     16
+    ]
+   ],
+   "layout": {
+    "text-field": [
+     "coalesce",
+     [
+      "get",
+      "name:en"
+     ],
+     [
+      "get",
+      "name_en"
+     ],
+     [
+      "get",
+      "name"
+     ]
+    ],
+    "text-font": [
+     "Noto Sans Regular"
+    ],
+    "text-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     15,
+     11,
+     18,
+     14
+    ],
+    "text-anchor": "top",
+    "text-offset": [
+     0,
+     0.7
+    ],
+    "text-max-width": 9,
+    "text-padding": 3,
+    "symbol-sort-key": [
+     "get",
+     "rank"
+    ],
+    "text-optional": true
+   },
+   "paint": {
+    "text-color": [
+     "match",
+     [
+      "get",
+      "class"
+     ],
+     [
+      "hospital",
+      "pharmacy",
+      "doctors",
+      "dentist",
+      "clinic"
+     ],
+     "#FF6B6B",
+     [
+      "restaurant",
+      "cafe",
+      "fast_food",
+      "bar",
+      "ice_cream",
+      "bakery",
+      "food_court"
+     ],
+     "#FFB547",
+     [
+      "fuel",
+      "car",
+      "car_repair",
+      "parking"
+     ],
+     "#4FC3F7",
+     [
+      "shop",
+      "grocery",
+      "clothing_store",
+      "mall",
+      "supermarket",
+      "department_store"
+     ],
+     "#C792EA",
+     [
+      "college",
+      "school",
+      "university",
+      "kindergarten",
+      "library"
+     ],
+     "#8BD46A",
+     [
+      "bank",
+      "atm",
+      "post",
+      "police",
+      "town_hall",
+      "embassy"
+     ],
+     "#E8D36A",
+     [
+      "place_of_worship"
+     ],
+     "#8E99A8",
+     "#7FD3E6"
+    ],
+    "text-halo-color": "#05080D",
+    "text-halo-width": 1.6
+   }
+  },
+  {
    "id": "road-label",
    "type": "symbol",
    "source": "omt",
@@ -976,5 +1231,9 @@
     "circle-stroke-width": 3
    }
   }
- ]
+ ],
+ "transition": {
+  "duration": 0,
+  "delay": 0
+ }
 }

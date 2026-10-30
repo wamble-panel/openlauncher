@@ -144,6 +144,8 @@ internal object PersistentMap {
             m.uiSettings.isLogoEnabled = false
             m.uiSettings.isAttributionEnabled = false
             m.uiSettings.isCompassEnabled = false
+            // Fewer lower-zoom parent tiles loaded ahead: less work while panning on a weak GPU.
+            m.prefetchZoomDelta = 2
             m.cameraPosition = CameraPosition.Builder().target(CAIRO).zoom(11.0).build()
             m.addOnCameraMoveStartedListener { reason ->
                 if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) onUserGesture?.invoke()
@@ -382,64 +384,77 @@ private fun NavMap(
     }
 
     // ── Smooth follow ────────────────────────────────────────────────────────
-    // GPS gives a fix about twice a second. Instead of jumping, the camera glides
-    // from the shown position to each new fix over the time between fixes, and
-    // the car arrow is drawn at the camera's focus point so it never wobbles.
-    val shown = remember { doubleArrayOf(Double.NaN, Double.NaN, 0.0) } // lat, lon, bearing
-    val from = remember { doubleArrayOf(0.0, 0.0, 0.0) }
-    val to = remember { doubleArrayOf(0.0, 0.0, 0.0) }
-    val progress = remember { Animatable(1f) }
-    var lastFixAt by remember { mutableLongStateOf(0L) }
+    // On every GPS fix the map engine itself glides the camera, in a straight line,
+    // to where the car will be when the next fix arrives (predicted from speed and
+    // heading). The motion never pauses between fixes, and the UI does no
+    // per-frame work: the A133's CPU is left to the map.
     val zoomBand = when {
         nav.speedKmh > 90f -> 0
         nav.speedKmh > 50f -> 1
         else -> 2
     }
-    val zoom = remember { Animatable(16f) }
     var zoomOffset by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(zoomBand) { zoom.animateTo(15f + zoomBand * 0.5f, tween(1500)) }
+    val shown = remember { doubleArrayOf(Double.NaN, Double.NaN, 0.0) } // camera target lat, lon, bearing
+    var lastFixAt by remember { mutableLongStateOf(0L) }
+    fun cameraTo(lat: Double, lon: Double, bearing: Double) = CameraUpdateFactory.newCameraPosition(
+        CameraPosition.Builder().target(LatLng(lat, lon))
+            .zoom((15f + zoomBand * 0.5f + zoomOffset).coerceIn(10f, 19f).toDouble()).tilt(0.0)
+            .bearing(if (northUp) 0.0 else (bearing % 360.0 + 360.0) % 360.0).build()
+    )
+    fun turn(a: Double, b: Double) = ((a - b) % 360.0 + 540.0) % 360.0 - 180.0
 
     // Starting guidance always brings the camera back onto the car.
     LaunchedEffect(route != null, destination) { if (route != null) following = true }
 
-    LaunchedEffect(here, course) {
-        val pos = here ?: return@LaunchedEffect
-        // Parked: GPS jitter of a metre or two would otherwise keep the map redrawing non-stop.
-        if (!shown[0].isNaN() && distanceMeters(shown[0], shown[1], pos.latitude, pos.longitude) < 3.0 &&
-            abs(((course - shown[2]) % 360.0 + 540.0) % 360.0 - 180.0) < 3.0) return@LaunchedEffect
-        val now = System.currentTimeMillis()
-        val gap = if (lastFixAt == 0L) 0L else (now - lastFixAt).coerceIn(300L, 1500L)
-        lastFixAt = now
-        if (shown[0].isNaN()) {
-            shown[0] = pos.latitude; shown[1] = pos.longitude; shown[2] = course.toDouble()
-        }
-        from[0] = shown[0]; from[1] = shown[1]; from[2] = shown[2]
-        to[0] = pos.latitude; to[1] = pos.longitude
-        // Turn the short way round.
-        to[2] = from[2] + ((course - from[2] + 540.0) % 360.0 - 180.0)
-        progress.snapTo(0f)
-        progress.animateTo(1f, tween(gap.toInt().coerceAtLeast(1), easing = LinearEasing))
-    }
-
     LaunchedEffect(holder.style, following) {
-        val map = holder.map ?: return@LaunchedEffect
-        val style = holder.style ?: return@LaunchedEffect
-        (style.getLayer("vehicle") as? SymbolLayer)?.setProperties(
+        (holder.style?.getLayer("vehicle") as? SymbolLayer)?.setProperties(
             PropertyFactory.visibility(if (following) Property.NONE else Property.VISIBLE)
         )
-        if (!following) return@LaunchedEffect
-        snapshotFlow { listOf(progress.value, zoom.value, zoomOffset, if (northUp) 1f else 0f) }.collect { (t, zBase, zOff, north) ->
-            val z = (zBase + zOff).coerceIn(10f, 19f)
-            if (from[0] == 0.0 && to[0] == 0.0) return@collect
-            shown[0] = from[0] + (to[0] - from[0]) * t
-            shown[1] = from[1] + (to[1] - from[1]) * t
-            shown[2] = from[2] + (to[2] - from[2]) * t
-            map.moveCamera(
-                CameraUpdateFactory.newCameraPosition(
-                    CameraPosition.Builder().target(LatLng(shown[0], shown[1]))
-                        .zoom(z.toDouble()).tilt(0.0).bearing(if (north > 0f) 0.0 else (shown[2] % 360.0 + 360.0) % 360.0).build()
-                )
-            )
+    }
+
+    // Re-centre, zoom buttons, speed-based zoom and north-up: one short glide.
+    LaunchedEffect(holder.style, following, zoomBand, zoomOffset, northUp) {
+        val map = holder.map ?: return@LaunchedEffect
+        val pos = here ?: return@LaunchedEffect
+        if (!following || holder.style == null) return@LaunchedEffect
+        val bearing = if (shown[0].isNaN()) course.toDouble() else shown[2]
+        shown[0] = pos.latitude; shown[1] = pos.longitude; shown[2] = bearing
+        map.easeCamera(cameraTo(pos.latitude, pos.longitude, bearing), 450, true)
+    }
+
+    LaunchedEffect(holder.style, here, course) {
+        val map = holder.map ?: return@LaunchedEffect
+        val pos = here ?: return@LaunchedEffect
+        if (!following || holder.style == null) return@LaunchedEffect
+        // Parked: GPS jitter of a metre or two would otherwise keep the map redrawing non-stop.
+        if (!shown[0].isNaN() && distanceMeters(shown[0], shown[1], pos.latitude, pos.longitude) < 3.0 &&
+            abs(turn(course.toDouble(), shown[2])) < 3.0) return@LaunchedEffect
+        val now = System.currentTimeMillis()
+        val gap = if (lastFixAt == 0L) 1000L else (now - lastFixAt).coerceIn(300L, 1500L)
+        lastFixAt = now
+        // Where the car will be when the next fix arrives.
+        val speed = nav.speedKmh / 3.6
+        val ahead = if (speed > 2.0) speed * gap / 1000.0 else 0.0
+        val rad = Math.toRadians(course.toDouble())
+        val lat = pos.latitude + ahead * cos(rad) / 111_320.0
+        val lon = pos.longitude + ahead * sin(rad) / (111_320.0 * cos(Math.toRadians(pos.latitude)))
+        // Small heading wobbles don't rotate the map: every rotation re-places all labels.
+        val bearing = if (!shown[0].isNaN() && abs(turn(course.toDouble(), shown[2])) < 4.0) shown[2] else course.toDouble()
+        shown[0] = lat; shown[1] = lon; shown[2] = bearing
+        map.easeCamera(cameraTo(lat, lon, bearing), gap.toInt() + 60, false)
+    }
+
+    // Driving: drop what nobody reads at speed (buildings, land use, shop dots,
+    // service roads), so the weak GPU keeps up. Parked or browsing shows everything.
+    var driving by remember { mutableStateOf(false) }
+    LaunchedEffect(nav.speedKmh) {
+        if (nav.speedKmh > 18f) driving = true else if (nav.speedKmh < 8f) driving = false
+    }
+    LaunchedEffect(holder.style, driving, following) {
+        val style = holder.style ?: return@LaunchedEffect
+        val light = driving && following
+        listOf("building", "landcover", "landuse", "poi-dot", "poi-label", "road-service", "rail").forEach { id ->
+            style.getLayer(id)?.setProperties(PropertyFactory.visibility(if (light) Property.NONE else Property.VISIBLE))
         }
     }
 
@@ -1065,6 +1080,19 @@ private fun SearchPanel(
                 )
             } else {
                 PlaceList(results, here, metric, onPick)
+                // Online fallback: hand the search to Google Maps when on hotspot.
+                val context = LocalContext.current
+                Text(
+                    if (results.isEmpty()) "Not found offline — search \"$query\" in Google Maps" else "Search in Google Maps",
+                    color = MmiCyan, fontFamily = MmiFont, fontSize = 15.sp,
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp).pressable {
+                        val uri = Uri.parse("geo:${here?.latitude ?: 0.0},${here?.longitude ?: 0.0}?q=" + Uri.encode(query))
+                        context.launchFirst(
+                            Intent(Intent.ACTION_VIEW, uri).setPackage("com.google.android.apps.maps"),
+                            Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/" + Uri.encode(query))),
+                        )
+                    }.mmiPanel().padding(horizontal = 12.dp, vertical = 8.dp),
+                )
             }
         }
         if (keyboard) {

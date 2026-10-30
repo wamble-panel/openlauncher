@@ -10,6 +10,9 @@ on:
       - "tools/map/**"
       - ".github/workflows/map-data.yml"
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -44,6 +47,17 @@ jobs:
           python tools/map/build_search_index.py egypt.osm.pbf egypt-search.db
           ls -la egypt-search.db
 
+      # Far more shops, restaurants, clinics and offices than OSM alone. Optional:
+      # if Overture is unreachable the OSM-only index is kept.
+      - name: Add Overture Maps places
+        continue-on-error: true
+        run: |
+          pip install --quiet overturemaps
+          overturemaps download --bbox=24.6,21.9,36.95,31.7 -f geojsonseq --type=place -o places.geojsonseq
+          ls -la places.geojsonseq
+          python tools/map/merge_overture.py places.geojsonseq egypt-search.db
+          ls -la egypt-search.db
+
       - name: Extract speed limits and cameras
         run: |
           python tools/map/build_road_safety.py egypt.osm.pbf egypt-safety.db
@@ -66,3 +80,12 @@ jobs:
             egypt-routing.graph
           compression-level: 1
           if-no-files-found: error
+
+      # The app's "Download maps" button fetches from this release; a file whose
+      # size changed is downloaded again, so pressing it updates the maps.
+      - name: Publish to the maps-egypt release
+        if: github.ref == 'refs/heads/mbux'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload maps-egypt egypt-safety.db egypt-routing.graph egypt-search.db egypt.mbtiles --clobber
