@@ -187,7 +187,8 @@ fun MmiHomeScreen(
     var idleFade by remember { mutableStateOf(false) }
     val playing = nowPlaying?.isPlaying == true
     LaunchedEffect(page, lastTouch, playing) {
-        if (page == MmiPage.NAV || playing) return@LaunchedEffect
+        // Like a parked MMI: only from the home screen, never while reading a page or playing music.
+        if (page != MmiPage.HOME || playing) return@LaunchedEffect
         delay(IDLE_TO_MAP_MS)
         val busy = BtConnect.anyConnected() || nowPlaying?.isPlaying == true || !MapData.isInstalled(context)
         if (!busy) {
@@ -615,6 +616,12 @@ private fun MmiGlyph.themeKey(): String = when (this) {
     MmiGlyph.RADIO -> "radio"
 }
 
+/** Ring positions with theme artwork (APPS takes 124°). */
+private val THEMED_ANGLES = mapOf(
+    "dashboard" to -112f, "video" to -78f, "settings" to -44f, "music" to -10f,
+    "radio" to 24f, "phone" to 58f, "nav" to 92f,
+)
+
 private data class OrbitItem(val key: String, val label: String, val glyph: MmiGlyph, val angle: Float)
 
 private val ORBIT_ITEMS = listOf(
@@ -648,9 +655,8 @@ private fun Orbit(
         val ry = ring?.ry ?: (h * 0.44f)
         val iconSize = h * 0.13f
         val labelSize = with(LocalDensity.current) { (h * 0.05f).toSp() }
-        val carX = w * 0.03f
-        val carY = h * 0.15f
-        val carW = w * 0.46f
+        // With theme artwork the car sits inside that ring's disc; otherwise the drawn layout.
+        val carW = if (ring != null) rx * 1.1f else w * 0.46f
         // The owner's own photo of the selected car (imported in Settings), else the built-in one.
         val carProfile by RoadMemory.carState.collectAsStateWithLifecycle()
         val pictureVersion by CarPicture.version.collectAsStateWithLifecycle()
@@ -660,6 +666,8 @@ private fun Orbit(
         }
         val astra = carProfile == com.openlauncher.app.map.CarProfile.ASTRA_J
         val carH = carW * (ownPicture?.let { it.height.toFloat() / it.width } ?: if (astra) 540f / 900f else 473f / 900f)
+        val carX = if (ring != null) cx - carW * 0.62f else w * 0.03f
+        val carY = if (ring != null) cy - carH * 0.6f else h * 0.15f
 
         Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = (intro.value * 1.6f).coerceAtMost(1f) }) {
             val c = Offset(cx.toPx(), cy.toPx())
@@ -749,7 +757,10 @@ private fun Orbit(
         }
 
         ORBIT_ITEMS.forEachIndexed { index, item ->
-            val rad = Math.toRadians(item.angle.toDouble())
+            // The artwork's ring runs off the left edge, so APPS joins the ring and the
+            // lower entries spread out a little to keep clear of it.
+            val angle = if (ring != null) THEMED_ANGLES[item.key] ?: item.angle else item.angle
+            val rad = Math.toRadians(angle.toDouble())
             OrbitEntry(
                 label = item.label, glyph = item.glyph, image = icons[item.glyph.themeKey()],
                 x = cx + rx * cos(rad).toFloat() - iconSize / 2,
@@ -757,14 +768,16 @@ private fun Orbit(
                 iconSize = iconSize, labelSize = labelSize,
                 selected = selected == item.key,
                 // Lower-right entries sit where the ring climbs; drop their label below it.
-                labelDrop = if (item.angle in 50f..90f) iconSize * 0.42f else 0.dp,
+                labelDrop = if (angle in 50f..90f) iconSize * 0.42f else 0.dp,
                 appear = { ((intro.value - 0.25f - index * 0.07f) / 0.3f).coerceIn(0f, 1f) },
                 onClick = { onSelect(item.key) },
             )
         }
+        val appsRad = Math.toRadians(124.0)
         OrbitEntry(
             label = "APPS", glyph = MmiGlyph.APPS, image = icons["apps"],
-            x = w * 0.02f, y = h * 0.72f,
+            x = if (ring != null) cx + rx * cos(appsRad).toFloat() - iconSize / 2 else w * 0.02f,
+            y = if (ring != null) cy + ry * sin(appsRad).toFloat() - iconSize / 2 else h * 0.72f,
             iconSize = iconSize, labelSize = labelSize,
             selected = selected == "apps",
             appear = { ((intro.value - 0.2f) / 0.3f).coerceIn(0f, 1f) },
