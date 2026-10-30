@@ -86,6 +86,22 @@ object TwBridge {
         send(Intent("com.unisound.intent.action.GET_ID3_INFO"))
         send(Intent("com.unisound.intent.action.GET_CALL_INFO"))
         send(Intent("com.unisound.intent.action.GET_MUTE"))
+        if (available) radioLast().let { (am, f) -> publishRadio(am, f) }
+        applyCallWindow()
+    }
+
+    // ── Vendor call bubble: com.tw.bt hides its call windows while it believes
+    // HiCar is connected, so MMI sets that flag and shows its own call bar.
+    // Side effect: the steering wheel's answer/reject keys go to the HiCar app then.
+    fun mmiCallBar(): Boolean = prefs().getBoolean("mmi_call_bar", true)
+    fun setMmiCallBar(on: Boolean) {
+        prefs().edit().putBoolean("mmi_call_bar", on).apply()
+        applyCallWindow()
+    }
+
+    private fun applyCallWindow() {
+        if (!available) return
+        send(Intent(if (mmiCallBar()) "action.hicar.onconnect" else "action.hicar.ondisconnect"))
     }
 
     private fun prefs() = app.getSharedPreferences("mmi_car", Context.MODE_PRIVATE)
@@ -135,6 +151,56 @@ object TwBridge {
     fun btPrev() = btMusic(BT_PREV)
 
     private fun btMusic(code: Int) = send(Intent("com.tw.launcher.btmsg").putExtra("msg", code))
+
+    // ── Radio: com.tw.service tunes on com.unisound.unicar.broadcast.action (it also
+    // switches the car's source to radio); next/prev act on the current source.
+    // There is no broadcast of the tuned frequency, so MMI shows what it last tuned.
+    private val _radio = MutableStateFlow<com.openlauncher.app.model.HardwareRadioState?>(null)
+    val radio: StateFlow<com.openlauncher.app.model.HardwareRadioState?> = _radio
+
+    private fun radioPrefs() = app.getSharedPreferences("mmi_radio", Context.MODE_PRIVATE)
+
+    private fun publishRadio(am: Boolean, freq: Float, note: String? = null) {
+        _radio.value = com.openlauncher.app.model.HardwareRadioState(
+            band = if (am) "AM" else "FM",
+            freq = if (am) freq.toInt().toString() else "%.1f".format(Locale.US, freq),
+            stationName = note, canTune = true,
+        )
+    }
+
+    fun radioLast(): Pair<Boolean, Float> {
+        val am = radioPrefs().getBoolean("am", false)
+        return am to radioPrefs().getFloat(if (am) "am_freq" else "fm_freq", if (am) 1170f else 98.5f)
+    }
+
+    /** Tunes [freq] (MHz on FM, kHz on AM) and makes radio the car's source. */
+    fun radioTune(am: Boolean, freq: Float) {
+        val f = if (am) freq.coerceIn(531f, 1602f) else freq.coerceIn(87.5f, 108f)
+        radioPrefs().edit().putBoolean("am", am).putFloat(if (am) "am_freq" else "fm_freq", f).apply()
+        publishRadio(am, f)
+        send(
+            Intent("com.unisound.unicar.broadcast.action")
+                .putExtra("type", if (am) "am" else "fm")
+                .putExtra("freq", if (am) f.toInt().toString() else "%.1f".format(Locale.US, f)),
+        )
+    }
+
+    fun radioResume() = radioLast().let { (am, f) -> radioTune(am, f) }
+    fun radioBand(am: Boolean) = radioTune(am, radioPrefs().getFloat(if (am) "am_freq" else "fm_freq", if (am) 1170f else 98.5f))
+
+    /** Seek: the car finds the next station itself (the new frequency shows on the car's display). */
+    fun radioSeek(up: Boolean) {
+        send(Intent("com.unisound.unicar.broadcast.action").putExtra("type", if (up) "next" else "prev"))
+        radioLast().let { (am, f) -> publishRadio(am, f, if (up) "Seeking up…" else "Seeking down…") }
+    }
+
+    fun radioPresets(): List<Float> = radioPrefs().getString("presets", "")!!.split(',').mapNotNull { it.toFloatOrNull() }
+    fun radioSavePreset(slot: Int, freq: Float) {
+        val list = radioPresets().toMutableList()
+        while (list.size <= slot) list += 0f
+        list[slot] = freq
+        radioPrefs().edit().putString("presets", list.joinToString(",")).apply()
+    }
 
     /** Asks the vendor Bluetooth app to answer, end or place a call. */
     fun answer() = send(Intent("action.intent.AIOS_ACCEPT"))
@@ -193,6 +259,7 @@ object TwBridge {
                 _phoneConnected.value = true
                 // Phone just connected: route its audio to the car, as the vendor launcher does.
                 if (was != true) acquireBluetoothAudio(play = false)
+                applyCallWindow()
                 send(Intent("com.unisound.intent.action.GET_ID3_INFO"))
             }
             "com.android.bt.disconnected" -> { _phoneConnected.value = false; _btTrack.value = null }

@@ -56,6 +56,8 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -361,9 +363,13 @@ internal fun MmiRadioPage(
     onSeekDown: () -> Unit,
     onFm: () -> Unit,
     onAm: () -> Unit,
+    /** Direct tuning (TS10): tap the scale, fine-step, presets. Null hides those controls. */
+    onTune: ((am: Boolean, freq: Float) -> Unit)? = null,
 ) {
     val isAm = radio?.isAm == true
     val freq = radio?.freq?.filter { it.isDigit() || it == '.' }?.toFloatOrNull()
+    val tw = com.openlauncher.app.util.TwBridge
+    var presets by remember { mutableStateOf(if (onTune != null) tw.radioPresets() else emptyList()) }
     Column(
         Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -383,7 +389,47 @@ internal fun MmiRadioPage(
                 color = MmiDim, fontFamily = MmiFont, fontSize = 18.sp,
             )
         }
-        TuningScale(isAm, freq, Modifier.fillMaxWidth().height(70.dp))
+        TuningScale(
+            isAm, freq,
+            Modifier.fillMaxWidth().height(70.dp).then(
+                if (onTune == null) Modifier else Modifier.pointerInput(isAm) {
+                    detectTapGestures { pos ->
+                        // Tap the scale: tune there, snapped to the band's channel steps.
+                        val min = if (isAm) 531f else 87.5f
+                        val max = if (isAm) 1602f else 108f
+                        val raw = min + (pos.x / size.width).coerceIn(0f, 1f) * (max - min)
+                        val snapped = if (isAm) (kotlin.math.round(raw / 9f) * 9f) else (kotlin.math.round(raw * 10f) / 10f)
+                        onTune(isAm, snapped)
+                    }
+                }
+            ),
+        )
+        if (onTune != null && freq != null) {
+            // Fine tuning and six presets (tap: tune, long-press: save the current station).
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                val step = if (isAm) 9f else 0.1f
+                ChromePill("−", { onTune(isAm, freq - step) }, modifier = Modifier.width(64.dp))
+                repeat(6) { slot ->
+                    val p = presets.getOrNull(slot)?.takeIf { it > 0f }
+                    Box(
+                        Modifier.size(width = 92.dp, height = 48.dp).mmiPanel()
+                            .pointerInput(freq, p) {
+                                detectTapGestures(
+                                    onTap = { if (p != null) onTune(p > 200f, p) },
+                                    onLongPress = { tw.radioSavePreset(slot, freq); presets = tw.radioPresets() },
+                                )
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            p?.let { if (it > 200f) it.toInt().toString() else "%.1f".format(it) } ?: "Hold to save",
+                            color = if (p != null) MmiInk else MmiDim, fontFamily = MmiFont, fontSize = if (p != null) 17.sp else 11.sp,
+                        )
+                    }
+                }
+                ChromePill("+", { onTune(isAm, freq + step) }, modifier = Modifier.width(64.dp))
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             ChromeButton(MmiLine.PREV, 64.dp, onSeekDown)
             ChromeButton(MmiLine.NEXT, 64.dp, onSeekUp)

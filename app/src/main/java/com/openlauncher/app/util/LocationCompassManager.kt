@@ -204,7 +204,8 @@ class LocationCompassManager(context: Context) {
                     locationManager.registerGnssStatusCallback(gnssStatusCallback)
                 }
                 locationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER, 500L, 0f, locationListener
+                    // As fast as the receiver delivers (often 1 Hz, some chips 5-10 Hz).
+                    LocationManager.GPS_PROVIDER, 0L, 0f, locationListener
                 )
                 locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)?.let {
                     locationListener.onLocationChanged(it)

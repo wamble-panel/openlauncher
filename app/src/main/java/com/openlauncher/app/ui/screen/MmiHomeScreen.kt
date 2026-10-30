@@ -213,6 +213,8 @@ fun MmiHomeScreen(
     // launcher's Bluetooth page; otherwise the phone's music never reaches the speakers.
     LaunchedEffect(page) {
         if (page == MmiPage.MUSIC && tw.available && nowPlaying?.controller == null) tw.acquireBluetoothAudio(play = true)
+        // Opening Radio makes the radio the car's source again, on the last station.
+        if (page == MmiPage.RADIO && tw.available) tw.radioResume()
     }
     LaunchedEffect(page, lastTouch, playing) {
         // Like a parked MMI: only from the home screen, never while reading a page or playing music.
@@ -256,8 +258,11 @@ fun MmiHomeScreen(
             AnimatedContent(
                 targetState = page,
                 transitionSpec = {
-                    if (targetState == MmiPage.NAV && idleFade) {
-                        fadeIn(tween(1100, delayMillis = 200)) togetherWith fadeOut(tween(800))
+                    if (targetState == MmiPage.NAV || initialState == MmiPage.NAV) {
+                        // The map is a separate GPU surface: it can't be faded or scaled with the
+                        // page, and animating both pages at once is what made the switch stutter.
+                        // Switch instantly; the map fades itself in on its first frame.
+                        androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
                     } else {
                         (fadeIn(tween(260, delayMillis = 60)) +
                             scaleIn(tween(320, easing = FastOutSlowInEasing), initialScale = 0.94f)) togetherWith
@@ -357,6 +362,7 @@ fun MmiHomeScreen(
                         onOpenRadio = openRadioApp,
                         onSeekUp = onRadioSeekUp, onSeekDown = onRadioSeekDown,
                         onFm = onRadioFm, onAm = onRadioAm,
+                        onTune = if (com.openlauncher.app.util.TwBridge.available) { am, f -> com.openlauncher.app.util.TwBridge.radioTune(am, f) } else null,
                     )
                     MmiPage.CONTACTS -> MmiContactsPage()
                     MmiPage.PHONE -> MmiPhonePage(apps, onOpenContacts = { page = MmiPage.CONTACTS }) {
@@ -1118,6 +1124,9 @@ private fun DriveCard(location: LocationData?, bearing: Float, voltage: Float?, 
         DriveRow(MmiLine.MOUNTAIN, location?.let { "${(if (metric) it.altitude else it.altitude * 3.281).roundToInt()} ${if (metric) "m" else "ft"}" } ?: "--")
         DriveRow(MmiLine.LOCATE, location?.satellitesUsed?.takeIf { it >= 0 }?.let { "$it satellites" } ?: if (location != null) "GPS fix" else "Searching")
         DriveRow(MmiLine.BATTERY, voltage?.let { "%.1f V".format(it) } ?: "--")
+        // Outside temperature from the car (TS10 climate service).
+        val outdoor = com.openlauncher.app.util.Climate.state.collectAsStateWithLifecycle().value.outdoor
+        if (outdoor != null) DriveRow(MmiLine.GLOBE, "%.0f° outside".format(outdoor))
         Text(
             area ?: "",
             color = MmiInk, fontFamily = MmiFont, fontSize = 19.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -1243,6 +1252,7 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
         }
     }
     var silentUpdates by remember { mutableStateOf(updater.isDeviceOwner(context)) }
+    var mmiCallBar by remember { mutableStateOf(runCatching { com.openlauncher.app.util.TwBridge.mmiCallBar() }.getOrDefault(true)) }
     var mmiClimatePopup by remember { mutableStateOf(runCatching { com.openlauncher.app.util.Climate.replaceVendorPopup() }.getOrDefault(true)) }
     var keepReverseMusic by remember { mutableStateOf(com.openlauncher.app.util.TwBridge.keepMusicInReverse()) }
     var popupsHidden by remember { mutableStateOf(com.openlauncher.app.service.MediaListenerService.popupsHidden(context)) }
@@ -1283,6 +1293,10 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
         },
         "Navigation" to { onOpen(MmiPage.NAV_SETTINGS) },
         (if (metric) "Units: km/h, metres" else "Units: mph, feet") to { onSetMetric(!metric) },
+        (if (mmiCallBar) "Phone calls: MMI call bar" else "Phone calls: car's own bubble") to {
+            mmiCallBar = !mmiCallBar
+            com.openlauncher.app.util.TwBridge.setMmiCallBar(mmiCallBar)
+        },
         (if (mmiClimatePopup) "Climate pop-up: MMI style" else "Climate pop-up: car's own") to {
             mmiClimatePopup = !mmiClimatePopup
             com.openlauncher.app.util.Climate.setReplaceVendorPopup(mmiClimatePopup)

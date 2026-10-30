@@ -212,8 +212,8 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
 
     // MCU backend wins when present; otherwise mirror the radio app's session
     val hardwareRadio: StateFlow<HardwareRadioState?> =
-        combine(_mcuRadio, nowPlaying) { mcu, np ->
-            mcu ?: np?.let { parseSessionRadio(it) }
+        combine(_mcuRadio, nowPlaying, com.openlauncher.app.util.TwBridge.radio) { mcu, np, tw ->
+            mcu ?: tw ?: np?.let { parseSessionRadio(it) }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private fun radioSessionController() = nowPlaying.value?.controller?.takeIf { c ->
@@ -238,11 +238,12 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
 
     // Seek routes to the MCU when that backend is live, otherwise to the radio
     // app's MediaSession — skip next/prev is how these apps expose seek.
-    fun radioSeekUp()   { if (mcuActive) sendMcuBytes(0x02, 0x0f) else radioSessionController()?.transportControls?.skipToNext() }
-    fun radioSeekDown() { if (mcuActive) sendMcuBytes(0x02, 0x0e) else radioSessionController()?.transportControls?.skipToPrevious() }
-    // Band switching and direct tuning only exist on the MCU backend
-    fun radioCycleFm()  { if (mcuActive) sendMcuBytes(0x02, 0x1e) }
-    fun radioSwitchAm() { if (mcuActive) sendMcuBytes(0x02, 0x1f) }
+    private val tw = com.openlauncher.app.util.TwBridge
+    fun radioSeekUp()   { when { mcuActive -> sendMcuBytes(0x02, 0x0f); tw.available -> tw.radioSeek(true); else -> radioSessionController()?.transportControls?.skipToNext() } }
+    fun radioSeekDown() { when { mcuActive -> sendMcuBytes(0x02, 0x0e); tw.available -> tw.radioSeek(false); else -> radioSessionController()?.transportControls?.skipToPrevious() } }
+    // Band switching and direct tuning: KSW MCU or TS10 car service
+    fun radioCycleFm()  { when { mcuActive -> sendMcuBytes(0x02, 0x1e); tw.available -> tw.radioBand(am = false) } }
+    fun radioSwitchAm() { when { mcuActive -> sendMcuBytes(0x02, 0x1f); tw.available -> tw.radioBand(am = true) } }
     fun radioStart()    { sendMcuBytes(0x01, 0x01) }
     fun launchHardwareRadioApp() {
         if (hasSzchoicewayMcu) radioStart()

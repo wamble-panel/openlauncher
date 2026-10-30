@@ -434,7 +434,9 @@ private fun NavMap(
         lastFixAt = now
         // Where the car will be when the next fix arrives.
         val speed = nav.speedKmh / 3.6
-        val ahead = if (speed > 2.0) speed * gap / 1000.0 else 0.0
+        // GPS fixes arrive ~0.5 s after the moment they describe: aim that much further
+        // ahead too, so the arrow sits where the car is now, not where it was.
+        val ahead = if (speed > 2.0) speed * (gap + FIX_LATENCY_MS) / 1000.0 else 0.0
         val rad = Math.toRadians(course.toDouble())
         val lat = pos.latitude + ahead * cos(rad) / 111_320.0
         val lon = pos.longitude + ahead * sin(rad) / (111_320.0 * cos(Math.toRadians(pos.latitude)))
@@ -502,6 +504,12 @@ private fun NavMap(
     // Fade the map in once its first frame is drawn, instead of showing tiles popping in.
     val reveal by animateFloatAsState(if (holder.ready) 0f else 1f, tween(450), label = "map_reveal")
     val vehicle = remember(density) { vehicleBitmap(density).asImageBitmap() }
+    // North-up: the arrow turns smoothly between GPS headings (shortest way round).
+    val arrowTurn = remember { Animatable(course) }
+    LaunchedEffect(course) {
+        val target = arrowTurn.value + (((course - arrowTurn.value) % 360f + 540f) % 360f - 180f)
+        arrowTurn.animateTo(target, tween(400, easing = LinearEasing))
+    }
 
     Box(Modifier.fillMaxSize()) {
         AndroidView(
@@ -511,7 +519,7 @@ private fun NavMap(
         if (following && here != null) {
             Image(
                 vehicle, contentDescription = null,
-                modifier = Modifier.align(Alignment.Center).size(48.dp).graphicsLayer { rotationZ = if (northUp) course else 0f },
+                modifier = Modifier.align(Alignment.Center).size(48.dp).graphicsLayer { rotationZ = if (northUp) arrowTurn.value else 0f },
             )
         }
         if (reveal > 0f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = reveal }.background(MmiPageBg))
@@ -1333,3 +1341,5 @@ private fun SearchingIndicator() {
     val a by t.animateFloat(0.3f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "looking_alpha")
     Box(Modifier.size(10.dp).graphicsLayer { alpha = a }.clip(RoundedCornerShape(5.dp)).background(MmiCyan))
 }
+
+private const val FIX_LATENCY_MS = 500L
