@@ -16,13 +16,11 @@ import java.util.zip.ZipOutputStream
  * offers to the browser.
  */
 object CarAppsExport {
-    // Only what hasn't been received yet: the Bluetooth, music, radio, steering-wheel,
-    // service and reverse apps and the system library (framework.jar) are already in.
-    // com.tw.canuart / com.tw.car hold the CAN data (doors, climate, voltage).
-    private val PACKAGES = listOf(
-        "com.tw.ac", "com.dofun.carsetting", "com.tw.eq", "com.tw.canuart", "com.tw.car",
-        "com.tw.carchoose", "com.tw.auxin",
-    )
+    // Only what hasn't been received yet. Already in: Bluetooth, music, radio,
+    // steering wheel, service, reverse, climate, CarSetting, EQ, car info, car
+    // choice, AUX and framework.jar. Next: the vendor home screen ("Theme") and
+    // CarMate, to see exactly what the original home sends to the car.
+    private val PACKAGES = listOf("com.dofun.variety", "com.dofun.carassistant.car")
     // GitHub's web upload takes files up to 25 MB: parts stay well below that.
     private const val PART_LIMIT = 20L * 1024 * 1024
     private const val CHUNK = 15L * 1024 * 1024
