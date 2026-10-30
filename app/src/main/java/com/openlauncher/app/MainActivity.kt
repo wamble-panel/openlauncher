@@ -53,6 +53,23 @@ class MainActivity : ComponentActivity() {
 
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
         com.openlauncher.app.util.CarLinkScan.onKey(event)
+        // Steering-wheel keys reach the foreground app as media keys; send them to
+        // whatever is playing instead of letting them fall on the home screen.
+        val controls = com.openlauncher.app.service.MediaListenerService.nowPlaying.value?.controller?.transportControls
+        if (controls != null) {
+            when (event.keyCode) {
+                android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> { if (event.action == android.view.KeyEvent.ACTION_DOWN) controls.skipToNext(); return true }
+                android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> { if (event.action == android.view.KeyEvent.ACTION_DOWN) controls.skipToPrevious(); return true }
+                android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, android.view.KeyEvent.KEYCODE_HEADSETHOOK -> {
+                    if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+                        if (com.openlauncher.app.service.MediaListenerService.nowPlaying.value?.isPlaying == true) controls.pause() else controls.play()
+                    }
+                    return true
+                }
+                android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> { if (event.action == android.view.KeyEvent.ACTION_DOWN) controls.play(); return true }
+                android.view.KeyEvent.KEYCODE_MEDIA_PAUSE -> { if (event.action == android.view.KeyEvent.ACTION_DOWN) controls.pause(); return true }
+            }
+        }
         return super.dispatchKeyEvent(event)
     }
 

@@ -72,12 +72,15 @@ class FilePickActivity : ComponentActivity() {
     /** Copies MMI's report files (wherever they were saved) into a folder the file provider can hand out. */
     private fun collect(): List<File> {
         val dir = File(filesDir, "reports").apply { mkdirs() }
-        return WifiShare.NAMES.mapNotNull { name ->
+        val reports = WifiShare.NAMES.mapNotNull { name ->
             runCatching {
                 val input = WifiShare.open(this, name) ?: return@runCatching null
                 File(dir, name).also { out -> input.use { i -> out.outputStream().use { i.copyTo(it) } } }
             }.getOrNull()
         }
+        // Car app zips from "Export car apps" are written straight into this folder.
+        val zips = dir.listFiles { f -> f.name.startsWith("mmi-car-apps") }?.sortedBy { it.name }.orEmpty()
+        return reports + zips
     }
 
     private fun finishWith(picked: List<File>) {

@@ -148,6 +148,15 @@ internal fun MmiCleanupPage() {
                 },
                 MmiLine.HISTORY, Modifier.fillMaxWidth(),
             )
+            ChromePill("Export car apps (for upload)", {
+                scope.launch {
+                    message = "Packing the car apps…"
+                    val zips = com.openlauncher.app.util.CarAppsExport.export(context) { message = it }
+                    message = zips?.let {
+                        "Ready: ${it.joinToString()}. Upload them from the browser with the MMI file picker (choose files → MMI files)."
+                    } ?: "Couldn't read the car apps."
+                }
+            }, MmiLine.OPEN, Modifier.fillMaxWidth())
             // Wi-Fi share: a phone on the same hotspot downloads the report files from the unit.
             var sharing by remember { mutableStateOf(WifiShare.running) }
             ChromePill(if (sharing) "Stop sharing over Wi-Fi" else "Share files over Wi-Fi", {
