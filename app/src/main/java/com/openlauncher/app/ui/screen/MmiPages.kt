@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.text.TextStyle
@@ -402,21 +403,40 @@ internal fun MmiRadioPage(
                 color = MmiDim, fontFamily = MmiFont, fontSize = 18.sp,
             )
         }
+        // Drag along the scale (or tap it): the needle follows the finger, the station
+        // is tuned when the finger lifts, snapped to the band's channel steps.
+        var dragFreq by remember { mutableStateOf<Float?>(null) }
+        val bandMin = if (isAm) 531f else 87.5f
+        val bandMax = if (isAm) 1602f else 108f
+        fun snap(raw: Float) = if (isAm) kotlin.math.round(raw.coerceIn(bandMin, bandMax) / 9f) * 9f
+            else kotlin.math.round(raw.coerceIn(bandMin, bandMax) * 10f) / 10f
         TuningScale(
-            isAm, freq,
+            isAm, dragFreq ?: freq,
             Modifier.fillMaxWidth().height(70.dp).then(
-                if (onTune == null) Modifier else Modifier.pointerInput(isAm) {
-                    detectTapGestures { pos ->
-                        // Tap the scale: tune there, snapped to the band's channel steps.
-                        val min = if (isAm) 531f else 87.5f
-                        val max = if (isAm) 1602f else 108f
-                        val raw = min + (pos.x / size.width).coerceIn(0f, 1f) * (max - min)
-                        val snapped = if (isAm) (kotlin.math.round(raw / 9f) * 9f) else (kotlin.math.round(raw * 10f) / 10f)
-                        onTune(isAm, snapped)
+                if (onTune == null) Modifier else Modifier
+                    .pointerInput(isAm) {
+                        detectTapGestures { pos -> onTune(isAm, snap(bandMin + (pos.x / size.width) * (bandMax - bandMin))) }
                     }
-                }
+                    .pointerInput(isAm) {
+                        detectHorizontalDragGestures(
+                            onDragStart = { pos -> dragFreq = snap(bandMin + (pos.x / size.width) * (bandMax - bandMin)) },
+                            onDragEnd = { dragFreq?.let { onTune(isAm, it) }; dragFreq = null },
+                            onDragCancel = { dragFreq = null },
+                        ) { change, _ ->
+                            change.consume()
+                            dragFreq = snap(bandMin + (change.position.x / size.width) * (bandMax - bandMin))
+                        }
+                    }
             ),
+            follow = dragFreq != null,
         )
+        // While dragging, the big readout shows where the finger is.
+        dragFreq?.let {
+            Text(
+                if (isAm) "${it.toInt()} kHz" else "%.1f MHz".format(it),
+                color = MmiCyan, fontFamily = MmiFont, fontSize = 22.sp,
+            )
+        }
         if (onTune != null && freq != null) {
             // Fine tuning and six presets (tap: tune, long-press: save the current station).
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -454,15 +474,14 @@ internal fun MmiRadioPage(
 }
 
 @Composable
-private fun TuningScale(isAm: Boolean, freq: Float?, modifier: Modifier) {
-    val min = if (isAm) 530f else 87.5f
-    val max = if (isAm) 1710f else 108f
+private fun TuningScale(isAm: Boolean, freq: Float?, modifier: Modifier, follow: Boolean = false) {
+    val min = if (isAm) 531f else 87.5f
+    val max = if (isAm) 1602f else 108f
     val measurer = rememberTextMeasurer()
-    val needle by animateFloatAsState(
-        ((freq ?: min) - min) / (max - min),
-        spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessLow),
-        label = "tuning",
-    )
+    val target = ((freq ?: min) - min) / (max - min)
+    // Under the finger the needle follows instantly; otherwise it glides to the new station.
+    val glide by animateFloatAsState(target, spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow), label = "tuning")
+    val needle = if (follow) target else glide
     Box(modifier) {
         Spacer(
             Modifier.fillMaxSize().drawWithCache {

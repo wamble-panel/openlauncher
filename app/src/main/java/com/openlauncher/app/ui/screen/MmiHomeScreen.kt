@@ -214,7 +214,9 @@ fun MmiHomeScreen(
     LaunchedEffect(page) {
         if (page == MmiPage.MUSIC && tw.available && nowPlaying?.controller == null) tw.acquireBluetoothAudio(play = true)
         // Opening Radio makes the radio the car's source again, on the last station.
-        if (page == MmiPage.RADIO && tw.available) tw.radioResume()
+        // Only with Car Core: the fallback route opens the vendor radio app on top of MMI.
+        if (page == MmiPage.RADIO && tw.available && com.openlauncher.app.util.CarCore.active.value) tw.radioResume()
+        com.openlauncher.app.util.KnobTarget.radio = page == MmiPage.RADIO
     }
     LaunchedEffect(page, lastTouch, playing) {
         // Like a parked MMI: only from the home screen, never while reading a page or playing music.

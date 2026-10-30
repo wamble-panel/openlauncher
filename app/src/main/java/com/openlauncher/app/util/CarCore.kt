@@ -72,6 +72,31 @@ object CarCore {
         }
     }
 
+    /**
+     * Sends a command to the car (MCU) through the library, only when the library
+     * accepted MMI. Used for the radio and the reverse-mute setting, with the same
+     * commands the vendor apps send. Returns false when not available.
+     */
+    fun write(what: Int, arg1: Int, arg2: Int): Boolean {
+        val util = tw ?: return false
+        return runCatching {
+            util.javaClass.getMethod("write", Int::class.java, Int::class.java, Int::class.java).invoke(util, what, arg1, arg2)
+            true
+        }.getOrDefault(false)
+    }
+
+    // Radio straight to the MCU, without opening the vendor radio app.
+    private const val SOURCE_REQUEST = 40465 // 0x9E11
+    private const val RADIO_SOURCE = 1
+
+    fun radioSource(): Boolean = write(SOURCE_REQUEST, 192, RADIO_SOURCE)
+    fun radioTune(am: Boolean, freq: Float): Boolean =
+        if (am) write(1026, 130, freq.toInt()) else write(1026, 128, Math.round(freq * 100))
+    fun radioSeek(up: Boolean): Boolean = write(RADIO, 1, if (up) 1 else 0)
+
+    /** The MCU's reverse attenuation: 0 = keep music while reversing, 1 = mute. */
+    fun setReverseMute(mute: Boolean): Boolean = write(260, 2, if (mute) 1 else 0)
+
     private fun be16(b: ByteArray, i: Int) = ((b[i].toInt() and 0xFF) shl 8) or (b[i + 1].toInt() and 0xFF)
     private fun u(b: ByteArray, i: Int) = b[i].toInt() and 0xFF
 

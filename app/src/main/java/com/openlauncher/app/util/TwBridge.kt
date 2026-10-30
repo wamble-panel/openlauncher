@@ -108,7 +108,11 @@ object TwBridge {
 
     /** Keep music playing (unmuted) while reversing instead of the car's automatic mute. */
     fun keepMusicInReverse(): Boolean = prefs().getBoolean("keep_music_reverse", false)
-    fun setKeepMusicInReverse(on: Boolean) = prefs().edit().putBoolean("keep_music_reverse", on).apply()
+    fun setKeepMusicInReverse(on: Boolean) {
+        prefs().edit().putBoolean("keep_music_reverse", on).apply()
+        // With Car Core, change the MCU's own reverse-mute setting (the real cause).
+        if (CarCore.active.value) CarCore.setReverseMute(!on)
+    }
 
     private fun musicPlaying(): Boolean =
         com.openlauncher.app.service.MediaListenerService.nowPlaying.value?.isPlaying == true || _btTrack.value?.playing == true
@@ -186,6 +190,8 @@ object TwBridge {
         val f = if (am) freq.coerceIn(531f, 1602f) else freq.coerceIn(87.5f, 108f)
         radioPrefs().edit().putBoolean("am", am).putFloat(if (am) "am_freq" else "fm_freq", f).apply()
         publishRadio(am, f)
+        // Direct to the MCU when MMI Car Core is allowed: no vendor radio app pops up.
+        if (CarCore.active.value && CarCore.radioSource() && CarCore.radioTune(am, f)) return
         send(
             Intent("com.unisound.unicar.broadcast.action")
                 .putExtra("type", if (am) "am" else "fm")
@@ -193,12 +199,17 @@ object TwBridge {
         )
     }
 
+    /** One channel step (steering knob, − / + buttons): 0.1 MHz on FM, 9 kHz on AM. */
+    fun radioStep(up: Boolean) = radioLast().let { (am, f) -> radioTune(am, f + (if (am) 9f else 0.1f) * (if (up) 1 else -1)) }
+
     fun radioResume() = radioLast().let { (am, f) -> radioTune(am, f) }
     fun radioBand(am: Boolean) = radioTune(am, radioPrefs().getFloat(if (am) "am_freq" else "fm_freq", if (am) 1170f else 98.5f))
 
     /** Seek: the car finds the next station itself (the new frequency shows on the car's display). */
     fun radioSeek(up: Boolean) {
-        send(Intent("com.unisound.unicar.broadcast.action").putExtra("type", if (up) "next" else "prev"))
+        if (!(CarCore.active.value && CarCore.radioSeek(up))) {
+            send(Intent("com.unisound.unicar.broadcast.action").putExtra("type", if (up) "next" else "prev"))
+        }
         radioLast().let { (am, f) -> publishRadio(am, f, if (up) "Seeking up…" else "Seeking down…") }
     }
 

@@ -52,6 +52,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        // The car's turn knob tunes the radio while the Radio page is open.
+        if (com.openlauncher.app.util.KnobTarget.onKey(event)) return true
         // Steering-wheel keys reach the foreground app as media keys; send them to
         // whatever is playing instead of letting them fall on the home screen.
         // Only while something is actually playing: a paused USB-music session must not
@@ -83,6 +85,9 @@ class MainActivity : ComponentActivity() {
         }
         return super.dispatchKeyEvent(event)
     }
+
+    override fun dispatchGenericMotionEvent(event: android.view.MotionEvent): Boolean =
+        com.openlauncher.app.util.KnobTarget.onMotion(event) || super.dispatchGenericMotionEvent(event)
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
