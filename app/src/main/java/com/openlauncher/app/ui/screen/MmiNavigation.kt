@@ -340,7 +340,9 @@ private fun NavMap(
 ) {
     val context = LocalContext.current
     val holder = PersistentMap
-    var northUp by remember { mutableStateOf(false) }
+    // North-up or heading-up is remembered across visits and restarts.
+    val navPrefs = remember { context.getSharedPreferences("mmi_nav", android.content.Context.MODE_PRIVATE) }
+    var northUp by remember { mutableStateOf(navPrefs.getBoolean("north_up", false)) }
     var markMenu by remember { mutableStateOf(false) }
     var following by remember { mutableStateOf(true) }
     var toast by remember { mutableStateOf<String?>(null) }
@@ -571,7 +573,11 @@ private fun NavMap(
                 NavClock()
                 Spacer(Modifier.width(4.dp))
                 Box(
-                    Modifier.size(48.dp).pressable { northUp = !northUp; following = true }.mmiPanel(),
+                    Modifier.size(48.dp).pressable {
+                        northUp = !northUp
+                        navPrefs.edit().putBoolean("north_up", northUp).apply()
+                        following = true
+                    }.mmiPanel(),
                     contentAlignment = Alignment.Center,
                 ) { CompassButton(if (northUp) 0f else -course, northUp) }
                 Box(Modifier.size(48.dp).pressable { onOpenPage("settings") }.mmiPanel(), contentAlignment = Alignment.Center) {
