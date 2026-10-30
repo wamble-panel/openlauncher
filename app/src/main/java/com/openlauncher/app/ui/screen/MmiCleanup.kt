@@ -3,6 +3,8 @@ package com.openlauncher.app.ui.screen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -52,7 +54,11 @@ internal fun MmiCleanupPage() {
 
     Row(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 6.dp)) {
         // Left: actions.
-        Column(Modifier.width(300.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Scrolls so every button stays reachable on 720 px tall screens.
+        Column(
+            Modifier.width(300.dp).fillMaxHeight().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             val list = apps.orEmpty()
             val on = list.count { it.enabled }
             val mem = list.filter { it.pkg in selected }.sumOf { it.memoryMb ?: 0 }
@@ -160,7 +166,7 @@ internal fun MmiCleanupPage() {
                 prefs.setPerfOverlay(!overlay)
             }, MmiLine.HISTORY, Modifier.fillMaxWidth())
             message?.let { Text(it, color = MmiCyan, fontFamily = MmiFont, fontSize = 14.sp) }
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(8.dp))
             Text(
                 "Keep = the car's own software (radio, steering-wheel keys, Bluetooth, camera, CAN box). " +
                     "Unsure items stay on unless you tick them.",
