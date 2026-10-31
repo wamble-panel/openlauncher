@@ -2,10 +2,6 @@ package com.openlauncher.app.util
 
 import android.Manifest
 import android.content.Context
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -16,10 +12,6 @@ import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlin.math.abs
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
 
 data class LocationData(
     val latitude: Double,
@@ -35,18 +27,14 @@ data class LocationData(
 class LocationCompassManager(context: Context) {
 
     private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-    private val sensorManager   = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
 
     private val _location  = MutableStateFlow<LocationData?>(null)
     private val _bearing   = MutableStateFlow(0f)
     val location: StateFlow<LocationData?> = _location
     val bearing: StateFlow<Float> = _bearing
 
-    private val gravity      = FloatArray(3)
-    private val geomagnetic  = FloatArray(3)
-    // Circular low-pass filter for smooth bearing (avoids 0°/360° wrap artifacts)
-    private var bearingSin   = 0f
-    private var bearingCos   = 1f   // initial: pointing north
+    // Heading comes from GPS only: a magnetometer behind a dashboard full of metal
+    // and speakers is unreliable, and polling it all the time cost frames.
     private var lastLocationForBearing: Location? = null
     // Both GPS and Network providers are registered at once (see start()), and
     // Network fixes (cell/WiFi) can be hundreds of meters coarser than GPS —
@@ -77,36 +65,6 @@ class LocationCompassManager(context: Context) {
                 )
             }
         }
-    }
-
-    private val sensorListener = object : SensorEventListener {
-        override fun onSensorChanged(event: SensorEvent) {
-            when (event.sensor.type) {
-                Sensor.TYPE_ACCELEROMETER -> {
-                    System.arraycopy(event.values, 0, gravity, 0, 3)
-                }
-                Sensor.TYPE_MAGNETIC_FIELD -> {
-                    System.arraycopy(event.values, 0, geomagnetic, 0, 3)
-                }
-            }
-            val r = FloatArray(9)
-            val i = FloatArray(9)
-            if (SensorManager.getRotationMatrix(r, i, gravity, geomagnetic)) {
-                val orientation = FloatArray(3)
-                SensorManager.getOrientation(r, orientation)
-                val azimuthRad = orientation[0].toDouble()
-                // Circular low-pass filter — correctly handles 0°/360° wrap-around
-                val alpha = 0.20f
-                bearingSin = alpha * sin(azimuthRad).toFloat() + (1f - alpha) * bearingSin
-                bearingCos = alpha * cos(azimuthRad).toFloat() + (1f - alpha) * bearingCos
-                val b = ((Math.toDegrees(atan2(bearingSin.toDouble(), bearingCos.toDouble())) + 360) % 360).toFloat()
-                // Only whole-degree changes: the sensor fires ~16 times a second and
-                // every new value redraws whatever shows the heading.
-                val d = abs(((b - _bearing.value) % 360f + 540f) % 360f - 180f)
-                if (d >= 1f) _bearing.value = b
-            }
-        }
-        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
     }
 
     /**
@@ -177,25 +135,6 @@ class LocationCompassManager(context: Context) {
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     fun start() {
-        // Sensors — unlike the location providers below, these had no
-        // exception handling at all. Confirmed on-device: the app was
-        // crashing hard on every APK version (even previously-working ones,
-        // even fresh installs) at the exact point onboarding hands off into
-        // the home screen, which is where this runs. Whatever's actually
-        // wrong with this unit's sensor/location stack isn't something app
-        // code can fix — this just stops it from taking the whole launcher
-        // down with it.
-        try {
-            sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.let {
-                sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_UI)
-            }
-        } catch (_: Exception) {}
-        try {
-            sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)?.let {
-                sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_UI)
-            }
-        } catch (_: Exception) {}
-
         // Location — Robust offline-first registration
         // GPS Provider (Works 100% offline, sat-based)
         try {
@@ -227,7 +166,6 @@ class LocationCompassManager(context: Context) {
     }
 
     fun stop() {
-        sensorManager.unregisterListener(sensorListener)
         locationManager.removeUpdates(locationListener)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
             locationManager.unregisterGnssStatusCallback(gnssStatusCallback)

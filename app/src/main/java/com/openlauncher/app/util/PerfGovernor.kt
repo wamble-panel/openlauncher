@@ -6,12 +6,13 @@ import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Keeps MMI just under what the A133 can do: it watches every frame, and when
- * frames start arriving late it turns down the expensive extras (object
- * detection rate, map frame cap, decorative animation) before a stutter shows;
+ * frames start arriving late it lowers the map frame cap before a stutter shows;
  * when things are calm again it turns them back up. Touch, page changes, music
  * and navigation always keep priority.
  *
  * level 0 = everything on, 1 = extras reduced, 2 = extras minimal.
+ * Runs only while the map is on screen: elsewhere nothing needs it, and a frame
+ * callback on every vsync would keep waking the main thread for nothing.
  */
 object PerfGovernor {
     private val _level = MutableStateFlow(0)
@@ -58,7 +59,15 @@ object PerfGovernor {
     fun start() {
         if (started) return
         started = true
+        last = 0L; windowStart = 0L; frames = 0; late = 0
         Choreographer.getInstance().postFrameCallback(callback)
+    }
+
+    /** Stops watching (main thread); the level is kept for the next start. */
+    fun stop() {
+        if (!started) return
+        started = false
+        Choreographer.getInstance().removeFrameCallback(callback)
     }
 
     /** Map frame cap. */

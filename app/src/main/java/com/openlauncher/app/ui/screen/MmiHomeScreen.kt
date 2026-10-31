@@ -73,7 +73,6 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import com.openlauncher.app.map.PlaceSearch
 import com.openlauncher.app.model.HardwareRadioState
 import com.openlauncher.app.service.NavGuidance
 import com.openlauncher.app.map.NavigationEngine
@@ -96,13 +95,13 @@ import kotlin.math.sin
 private enum class MmiPage(val title: String?, val inSettings: Boolean = false) {
     HOME(null), DASHBOARD("Dashboard"), SETTINGS("Settings"),
     MUSIC("Music"), RADIO("Radio"), BT_HUB("Bluetooth"), PHONE("Telephone"), CONTACTS("Contacts"), APPS("Apps"),
-    NAV("Navigation"), SYSTEM("System check", true),
-    PERMISSIONS("Permissions", true), CLEANUP("Unit cleanup & speed", true), TUNER("System tuning", true), STORAGE("Storage & about", true), DISPLAY("Display", true), SOUND("Sound", true), EQ("Equaliser", true), BLUETOOTH("Bluetooth devices", true), NAV_SETTINGS("Navigation settings", true),
+    NAV("Navigation"),
+    PERMISSIONS("Permissions", true), CLEANUP("Unit cleanup & speed", true), STORAGE("Storage & about", true), DISPLAY("Display", true), SOUND("Sound", true), EQ("Equaliser", true), BLUETOOTH("Bluetooth devices", true), NAV_SETTINGS("Navigation settings", true),
 }
 
 /**
- * Audi MMI-style shell. HOME is the car-and-ring menu with a drive card that
- * becomes a live navigation card while our guidance (or Maps/Waze) is running; every other entry
+ * Audi MMI-style shell. HOME is the car-and-ring menu, with a navigation card on the
+ * right while our guidance (or Maps/Waze) is running; every other entry
  * opens an MMI-styled page inside the same frame (chrome bar, date bar), with a
  * zoom-and-fade transition between them.
  */
@@ -122,7 +121,7 @@ fun MmiHomeScreen(
     onRadioFm: () -> Unit,
     onRadioAm: () -> Unit,
     apps: List<AppInfo>,
-    // Flows, not values: GPS and compass update often, and collecting them only
+    // Flows, not values: GPS updates often, and collecting them only
     // where they're shown keeps the rest of the shell from redrawing.
     location: StateFlow<LocationData?>,
     bearing: StateFlow<Float>,
@@ -379,14 +378,15 @@ fun MmiHomeScreen(
                                 }
                             },
                         )
-                        Box(Modifier.fillMaxHeight().width(cardWidth).padding(end = 16.dp, top = 4.dp, bottom = 8.dp)) {
-                            val active = guidance
-                            if (ownNav.destination != null) {
-                                MmiRouteCard(ownNav, metric, Modifier.fillMaxSize()) { page = MmiPage.NAV }
-                            } else if (active != null) {
-                                NavCard(active, Modifier.fillMaxSize()) { context.openNavigation(active) }
-                            } else {
-                                LiveDriveCard(location, bearing, voltage, metric, Modifier.fillMaxSize())
+                        // The side card only shows while a route is running; otherwise the ring has the full width.
+                        val active = guidance
+                        if (ownNav.destination != null || active != null) {
+                            Box(Modifier.fillMaxHeight().width(cardWidth).padding(end = 16.dp, top = 4.dp, bottom = 8.dp)) {
+                                if (ownNav.destination != null) {
+                                    MmiRouteCard(ownNav, metric, Modifier.fillMaxSize()) { page = MmiPage.NAV }
+                                } else if (active != null) {
+                                    NavCard(active, Modifier.fillMaxSize()) { context.openNavigation(active) }
+                                }
                             }
                         }
                     }
@@ -402,7 +402,6 @@ fun MmiHomeScreen(
                     MmiPage.DISPLAY -> MmiDisplayPage()
                     MmiPage.PERMISSIONS -> MmiPermissionsPage()
                     MmiPage.CLEANUP -> MmiCleanupPage()
-                    MmiPage.TUNER -> MmiTunerPage()
                     MmiPage.STORAGE -> MmiStoragePage()
                     MmiPage.SOUND -> MmiSoundPage(apps, onLaunchPackage)
                     MmiPage.BLUETOOTH -> MmiBluetoothPage(apps, onLaunchPackage, startPairing = pairOnOpen)
@@ -423,7 +422,6 @@ fun MmiHomeScreen(
                             else -> MmiPage.HOME
                         }
                     }
-                    MmiPage.SYSTEM -> MmiSystemCheckPage(apps, location.collectAsStateWithLifecycle().value)
                     MmiPage.EQ -> MmiEqualiserPage()
                     MmiPage.MUSIC -> MmiMusicPage(
                         state = nowPlaying,
@@ -459,7 +457,6 @@ fun MmiHomeScreen(
         ClimatePopup(Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp))
         DoorBanner(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
         HomeAppPrompt()
-        PerfReadout(Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 6.dp))
     }
 }
 
@@ -504,45 +501,6 @@ private fun HomeAppPrompt() {
     }
 }
 
-/**
- * Performance readout (Settings > Unit cleanup & speed): frames per second, share of
- * slow frames (>33 ms) and free memory, so tuning uses real numbers from the unit.
- * Only runs while switched on — measuring keeps the screen drawing every frame.
- */
-@Composable
-private fun PerfReadout(modifier: Modifier) {
-    val context = LocalContext.current
-    val on by CarPrefs.get(context).perfOverlay.collectAsStateWithLifecycle()
-    if (!on) return
-    var text by remember { mutableStateOf("…") }
-    LaunchedEffect(Unit) {
-        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-        var last = 0L
-        var frames = 0
-        var slow = 0
-        var windowStart = 0L
-        while (true) {
-            withFrameNanos { t ->
-                if (last != 0L) {
-                    frames++
-                    if (t - last > 33_000_000L) slow++
-                }
-                last = t
-                if (windowStart == 0L) windowStart = t
-                if (t - windowStart >= 2_000_000_000L) {
-                    val secs = (t - windowStart) / 1e9
-                    val mem = android.app.ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
-                    text = "%.0f fps · %d%% slow · %d MB free".format(frames / secs, if (frames > 0) slow * 100 / frames else 0, mem.availMem shr 20)
-                    frames = 0; slow = 0; windowStart = t
-                }
-            }
-        }
-    }
-    Text(
-        text, color = Color(0xFF4CD964), fontFamily = MmiFont, fontSize = 12.sp,
-        modifier = modifier.background(Color(0xC0000000)).padding(horizontal = 8.dp, vertical = 3.dp),
-    )
-}
 
 /** Pothole / speed bump warning from road memory, shown over every page. */
 @Composable
@@ -851,21 +809,12 @@ private fun DateBar(height: Dp) {
 
 /**
  * Light trails under the car, like the MMI start screen: cyan streaks run along the
- * floor from under the car back past its tail, with bright pulses flowing backwards
- * as if it were driving. Only this small canvas redraws for the animation.
+ * floor from under the car back past its tail.
  */
 @Composable
 private fun DriveTrails(carX: Dp, carY: Dp, carW: Dp, carH: Dp, intro: Float) {
-    // Pulses flow only while driving; parked, the trails stand still so the home screen isn't redrawn every frame.
-    val context = LocalContext.current
-    val perfLevel by com.openlauncher.app.util.PerfGovernor.level.collectAsStateWithLifecycle()
-    // Decorative: pauses whenever the chip needs its time for something that matters.
-    val moving = perfLevel == 0 &&
-        (com.openlauncher.app.util.CarLocation.get(context).location.collectAsStateWithLifecycle().value?.speedMps ?: 0f) > 0f
-    val phase = if (moving) {
-        val flow = rememberInfiniteTransition(label = "trails")
-        flow.animateFloat(0f, 1f, infiniteRepeatable(tween(2400, easing = androidx.compose.animation.core.LinearEasing)), label = "trail_phase").value
-    } else 0.35f
+    // Drawn once and left still: an animated pulse redrew the home screen every frame while driving.
+    val phase = 0.35f
     Canvas(Modifier.fillMaxSize()) {
         if (intro <= 0.01f) return@Canvas
         val cw = carW.toPx()
@@ -1173,126 +1122,11 @@ private fun NavCard(guidance: NavGuidance, modifier: Modifier, onClick: () -> Un
 }
 
 @Composable
-private fun LiveDriveCard(
-    location: StateFlow<LocationData?>, bearing: StateFlow<Float>, voltage: StateFlow<Float?>, metric: Boolean, modifier: Modifier,
-) {
-    val loc by location.collectAsStateWithLifecycle()
-    val heading by bearing.collectAsStateWithLifecycle()
-    val volts by voltage.collectAsStateWithLifecycle()
-    DriveCard(loc, heading, volts, metric, modifier)
-}
-
-@Composable
 private fun LiveDashboard(location: StateFlow<LocationData?>, bearing: StateFlow<Float>, voltage: StateFlow<Float?>, metric: Boolean) {
     val loc by location.collectAsStateWithLifecycle()
     val heading by bearing.collectAsStateWithLifecycle()
     val volts by voltage.collectAsStateWithLifecycle()
     MmiDashboardPage(loc, heading, volts, metric)
-}
-
-@Composable
-private fun DriveCard(location: LocationData?, bearing: Float, voltage: Float?, metric: Boolean, modifier: Modifier) {
-    val context = LocalContext.current
-    val speed = (location?.speedMps ?: 0f) * if (metric) 3.6f else 2.237f
-    val heading = remember(bearing) { compassPoint(bearing) }
-    // Area name from the offline map index, refreshed every ~500 m.
-    val search = remember(context) { PlaceSearch(MapData.search(context)) }
-    var area by remember { mutableStateOf<String?>(null) }
-    val cellLat = location?.let { (it.latitude * 200).roundToInt() }
-    val cellLon = location?.let { (it.longitude * 200).roundToInt() }
-    LaunchedEffect(cellLat, cellLon) {
-        val loc = location ?: return@LaunchedEffect
-        if (!MapData.isInstalled(context)) return@LaunchedEffect
-        area = search.nearby(AREA_KINDS, loc.latitude, loc.longitude, 4.0).firstOrNull()?.title ?: area
-    }
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Box(Modifier.fillMaxWidth().weight(1f).mmiPanel().padding(12.dp)) {
-            Row(Modifier.align(Alignment.TopStart)) {
-                Text(speed.roundToInt().toString(), color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 54.sp)
-                Text(if (metric) "km/h" else "mph", color = MmiInk, fontFamily = MmiFont, fontSize = 14.sp, modifier = Modifier.padding(top = 10.dp, start = 2.dp))
-            }
-            Text(
-                heading, color = MmiInk, fontFamily = MmiFont, fontSize = 18.sp,
-                modifier = Modifier.align(Alignment.TopEnd).padding(top = 10.dp),
-            )
-            CompassRose(bearing, Modifier.align(Alignment.Center).padding(top = 28.dp).fillMaxWidth(0.5f).aspectRatio(1f))
-            Text(
-                if (location == null) "Waiting for GPS" else if (speed < 3f) "Parked" else "Heading ${compassWord(bearing)}",
-                color = MmiDim, fontFamily = MmiFont, fontSize = 17.sp,
-                modifier = Modifier.align(Alignment.BottomCenter),
-            )
-        }
-        DriveRow(MmiLine.MOUNTAIN, location?.let { "${(if (metric) it.altitude else it.altitude * 3.281).roundToInt()} ${if (metric) "m" else "ft"}" } ?: "--")
-        DriveRow(MmiLine.LOCATE, location?.satellitesUsed?.takeIf { it >= 0 }?.let { "$it satellites" } ?: if (location != null) "GPS fix" else "Searching")
-        // The car's own battery voltage and range when MMI Car Core reads them.
-        val car = com.openlauncher.app.util.CarCore.data.collectAsStateWithLifecycle().value
-        DriveRow(MmiLine.BATTERY, (car.voltage ?: voltage)?.let { "%.1f V".format(it) } ?: "--")
-        car.rangeKm?.let { DriveRow(MmiLine.FUEL, "$it km range") }
-        // Outside temperature from the car (TS10 climate service).
-        val outdoor = com.openlauncher.app.util.Climate.state.collectAsStateWithLifecycle().value.outdoor
-        if (outdoor != null) DriveRow(MmiLine.GLOBE, "%.0f° outside".format(outdoor))
-        Text(
-            area ?: "",
-            color = MmiInk, fontFamily = MmiFont, fontSize = 19.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        )
-    }
-}
-
-private val AREA_KINDS = listOf("neighbourhood", "suburb", "quarter", "village", "town", "city")
-
-private fun compassPoint(bearing: Float): String =
-    listOf("N", "NE", "E", "SE", "S", "SW", "W", "NW")[(((bearing % 360f) + 360f) % 360f / 45f + 0.5f).toInt() % 8]
-
-private fun compassWord(bearing: Float): String =
-    listOf("north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west")[(((bearing % 360f) + 360f) % 360f / 45f + 0.5f).toInt() % 8]
-
-/** Chrome compass: the rose turns so its red needle always points north. */
-@Composable
-private fun CompassRose(bearing: Float, modifier: Modifier) {
-    val turn by androidx.compose.animation.core.animateFloatAsState(-bearing, tween(400), label = "rose")
-    Canvas(modifier) {
-        val r = size.minDimension / 2f
-        val c = center
-        drawCircle(Brush.radialGradient(listOf(Color(0xFF1B1E23), Color(0xFF0A0B0D)), c, r), r)
-        drawCircle(Brush.linearGradient(listOf(Color(0xFFF2F4F7), Color(0xFF4F555D), Color(0xFFDDE1E6)), Offset(c.x - r, c.y - r), Offset(c.x + r, c.y + r)), r, style = Stroke(2.dp.toPx()))
-        rotate(turn, c) {
-            for (i in 0 until 36) {
-                val a = Math.toRadians(i * 10.0)
-                val outer = r * 0.9f
-                val inner = if (i % 9 == 0) r * 0.74f else r * 0.82f
-                drawLine(
-                    Color(0x99B8BEC6),
-                    Offset(c.x + inner * sin(a).toFloat(), c.y - inner * cos(a).toFloat()),
-                    Offset(c.x + outer * sin(a).toFloat(), c.y - outer * cos(a).toFloat()),
-                    if (i % 9 == 0) 2.dp.toPx() else 1.dp.toPx(),
-                )
-            }
-            val north = Path().apply {
-                moveTo(c.x, c.y - r * 0.66f); lineTo(c.x + r * 0.12f, c.y); lineTo(c.x - r * 0.12f, c.y); close()
-            }
-            val south = Path().apply {
-                moveTo(c.x, c.y + r * 0.66f); lineTo(c.x + r * 0.12f, c.y); lineTo(c.x - r * 0.12f, c.y); close()
-            }
-            drawPath(north, Brush.verticalGradient(listOf(Color(0xFFFF5A4E), Color(0xFFB0261C)), c.y - r * 0.66f, c.y))
-            drawPath(south, Brush.verticalGradient(listOf(Color(0xFFE9ECEF), Color(0xFF7D838B)), c.y, c.y + r * 0.66f))
-        }
-        drawCircle(Brush.radialGradient(listOf(Color.White, Color(0xFF8C939C)), c, r * 0.06f), r * 0.06f, c)
-    }
-}
-
-@Composable
-private fun DriveRow(icon: MmiLine, value: String) {
-    Row(
-        Modifier.fillMaxWidth().height(40.dp).mmiPanel().padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        MmiLineIcon(icon, MmiInk, Modifier.size(22.dp))
-        Spacer(Modifier.width(18.dp))
-        Text(value, color = MmiInk, fontFamily = MmiFont, fontSize = 16.sp)
-    }
 }
 
 // ── Settings page ────────────────────────────────────────────────────────────
@@ -1355,7 +1189,6 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
             }
         }
     }
-    val perfOverlay by CarPrefs.get(context).perfOverlay.collectAsStateWithLifecycle()
     var silentUpdates by remember { mutableStateOf(updater.isDeviceOwner(context)) }
     var mmiCallBar by remember { mutableStateOf(runCatching { com.openlauncher.app.util.TwBridge.mmiCallBar() }.getOrDefault(true)) }
     var mmiClimatePopup by remember { mutableStateOf(runCatching { com.openlauncher.app.util.Climate.replaceVendorPopup() }.getOrDefault(true)) }
@@ -1425,12 +1258,7 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
         "Permissions" to { onOpen(MmiPage.PERMISSIONS) },
         "Date & time" to { context.launchFirst(Intent(Settings.ACTION_DATE_SETTINGS)); Unit },
         "Unit cleanup & speed" to { onOpen(MmiPage.CLEANUP) },
-        (if (perfOverlay) "Performance readout: on" else "Performance readout: off") to {
-            CarPrefs.get(context).setPerfOverlay(!perfOverlay)
-        },
-        "System tuning" to { onOpen(MmiPage.TUNER) },
         "Storage & about" to { onOpen(MmiPage.STORAGE) },
-        "System check" to { onOpen(MmiPage.SYSTEM) },
         "Android settings" to openSystem,
     )
     BoxWithConstraints(Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, bottom = 8.dp)) {

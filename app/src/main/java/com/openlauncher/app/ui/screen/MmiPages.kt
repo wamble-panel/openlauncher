@@ -286,13 +286,7 @@ private fun rememberCover(state: NowPlayingState?): ImageBitmap? {
     }
     val bitmap = state?.albumArt
     val fromMetadata = remember(bitmap) { bitmap?.asImageBitmap() }
-    // Bluetooth music on this unit carries no picture: look the cover up by artist and title.
-    val needLookup = uri == null && bitmap == null && state != null && state.controller == null
-    val looked by produceState<ImageBitmap?>(null, needLookup, state?.artist, state?.title) {
-        value = if (!needLookup) null
-        else com.openlauncher.app.util.CoverLookup.cover(context, state!!.artist, state.title)?.asImageBitmap()
-    }
-    return fromUri ?: fromMetadata ?: looked
+    return fromUri ?: fromMetadata
 }
 
 @Composable

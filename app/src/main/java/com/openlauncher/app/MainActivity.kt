@@ -160,7 +160,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        com.openlauncher.app.util.PerfGovernor.start()
         CarLocation.acquire(this, HOLDER)
     }
 

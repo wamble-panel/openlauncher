@@ -368,8 +368,8 @@ private fun NavMap(
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> mapView.onStart()
-                Lifecycle.Event.ON_RESUME -> mapView.onResume()
-                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                Lifecycle.Event.ON_RESUME -> { mapView.onResume(); com.openlauncher.app.util.PerfGovernor.start() }
+                Lifecycle.Event.ON_PAUSE -> { com.openlauncher.app.util.PerfGovernor.stop(); mapView.onPause() }
                 Lifecycle.Event.ON_STOP -> mapView.onStop()
                 else -> Unit
             }
@@ -377,6 +377,7 @@ private fun NavMap(
         lifecycle.addObserver(observer)
         onDispose {
             lifecycle.removeObserver(observer)
+            com.openlauncher.app.util.PerfGovernor.stop()
             // Paused, not destroyed: style and tiles stay loaded for the next visit.
             mapView.onPause()
             mapView.onStop()

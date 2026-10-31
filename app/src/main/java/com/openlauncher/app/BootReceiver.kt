@@ -15,12 +15,6 @@ import android.content.Intent
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
-        // Root tweaks live only in memory; re-apply the switched-on ones after every start.
-        val pending = goAsync()
-        Thread {
-            runCatching { kotlinx.coroutines.runBlocking { com.openlauncher.app.util.SystemTuner.applyEnabled(context) } }
-            pending.finish()
-        }.start()
         runCatching {
             context.startActivity(
                 Intent(context, MainActivity::class.java)
