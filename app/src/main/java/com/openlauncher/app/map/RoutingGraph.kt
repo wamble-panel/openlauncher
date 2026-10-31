@@ -106,6 +106,28 @@ class RoutingGraph private constructor(private val buf: ByteBuffer) {
         return lat to lon
     }
 
+    /** Every road segment with a point within [radiusM] of a position (each once). */
+    fun forEachSegmentNear(lat: Double, lon: Double, radiusM: Double, block: (Int) -> Unit) {
+        val latE6 = (lat * 1e6).toInt()
+        val lonE6 = (lon * 1e6).toInt()
+        val dLat = (radiusM / 111_320.0 * 1e6).toInt()
+        val dLon = (radiusM / (111_320.0 * cos(Math.toRadians(lat))) * 1e6).toInt()
+        val r0 = (latE6 - dLat - gridMinLat) / gridCell
+        val r1 = (latE6 + dLat - gridMinLat) / gridCell
+        val c0 = (lonE6 - dLon - gridMinLon) / gridCell
+        val c1 = (lonE6 + dLon - gridMinLon) / gridCell
+        val seen = HashSet<Int>()
+        for (row in r0..r1) for (col in c0..c1) {
+            if (col < 0 || col >= gridCols) continue
+            val k = binarySearch(gridKeys, gridKeyCount, row * gridCols + col)
+            if (k < 0) continue
+            for (i in gridOff.get(k) until gridOff.get(k + 1)) {
+                val u = gridEntries.get(i)
+                if (seen.add(u)) block(u)
+            }
+        }
+    }
+
     /**
      * Nearest road to a position. With a heading (degrees), roads pointing the
      * other way get a penalty so a fix on a dual carriageway picks your side.

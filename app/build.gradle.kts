@@ -88,7 +88,6 @@ dependencies {
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 
     // Offline vector maps (MMI navigation)
-    implementation("org.maplibre.gl:android-sdk:11.5.2")
 
 
     // Coroutines

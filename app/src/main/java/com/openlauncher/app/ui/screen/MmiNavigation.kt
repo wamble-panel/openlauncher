@@ -66,25 +66,9 @@ import com.openlauncher.app.map.formatDistance
 import com.openlauncher.app.util.LocationData
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import org.maplibre.android.MapLibre
-import org.maplibre.android.camera.CameraPosition
-import org.maplibre.android.camera.CameraUpdateFactory
-import org.maplibre.android.geometry.LatLng
-import org.maplibre.android.maps.MapLibreMap
-import org.maplibre.android.maps.MapLibreMapOptions
-import org.maplibre.android.maps.MapView
-import org.maplibre.android.maps.Style
-import org.maplibre.android.style.layers.Property
-import org.maplibre.android.style.layers.PropertyFactory
-import org.maplibre.android.style.layers.SymbolLayer
-import org.maplibre.android.style.layers.CircleLayer
 import com.openlauncher.app.map.HazardType
 import com.openlauncher.app.map.RoadMemory
-import org.maplibre.android.style.sources.GeoJsonSource
-import org.maplibre.geojson.Feature
-import org.maplibre.geojson.FeatureCollection
-import org.maplibre.geojson.LineString
-import org.maplibre.geojson.Point
+import com.openlauncher.app.map.RetroMapView
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -92,6 +76,9 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 private enum class NavScreen { MAP, DESTINATION, SEARCH, POI, LIST, DETAILS, IMPORT }
+
+/** A position on the map. */
+internal data class LatLng(val latitude: Double, val longitude: Double)
 
 private val CAIRO = LatLng(30.0444, 31.2357)
 private val RouteGreen = Color(0xFF4CD964)
@@ -110,99 +97,7 @@ private val POI_CATEGORIES = listOf(
 )
 
 /**
- * One map for the whole session. Creating MapLibre and loading the style and
- * tiles is the slow part, so the view is kept (paused) when you leave
- * Navigation and is back instantly next time.
- */
-internal object PersistentMap {
-    private var view: MapView? = null
-    var map: MapLibreMap? = null
-        private set
-    var style by mutableStateOf<Style?>(null)
-        private set
-    /** True once the first frame with the style is on screen. */
-    var ready by mutableStateOf(false)
-        private set
-    var onUserGesture: (() -> Unit)? = null
-    /** Bumped by [destroy] so the screen builds a fresh map. */
-    var generation by mutableIntStateOf(0)
-        private set
-
-    fun obtain(context: android.content.Context): MapView {
-        view?.let { return it }
-        MapLibre.getInstance(context.applicationContext)
-        // SurfaceView rendering (faster than TextureView on Mali/PowerVR head units), capped
-        // at 30 fps so the map leaves CPU for audio, GPS and the rest of the UI.
-        val v = MapView(context, MapLibreMapOptions.createFromAttributes(context, null).textureMode(false).crossSourceCollisions(false)).apply {
-            onCreate(null)
-            setMaximumFps(30)
-        }
-        view = v
-        v.addOnDidFinishRenderingMapListener { if (style != null) ready = true }
-        v.getMapAsync { m ->
-            map = m
-            m.uiSettings.isLogoEnabled = false
-            m.uiSettings.isAttributionEnabled = false
-            m.uiSettings.isCompassEnabled = false
-            // Fewer lower-zoom parent tiles loaded ahead: less work while panning on a weak GPU.
-            m.prefetchZoomDelta = 2
-            m.cameraPosition = CameraPosition.Builder().target(CAIRO).zoom(11.0).build()
-            m.addOnCameraMoveStartedListener { reason ->
-                if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) onUserGesture?.invoke()
-            }
-            val json = context.assets.open("map/mmi-style.json").bufferedReader().use { it.readText() }
-                .replace("{{TILES}}", "mbtiles://" + MapData.tiles(context).absolutePath)
-            m.setStyle(Style.Builder().fromJson(json)) { s ->
-                s.addImage("vehicle", vehicleBitmap(context.resources.displayMetrics.density))
-                // Road memory: confirmed potholes (orange) and speed bumps (amber).
-                s.addSource(GeoJsonSource("hazards"))
-                s.addLayer(
-                    CircleLayer("hazards", "hazards").withProperties(
-                        PropertyFactory.circleRadius(5f),
-                        PropertyFactory.circleColor(
-                            org.maplibre.android.style.expressions.Expression.match(
-                                org.maplibre.android.style.expressions.Expression.get("kind"),
-                                org.maplibre.android.style.expressions.Expression.literal("bump"),
-                                org.maplibre.android.style.expressions.Expression.color(android.graphics.Color.parseColor("#FFC93C")),
-                                org.maplibre.android.style.expressions.Expression.color(android.graphics.Color.parseColor("#FF7A2E")),
-                            )
-                        ),
-                        PropertyFactory.circleStrokeColor("#000000"),
-                        PropertyFactory.circleStrokeWidth(1.5f),
-                    )
-                )
-                s.addSource(GeoJsonSource("vehicle"))
-                s.addLayer(
-                    SymbolLayer("vehicle", "vehicle").withProperties(
-                        PropertyFactory.iconImage("vehicle"),
-                        PropertyFactory.iconAllowOverlap(true),
-                        PropertyFactory.iconIgnorePlacement(true),
-                        PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
-                        PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_MAP),
-                    )
-                )
-                style = s
-                // Reveal even if the renderer never reports idle (slow tiles).
-                v.postDelayed({ ready = true }, 1500)
-            }
-        }
-        return v
-    }
-
-    /** Drops the map (new map files imported, or the activity is going away). */
-    fun destroy() {
-        runCatching { view?.onDestroy() }
-        view = null
-        map = null
-        style = null
-        ready = false
-        onUserGesture = null
-        generation++
-    }
-}
-
-/**
- * MMI navigation: offline Egypt vector map (black and white, route in green),
+ * MMI navigation: fast flat offline map (roads and route, drawn by OpenGL),
  * Select destination grid, intelligent search with an on-screen EN/AR keyboard,
  * points of interest, favourites and recent destinations.
  */
@@ -219,6 +114,9 @@ internal fun MmiNavigationPage(location: LocationData?, metric: Boolean, onOpenP
     var listItems by remember { mutableStateOf<List<Place>>(emptyList()) }
     var listReturn by remember { mutableStateOf(NavScreen.DESTINATION) }
     val scope = rememberCoroutineScope()
+    var mapGeneration by remember { mutableIntStateOf(0) }
+    // The old map-tile file is no longer used (the map is drawn from the roads): free its space.
+    LaunchedEffect(Unit) { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { MapData.tiles(context).delete() } } }
 
     BackHandler(enabled = screen != NavScreen.MAP && (screen != NavScreen.IMPORT || installed)) {
         screen = when (screen) {
@@ -243,7 +141,7 @@ internal fun MmiNavigationPage(location: LocationData?, metric: Boolean, onOpenP
     }
 
     Box(Modifier.fillMaxSize()) {
-        if (installed) key(PersistentMap.generation) {
+        if (installed) key(mapGeneration) {
             NavMap(
                 here = here,
                 nav = nav,
@@ -266,7 +164,7 @@ internal fun MmiNavigationPage(location: LocationData?, metric: Boolean, onOpenP
                     onBack = if (installed) ({ screen = NavScreen.DESTINATION }) else null,
                 ) {
                     installed = true
-                    PersistentMap.destroy()
+                    mapGeneration++
                     NavigationEngine.reloadData()
                     screen = NavScreen.MAP
                 }
@@ -341,7 +239,6 @@ private fun NavMap(
     onEnd: () -> Unit,
 ) {
     val context = LocalContext.current
-    val holder = PersistentMap
     // North-up or heading-up is remembered across visits and restarts.
     val navPrefs = remember { context.getSharedPreferences("mmi_nav", android.content.Context.MODE_PRIVATE) }
     var northUp by remember { mutableStateOf(navPrefs.getBoolean("north_up", false)) }
@@ -351,7 +248,6 @@ private fun NavMap(
     val course = nav.course
     val destination = nav.destination
     val route = nav.route
-    val density = context.resources.displayMetrics.density
 
     LaunchedEffect(toast) {
         if (toast != null) {
@@ -360,174 +256,54 @@ private fun NavMap(
         }
     }
 
-    val mapView = remember { holder.obtain(context) }
-    holder.onUserGesture = { following = false }
+    // The map: flat roads drawn by OpenGL on its own thread (see RetroMapView).
+    val map = remember { RetroMapView(context) }
+    map.onPan = { following = false }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    DisposableEffect(lifecycle, mapView) {
-        // Adding the observer replays ON_START/ON_RESUME, so the map wakes up at once.
+    DisposableEffect(lifecycle, map) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> mapView.onStart()
-                Lifecycle.Event.ON_RESUME -> { mapView.onResume(); com.openlauncher.app.util.PerfGovernor.start() }
-                Lifecycle.Event.ON_PAUSE -> { com.openlauncher.app.util.PerfGovernor.stop(); mapView.onPause() }
-                Lifecycle.Event.ON_STOP -> mapView.onStop()
+                Lifecycle.Event.ON_RESUME -> map.onResume()
+                Lifecycle.Event.ON_PAUSE -> map.onPause()
                 else -> Unit
             }
         }
         lifecycle.addObserver(observer)
         onDispose {
             lifecycle.removeObserver(observer)
-            com.openlauncher.app.util.PerfGovernor.stop()
-            // Paused, not destroyed: style and tiles stay loaded for the next visit.
-            mapView.onPause()
-            mapView.onStop()
+            map.onPause()
         }
     }
 
-    // ── Smooth follow ────────────────────────────────────────────────────────
-    // On every GPS fix the map engine itself glides the camera, in a straight line,
-    // to where the car will be when the next fix arrives (predicted from speed and
-    // heading). The motion never pauses between fixes, and the UI does no
-    // per-frame work: the A133's CPU is left to the map.
+    // Closer in town, further out at speed; the zoom buttons step from there.
     val zoomBand = when {
         nav.speedKmh > 90f -> 0
         nav.speedKmh > 50f -> 1
         else -> 2
     }
     var zoomOffset by remember { mutableFloatStateOf(0f) }
-    val shown = remember { doubleArrayOf(Double.NaN, Double.NaN, 0.0) } // camera target lat, lon, bearing
-    var lastFixAt by remember { mutableLongStateOf(0L) }
-    fun cameraTo(lat: Double, lon: Double, bearing: Double) = CameraUpdateFactory.newCameraPosition(
-        CameraPosition.Builder().target(LatLng(lat, lon))
-            .zoom((15f + zoomBand * 0.5f + zoomOffset).coerceIn(10f, 19f).toDouble()).tilt(0.0)
-            .bearing(if (northUp) 0.0 else (bearing % 360.0 + 360.0) % 360.0).build()
-    )
-    fun turn(a: Double, b: Double) = ((a - b) % 360.0 + 540.0) % 360.0 - 180.0
-
+    LaunchedEffect(zoomBand, zoomOffset) {
+        map.spanMeters = listOf(1600.0, 1100.0, 750.0)[zoomBand] * Math.pow(1.6, -zoomOffset.toDouble())
+        map.wake()
+    }
+    LaunchedEffect(following, northUp) {
+        map.northUp = northUp
+        if (following) map.recenter() else map.following = false
+    }
     // Starting guidance always brings the camera back onto the car.
     LaunchedEffect(route != null, destination) { if (route != null) following = true }
-
-    LaunchedEffect(holder.style, following) {
-        (holder.style?.getLayer("vehicle") as? SymbolLayer)?.setProperties(
-            PropertyFactory.visibility(if (following) Property.NONE else Property.VISIBLE)
-        )
-    }
-
-    // Re-centre, zoom buttons, speed-based zoom and north-up: one short glide.
-    LaunchedEffect(holder.style, following, zoomBand, zoomOffset, northUp) {
-        val map = holder.map ?: return@LaunchedEffect
+    LaunchedEffect(here, course, nav.speedKmh) {
         val pos = here ?: return@LaunchedEffect
-        if (!following || holder.style == null) return@LaunchedEffect
-        val bearing = if (shown[0].isNaN()) course.toDouble() else shown[2]
-        shown[0] = pos.latitude; shown[1] = pos.longitude; shown[2] = bearing
-        map.easeCamera(cameraTo(pos.latitude, pos.longitude, bearing), 450, true)
+        map.setFix(pos.latitude, pos.longitude, nav.speedKmh / 3.6, course)
     }
-
-    LaunchedEffect(holder.style, here, course) {
-        val map = holder.map ?: return@LaunchedEffect
-        val pos = here ?: return@LaunchedEffect
-        if (!following || holder.style == null) return@LaunchedEffect
-        // Parked: GPS jitter of a metre or two would otherwise keep the map redrawing non-stop.
-        if (!shown[0].isNaN() && distanceMeters(shown[0], shown[1], pos.latitude, pos.longitude) < 3.0 &&
-            abs(turn(course.toDouble(), shown[2])) < 3.0) return@LaunchedEffect
-        val now = System.currentTimeMillis()
-        val gap = if (lastFixAt == 0L) 1000L else (now - lastFixAt).coerceIn(300L, 1500L)
-        lastFixAt = now
-        // Where the car will be when the next fix arrives.
-        val speed = nav.speedKmh / 3.6
-        // GPS fixes arrive ~0.5 s after the moment they describe: aim that much further
-        // ahead too, so the arrow sits where the car is now, not where it was.
-        val ahead = if (speed > 2.0) speed * (gap + FIX_LATENCY_MS) / 1000.0 else 0.0
-        val rad = Math.toRadians(course.toDouble())
-        val lat = pos.latitude + ahead * cos(rad) / 111_320.0
-        val lon = pos.longitude + ahead * sin(rad) / (111_320.0 * cos(Math.toRadians(pos.latitude)))
-        // Small heading wobbles don't rotate the map: every rotation re-places all labels.
-        val bearing = if (!shown[0].isNaN() && abs(turn(course.toDouble(), shown[2])) < 4.0) shown[2] else course.toDouble()
-        shown[0] = lat; shown[1] = lon; shown[2] = bearing
-        map.easeCamera(cameraTo(lat, lon, bearing), gap.toInt() + 60, false)
-    }
-
-    // Map frame cap follows the performance governor (30, or 24 when the chip is busy).
-    val perfLevel by com.openlauncher.app.util.PerfGovernor.level.collectAsStateWithLifecycle()
-    LaunchedEffect(perfLevel) { runCatching { mapView.setMaximumFps(com.openlauncher.app.util.PerfGovernor.mapMaxFps) } }
-
-    // Driving: drop what nobody reads at speed (buildings, land use, shop dots,
-    // service roads), so the weak GPU keeps up. Parked or browsing shows everything.
-    var driving by remember { mutableStateOf(false) }
-    LaunchedEffect(nav.speedKmh) {
-        if (nav.speedKmh > 18f) driving = true else if (nav.speedKmh < 8f) driving = false
-    }
-    LaunchedEffect(holder.style, driving, following) {
-        val style = holder.style ?: return@LaunchedEffect
-        val light = driving && following
-        listOf("building", "landcover", "landuse", "poi-dot", "poi-label", "road-service", "rail").forEach { id ->
-            style.getLayer(id)?.setProperties(PropertyFactory.visibility(if (light) Property.NONE else Property.VISIBLE))
-        }
-    }
-
-    // When the driver pans away, the arrow is a map symbol updated per fix.
-    LaunchedEffect(holder.style, here, course, following) {
-        if (following) return@LaunchedEffect
-        val style = holder.style ?: return@LaunchedEffect
-        val pos = here ?: return@LaunchedEffect
-        style.getSourceAs<GeoJsonSource>("vehicle")?.setGeoJson(Point.fromLngLat(pos.longitude, pos.latitude))
-        (style.getLayer("vehicle") as? SymbolLayer)?.setProperties(PropertyFactory.iconRotate(course))
-    }
-
-    // Road memory dots, refreshed only when the confirmed set changes.
-    val hazardVersion by RoadMemory.version.collectAsStateWithLifecycle()
-    LaunchedEffect(holder.style, hazardVersion) {
-        val style = holder.style ?: return@LaunchedEffect
-        val features = RoadMemory.confirmedSpots().map { (lat, lon, bump) ->
-            Feature.fromGeometry(Point.fromLngLat(lon, lat)).also { it.addStringProperty("kind", if (bump) "bump" else "pothole") }
-        }
-        style.getSourceAs<GeoJsonSource>("hazards")?.setGeoJson(FeatureCollection.fromFeatures(features))
-    }
-
     // Road route from the offline router; a direct line when there is none yet.
     val directFrom = if (route == null) here else null
-    LaunchedEffect(holder.style, route, destination, directFrom) {
-        val style = holder.style ?: return@LaunchedEffect
-        val destSource = style.getSourceAs<GeoJsonSource>("destination")
-        val routeSource = style.getSourceAs<GeoJsonSource>("route")
-        val dest = destination
-        if (dest == null) {
-            destSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
-            routeSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
-            return@LaunchedEffect
-        }
-        destSource?.setGeoJson(Point.fromLngLat(dest.lon, dest.lat))
-        val points = when {
-            route != null -> List(route.lat.size) { Point.fromLngLat(route.lon[it], route.lat[it]) }
-            directFrom != null -> listOf(Point.fromLngLat(directFrom.longitude, directFrom.latitude), Point.fromLngLat(dest.lon, dest.lat))
-            else -> null
-        }
-        if (points != null && points.size >= 2) routeSource?.setGeoJson(Feature.fromGeometry(LineString.fromLngLats(points)))
-        else routeSource?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
-    }
-
-    // Fade the map in once its first frame is drawn, instead of showing tiles popping in.
-    val reveal by animateFloatAsState(if (holder.ready) 0f else 1f, tween(450), label = "map_reveal")
-    val vehicle = remember(density) { vehicleBitmap(density).asImageBitmap() }
-    // North-up: the arrow turns smoothly between GPS headings (shortest way round).
-    val arrowTurn = remember { Animatable(course) }
-    LaunchedEffect(course) {
-        val target = arrowTurn.value + (((course - arrowTurn.value) % 360f + 540f) % 360f - 180f)
-        arrowTurn.animateTo(target, tween(400, easing = LinearEasing))
+    LaunchedEffect(route, destination, directFrom) {
+        map.setRoute(route, destination, directFrom?.let { doubleArrayOf(it.latitude, it.longitude) })
     }
 
     Box(Modifier.fillMaxSize()) {
-        AndroidView(
-            factory = { (mapView.parent as? android.view.ViewGroup)?.removeView(mapView); mapView },
-            modifier = Modifier.fillMaxSize(),
-        )
-        if (following && here != null) {
-            Image(
-                vehicle, contentDescription = null,
-                modifier = Modifier.align(Alignment.Center).size(48.dp).graphicsLayer { rotationZ = if (northUp) arrowTurn.value else 0f },
-            )
-        }
-        if (reveal > 0f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = reveal }.background(MmiPageBg))
+        AndroidView(factory = { map }, modifier = Modifier.fillMaxSize())
 
         // Left rail, as in the Audi MMI: quick jumps without leaving the map.
         NavRail(Modifier.align(Alignment.CenterStart), onOpenPage)
@@ -613,14 +389,8 @@ private fun NavMap(
                 }
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.End) {
-                ChromeButton(MmiLine.PLUS, 40.dp, {
-                    if (following) zoomOffset = (zoomOffset + 1f).coerceAtMost(3f)
-                    else holder.map?.animateCamera(CameraUpdateFactory.zoomIn(), 250)
-                })
-                ChromeButton(MmiLine.MINUS, 40.dp, {
-                    if (following) zoomOffset = (zoomOffset - 1f).coerceAtLeast(-4f)
-                    else holder.map?.animateCamera(CameraUpdateFactory.zoomOut(), 250)
-                })
+                ChromeButton(MmiLine.PLUS, 40.dp, { zoomOffset = (zoomOffset + 1f).coerceAtMost(3f) })
+                ChromeButton(MmiLine.MINUS, 40.dp, { zoomOffset = (zoomOffset - 1f).coerceAtLeast(-4f) })
                 ChromeButton(MmiLine.LOCATE, 40.dp, { following = true }, highlighted = !following)
                 ChromeButton(MmiLine.MENU, 40.dp, { markMenu = !markMenu }, highlighted = markMenu)
             }
@@ -851,36 +621,6 @@ private fun bearingDegrees(from: LatLng, to: LatLng): Float {
     val y = sin(dLon) * cos(lat2)
     val x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
     return ((Math.toDegrees(atan2(y, x)) + 360.0) % 360.0).toFloat()
-}
-
-/** White ring with an upward arrow, like the MMI vehicle position marker. */
-private fun vehicleBitmap(density: Float): Bitmap {
-    val size = (48 * density).roundToInt()
-    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-    val c = AndroidCanvas(bmp)
-    val p = Paint(Paint.ANTI_ALIAS_FLAG)
-    val r = size / 2f
-    // Soft cyan glow, dark disc, cyan ring, white arrow — the MMI position marker.
-    p.shader = android.graphics.RadialGradient(r, r, r, intArrayOf(0x553EC6F0, 0x003EC6F0), null, android.graphics.Shader.TileMode.CLAMP)
-    c.drawCircle(r, r, r, p)
-    p.shader = null
-    p.color = 0xE005080D.toInt()
-    c.drawCircle(r, r, r * 0.66f, p)
-    p.style = Paint.Style.STROKE
-    p.strokeWidth = size * 0.06f
-    p.color = 0xFF3EC6F0.toInt()
-    c.drawCircle(r, r, r * 0.66f, p)
-    p.style = Paint.Style.FILL
-    p.color = 0xFFFFFFFF.toInt()
-    val arrow = AndroidPath().apply {
-        moveTo(r, size * 0.26f)
-        lineTo(size * 0.67f, size * 0.68f)
-        lineTo(r, size * 0.58f)
-        lineTo(size * 0.33f, size * 0.68f)
-        close()
-    }
-    c.drawPath(arrow, p)
-    return bmp
 }
 
 // ── Panels ───────────────────────────────────────────────────────────────────
@@ -1235,9 +975,8 @@ private fun ImportPanel(onBack: (() -> Unit)?, onDone: () -> Unit) {
         key(refresh) {
             Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                 listOf(
-                    "Map" to MapData.tiles(context),
+                    "Roads & turn-by-turn" to MapData.routing(context),
                     "Search" to MapData.search(context),
-                    "Turn-by-turn" to MapData.routing(context),
                     "Speed limits & cameras" to MapData.safety(context),
                 ).forEach { (label, file) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1347,4 +1086,3 @@ private fun SearchingIndicator() {
     Box(Modifier.size(10.dp).graphicsLayer { alpha = a }.clip(RoundedCornerShape(5.dp)).background(MmiCyan))
 }
 
-private const val FIX_LATENCY_MS = 500L

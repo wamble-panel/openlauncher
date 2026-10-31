@@ -22,7 +22,7 @@ object MapData {
     fun search(context: Context) = File(dir(context), "egypt-search.db")
     fun safety(context: Context) = File(dir(context), "egypt-safety.db")
     fun routing(context: Context) = File(dir(context), "egypt-routing.graph")
-    fun isInstalled(context: Context) = tiles(context).length() > 0 && search(context).length() > 0
+    fun isInstalled(context: Context) = routing(context).length() > 0 && search(context).length() > 0
 
     /**
      * Copies the picked files into app storage. Files are recognised by name

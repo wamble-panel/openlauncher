@@ -38,7 +38,8 @@ data class InstallState(
  */
 object MapInstaller {
     /** The four package files, smallest first so the quick ones land early. */
-    val FILES = listOf("egypt-safety.db", "egypt-routing.graph", "egypt-search.db", "egypt.mbtiles")
+    // The map is drawn from the road network, so the large tile file isn't needed.
+    val FILES = listOf("egypt-safety.db", "egypt-routing.graph", "egypt-search.db")
     private const val RELEASE_URL = "https://github.com/wamble-panel/openlauncher/releases/download/maps-egypt/"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

@@ -221,7 +221,6 @@ internal fun MmiStoragePage() {
         SettingRow(if (confirmDelete) "Tap again to delete the maps" else "Delete offline maps", onClick = {
             if (confirmDelete) {
                 MapData.dir(context).listFiles()?.forEach { it.delete() }
-                PersistentMap.destroy()
                 NavigationEngine.reloadData()
                 confirmDelete = false
                 refresh++

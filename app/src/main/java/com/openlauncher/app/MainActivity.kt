@@ -207,7 +207,6 @@ class MainActivity : ComponentActivity() {
     private var pausedAt = 0L
 
     override fun onDestroy() {
-        com.openlauncher.app.ui.screen.PersistentMap.destroy()
         super.onDestroy()
     }
 

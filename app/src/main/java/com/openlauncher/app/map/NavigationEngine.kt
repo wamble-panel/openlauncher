@@ -143,6 +143,9 @@ object NavigationEngine {
     fun snapRoad(lat: Double, lon: Double, heading: Float?, maxMeters: Double = 25.0): Snap? =
         runCatching { graph?.snap(lat, lon, heading, maxMeters) }.getOrNull()
 
+    /** The road network (for the map), once loaded. */
+    val roads: RoutingGraph? get() = graph
+
     /** Re-open map files after an import. */
     fun reloadData() {
         scope.launch(worker) { loadData() }
