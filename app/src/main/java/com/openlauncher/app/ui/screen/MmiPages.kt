@@ -237,84 +237,128 @@ internal fun MmiMusicPage(
     onOpenSource: () -> Unit,
     onOpenMusicApp: () -> Unit,
     onOpenBluetooth: () -> Unit = {},
+    onSettings: () -> Unit = {},
 ) {
     val context = LocalContext.current
     // Music comes from the phone over Bluetooth, or from a USB stick: nothing stored
-    // on the unit. With neither connected, show the source picker instead of a player.
+    // on the unit. With neither connected, show the MIB "Media · Source" page instead.
     val phone by com.openlauncher.app.util.TwBridge.phoneConnected.collectAsStateWithLifecycle()
-    val usb = rememberUsbInserted()
     val btConnected = phone == true || remember(state) { com.openlauncher.app.util.BtConnect.anyConnected() }
+    val phoneName = rememberConnectedPhone()
     if (state == null && !btConnected) {
-        MusicSourcePicker(usb, onOpenBluetooth, onOpenSource)
+        Column(Modifier.fillMaxSize().padding(start = 10.dp)) {
+            MibHeader("Media", "Source")
+            MmiSourcePage(onBluetooth = {}, onConnect = onOpenBluetooth, onUsb = onOpenMusicApp, onOnline = onOpenSource)
+        }
         return
     }
-    BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 8.dp)) {
-        val cover = minOf(maxHeight * 0.66f, maxWidth * 0.32f)
-        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CoverArt(state, cover)
-            }
-            Spacer(Modifier.width(48.dp))
-            Column(Modifier.weight(1f)) {
-                if (state == null) {
-                    Text("BLUETOOTH AUDIO", color = MmiCyan, fontFamily = MmiFont, fontSize = 13.sp, letterSpacing = 2.sp)
-                    Spacer(Modifier.height(6.dp))
-                    Text("No track info", color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 32.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Play music on your phone. The buttons below still control it over Bluetooth.",
-                        color = MmiDim, fontFamily = MmiFont, fontSize = 17.sp,
-                    )
-                    Spacer(Modifier.height(28.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        ChromeButton(MmiLine.PREV, 64.dp, onPrev)
-                        Spacer(Modifier.width(22.dp))
-                        ChromeButton(MmiLine.PLAY, 84.dp, onPlayPause, highlighted = true)
-                        Spacer(Modifier.width(22.dp))
-                        ChromeButton(MmiLine.NEXT, 64.dp, onNext)
-                        Spacer(Modifier.width(36.dp))
-                        ChromePill("Source", onOpenBluetooth, MmiLine.BLUETOOTH)
-                    }
-                } else {
-                    Text(
-                        context.appLabel(state.controller?.packageName)?.uppercase() ?: if (state.controller == null) "BLUETOOTH AUDIO" else "MEDIA",
-                        color = MmiCyan, fontFamily = MmiFont, fontSize = 13.sp, letterSpacing = 2.sp,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    // New song: the old title slides out to the left, the new one slides in from the right.
-                    AnimatedContent(
-                        targetState = state.title to state.artist,
-                        transitionSpec = {
-                            (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { it / 3 } + fadeIn(tween(320, delayMillis = 90))) togetherWith
-                                (slideOutHorizontally(tween(280)) { -it / 4 } + fadeOut(tween(200)))
-                        },
-                        label = "track",
-                    ) { (title, artist) ->
-                        Column(Modifier.fillMaxWidth()) {
-                            Text(
-                                title.ifBlank { "Unknown title" }, color = MmiInk, fontFamily = MmiFont,
-                                fontWeight = FontWeight.Light, fontSize = 32.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                artist, color = MmiDim, fontFamily = MmiFont, fontSize = 20.sp,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            )
+    val sourceName = when {
+        state?.controller != null -> context.appLabel(state.controller.packageName) ?: "Media"
+        else -> phoneName ?: "Bluetooth"
+    }
+    Column(Modifier.fillMaxSize().padding(start = 10.dp)) {
+        MibHeader(
+            sourceName, "Now playing",
+            leading = {
+                MibBox(onOpenMusicApp) { MmiLineIcon(MmiLine.GRID, Color.White, Modifier.size(28.dp)) }
+                MibBox(onOpenSource, width = 150.dp) {
+                    MmiLineIcon(if (state?.controller == null) MmiLine.BLUETOOTH else MmiLine.NOTE, Color.White, Modifier.size(24.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Source", color = Color.White, fontFamily = MmiFont, fontSize = 19.sp)
+                }
+            },
+            trailing = {
+                Box(
+                    Modifier.size(58.dp).pressable(onSettings).drawBehind {
+                        drawLine(MibLine, Offset(0f, size.height * 0.15f), Offset(0f, size.height), 1.dp.toPx())
+                    },
+                    contentAlignment = Alignment.Center,
+                ) { MmiLineIcon(MmiLine.GEAR, Color.White, Modifier.size(26.dp)) }
+            },
+        )
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(start = 18.dp, end = 8.dp, top = 14.dp, bottom = 10.dp)) {
+            val cover = minOf(maxHeight * 0.52f, maxWidth * 0.26f)
+            Column(Modifier.fillMaxSize()) {
+                Row(Modifier.fillMaxWidth()) {
+                    Column(Modifier.weight(1f).height(cover)) {
+                        // New song: the old title slides out to the left, the new one slides in from the right.
+                        AnimatedContent(
+                            targetState = Triple(state?.title.orEmpty(), state?.artist.orEmpty(), state?.controller?.metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM).orEmpty()),
+                            transitionSpec = {
+                                (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { it / 3 } + fadeIn(tween(320, delayMillis = 90))) togetherWith
+                                    (slideOutHorizontally(tween(280)) { -it / 4 } + fadeOut(tween(200)))
+                            },
+                            modifier = Modifier.weight(1f),
+                            label = "track",
+                        ) { (title, artist, album) ->
+                            Column(Modifier.fillMaxSize()) {
+                                Text(
+                                    title.ifBlank { if (state == null) "Bluetooth audio" else "Unknown title" }, color = Color.White, fontFamily = MmiFont,
+                                    fontSize = 36.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 18.dp),
+                                )
+                                Spacer(Modifier.weight(1f))
+                                if (state == null) {
+                                    Text("Play music on your phone; the buttons below control it.", color = Color.White.copy(alpha = 0.75f), fontFamily = MmiFont, fontSize = 18.sp)
+                                } else {
+                                    if (artist.isNotBlank()) Text(artist, color = Color.White, fontFamily = MmiFont, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    if (album.isNotBlank()) Text(album, color = Color.White, fontFamily = MmiFont, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
                         }
                     }
-                    Spacer(Modifier.height(24.dp))
-                    MusicProgress(state)
-                    Spacer(Modifier.height(24.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        ChromeButton(MmiLine.PREV, 64.dp, onPrev)
-                        Spacer(Modifier.width(22.dp))
-                        ChromeButton(if (state.isPlaying) MmiLine.PAUSE else MmiLine.PLAY, 84.dp, onPlayPause, highlighted = true)
-                        Spacer(Modifier.width(22.dp))
-                        ChromeButton(MmiLine.NEXT, 64.dp, onNext)
-                        Spacer(Modifier.width(36.dp))
-                        ChromePill("Open app", onOpenSource, MmiLine.OPEN)
+                    Spacer(Modifier.width(28.dp))
+                    MibCover(state, cover)
+                }
+                Spacer(Modifier.height(10.dp))
+                if (state != null) MusicProgress(state) else Spacer(Modifier.height(54.dp))
+                Spacer(Modifier.weight(1f))
+                // Transport: one outlined block (previous | play/pause | next) and More.
+                Row(Modifier.fillMaxWidth().height(76.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(Modifier.weight(1f))
+                    Row(Modifier.height(72.dp).border(1.dp, Brush.verticalGradient(listOf(Color(0x22FFFFFF), Color(0xAAFFFFFF))), androidx.compose.ui.graphics.RectangleShape)) {
+                        TransportCell(MmiLine.PREV, onPrev)
+                        TransportCell(if (state?.isPlaying == true) MmiLine.PAUSE else MmiLine.PLAY, onPlayPause)
+                        TransportCell(MmiLine.NEXT, onNext, last = true)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Column(
+                        Modifier.width(110.dp).fillMaxHeight().pressable(onOpenMusicApp).drawBehind {
+                            drawLine(MibLine, Offset(0f, size.height * 0.15f), Offset(0f, size.height * 0.85f), 1.dp.toPx())
+                        },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        MmiLineIcon(MmiLine.DOTS, Color.White, Modifier.size(28.dp))
+                        Text("More", color = Color.White, fontFamily = MmiFont, fontSize = 17.sp)
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun TransportCell(icon: MmiLine, onClick: () -> Unit, last: Boolean = false) {
+    Box(
+        Modifier.width(104.dp).fillMaxHeight().pressable(onClick).drawBehind {
+            if (!last) drawLine(Color(0x55FFFFFF), Offset(size.width, size.height * 0.2f), Offset(size.width, size.height * 0.8f), 1.dp.toPx())
+        },
+        contentAlignment = Alignment.Center,
+    ) { MmiLineIcon(icon, Color.White, Modifier.size(30.dp)) }
+}
+
+/** Square cover with a hairline frame; cross-fades on a new song. */
+@Composable
+private fun MibCover(state: NowPlayingState?, size: Dp) {
+    val cover = rememberCover(state)
+    Crossfade(targetState = cover, animationSpec = tween(450), label = "cover") { art ->
+        Box(
+            Modifier.size(size).background(Brush.linearGradient(listOf(Color(0xFF22262C), Color(0xFF0A0B0D))))
+                .border(1.dp, Color(0x66FFFFFF), androidx.compose.ui.graphics.RectangleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (art != null) Image(art, contentDescription = state?.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            else MmiLineIcon(MmiLine.NOTE, Color.White.copy(alpha = 0.5f), Modifier.size(size * 0.35f))
         }
     }
 }
@@ -398,6 +442,12 @@ private fun MusicProgress(state: NowPlayingState) {
     val glide by animateFloatAsState(fraction, tween(450), label = "progress")
     val shown = if (dragFraction != null) fraction else glide
     Column {
+        // "1:20 | -1:42" above the right end of the bar, as on the MIB.
+        Text(
+            formatMs(positionMs) + if (durationMs > 0) "  |  -" + formatMs(durationMs - positionMs) else "",
+            color = Color.White, fontFamily = MmiFont, fontSize = 18.sp,
+            modifier = Modifier.align(Alignment.End).padding(end = 4.dp, bottom = 2.dp),
+        )
         Canvas(
             Modifier.fillMaxWidth().height(28.dp).then(
                 if (!seekable) Modifier else Modifier.pointerInput(durationMs) {
@@ -418,19 +468,11 @@ private fun MusicProgress(state: NowPlayingState) {
             ),
         ) {
             val y = size.height / 2f
-            val track = 4.dp.toPx()
-            drawLine(Color(0xFF2A2E34), Offset(0f, y), Offset(size.width, y), track, StrokeCap.Round)
             val x = size.width * shown
-            drawLine(
-                Brush.horizontalGradient(listOf(Color(0xFF1C8FB8), MmiCyan)), Offset(0f, y), Offset(x, y), track, StrokeCap.Round,
-            )
-            drawCircle(Brush.linearGradient(ChromeRim), 7.dp.toPx(), Offset(x, y))
-        }
-        Spacer(Modifier.height(6.dp))
-        Row(Modifier.fillMaxWidth()) {
-            Text(formatMs(positionMs), color = MmiDim, fontFamily = MmiFont, fontSize = 14.sp)
-            Spacer(Modifier.weight(1f))
-            Text(if (durationMs > 0) "-" + formatMs(durationMs - positionMs) else "", color = MmiDim, fontFamily = MmiFont, fontSize = 14.sp)
+            drawLine(Color(0xFFD5D8DC), Offset(0f, y), Offset(size.width, y), 2.dp.toPx())
+            drawLine(MibAccent, Offset(0f, y), Offset(x, y), 2.5.dp.toPx())
+            drawCircle(Color(0xFF0B0C0E), 7.dp.toPx(), Offset(x, y))
+            drawCircle(MibAccent, 7.dp.toPx(), Offset(x, y), style = Stroke(2.dp.toPx()))
         }
     }
 }
@@ -980,45 +1022,32 @@ private fun rememberUsbInserted(): Boolean {
 }
 
 /**
- * No phone and no USB music: like the Audi "Media · Source" screen, a clear
- * message and big source tiles. Bluetooth goes straight to pairing.
+ * MIB "Media · Source": the connected phone (selected), SD card, USB, connect a
+ * new device and online media, inside an accent frame.
  */
 @Composable
-private fun MusicSourcePicker(usb: Boolean, onBluetooth: () -> Unit, onUsb: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+internal fun MmiSourcePage(onBluetooth: () -> Unit, onConnect: () -> Unit, onUsb: () -> Unit, onOnline: () -> Unit) {
+    val usb = rememberUsbInserted()
+    val phone = rememberConnectedPhone()
+    Box(
+        Modifier.fillMaxSize().padding(start = 16.dp, end = 8.dp, top = 18.dp, bottom = 14.dp)
+            .border(1.dp, MibAccent.copy(alpha = 0.8f), androidx.compose.ui.graphics.RectangleShape)
+            .padding(20.dp),
     ) {
-        Spacer(Modifier.weight(0.6f))
-        Text("No media source connected.", color = MmiInk, fontFamily = MmiFont, fontSize = 26.sp)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Connect your phone over Bluetooth, or insert a USB stick.",
-            color = MmiDim, fontFamily = MmiFont, fontSize = 17.sp,
-        )
-        Spacer(Modifier.height(28.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            SourceTile("Bluetooth", "Connect phone", MmiLine.BLUETOOTH, enabled = true, onClick = onBluetooth)
-            SourceTile("USB device", if (usb) "Play from USB" else "Not inserted", MmiLine.OPEN, enabled = usb, onClick = onUsb)
+        Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Row(Modifier.fillMaxWidth().height(170.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                MibTile(phone ?: "Bluetooth", MmiLine.PHONE, Modifier.weight(1f).fillMaxHeight(), selected = phone != null, badge = MmiLine.BLUETOOTH) {
+                    if (phone != null) onBluetooth() else onConnect()
+                }
+                MibTile("SD card", MmiLine.SDCARD, Modifier.weight(1f).fillMaxHeight(), enabled = false) {}
+                MibTile("USB", MmiLine.USB, Modifier.weight(1f).fillMaxHeight(), enabled = usb, onClick = onUsb)
+                MibTile("Connect ext. device", MmiLine.PHONE, Modifier.weight(1f).fillMaxHeight(), badge = MmiLine.PLUS, onClick = onConnect)
+            }
+            Row(Modifier.fillMaxWidth().height(170.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                MibTile("Connect online media", MmiLine.GLOBE, Modifier.weight(1f).fillMaxHeight(), badge = MmiLine.PLUS, onClick = onOnline)
+                Spacer(Modifier.weight(3f))
+            }
         }
-        Spacer(Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun SourceTile(title: String, detail: String, icon: MmiLine, enabled: Boolean, onClick: () -> Unit) {
-    val ink = if (enabled) MmiInk else MmiDim.copy(alpha = 0.5f)
-    Column(
-        Modifier.size(width = 220.dp, height = 150.dp)
-            .then(if (enabled) Modifier.pressable(onClick) else Modifier)
-            .mmiPanel().padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        MmiLineIcon(icon, if (enabled) MmiCyan else ink, Modifier.size(40.dp))
-        Spacer(Modifier.height(12.dp))
-        Text(title, color = ink, fontFamily = MmiFont, fontSize = 20.sp)
-        Text(detail, color = MmiDim.copy(alpha = if (enabled) 1f else 0.5f), fontFamily = MmiFont, fontSize = 14.sp)
     }
 }
 

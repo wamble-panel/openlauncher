@@ -93,7 +93,7 @@ import kotlin.math.sin
 private enum class MmiPage(val title: String?, val inSettings: Boolean = false) {
     HOME(null), DASHBOARD("Dashboard"), SETTINGS("Settings"),
     MUSIC("Music"), RADIO("Radio"), BT_HUB("Bluetooth"), PHONE("Telephone"), CONTACTS("Contacts"), APPS("Apps"),
-    NAV("Navigation"),
+    NAV("Navigation"), SOURCE("Source"),
     PERMISSIONS("Permissions", true), CLEANUP("Unit cleanup & speed", true), STORAGE("Storage & about", true), DISPLAY("Display", true), SOUND("Sound", true), EQ("Equaliser", true), BLUETOOTH("Bluetooth devices", true), NAV_SETTINGS("Navigation settings", true),
 }
 
@@ -131,10 +131,12 @@ fun MmiHomeScreen(
     // Bluetooth is reached from Settings or from the Phone page; Back returns to whichever.
     var bluetoothFrom by rememberSaveable { mutableStateOf(MmiPage.SETTINGS) }
     var pairOnOpen by rememberSaveable { mutableStateOf(false) }
+    var contactsTab by rememberSaveable { mutableIntStateOf(0) }
     val back = {
         page = when {
             page == MmiPage.BLUETOOTH -> bluetoothFrom
             page == MmiPage.PHONE || page == MmiPage.CONTACTS -> MmiPage.BT_HUB
+            page == MmiPage.SOURCE -> MmiPage.MUSIC
             page.inSettings -> MmiPage.SETTINGS
             else -> MmiPage.HOME
         }
@@ -340,12 +342,27 @@ fun MmiHomeScreen(
         Column(Modifier.fillMaxSize()) {
             if (!fullScreen) {
                 TopBar(
-                    height = barHeight,
-                    title = page.title,
-                    nowPlaying = nowPlaying,
+                    height = if (page == MmiPage.HOME) barHeight else barHeight * 0.6f,
+                    title = null,
+                    // The home page has the date bar, and Music shows the track itself.
+                    nowPlaying = if (page == MmiPage.MUSIC) null else nowPlaying,
+                    clock = page != MmiPage.HOME,
                     onBack = back,
                     onTapNowPlaying = { page = MmiPage.MUSIC },
                 )
+            }
+            Row(Modifier.weight(1f).fillMaxWidth()) {
+            // Inner pages: the MIB rail stays put on the left while the page fades.
+            if (page != MmiPage.HOME && page != MmiPage.NAV) {
+                MibRail(railKey(page), onOpen = { key ->
+                    page = when (key) {
+                        "home" -> MmiPage.HOME
+                        "radio" -> MmiPage.RADIO
+                        "music" -> MmiPage.MUSIC
+                        "phone" -> MmiPage.BT_HUB
+                        else -> MmiPage.NAV
+                    }
+                })
             }
             AnimatedContent(
                 targetState = page,
@@ -356,15 +373,18 @@ fun MmiHomeScreen(
                         // Switch instantly; the map fades itself in on its first frame.
                         androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
                     } else {
-                        // Short: while it runs both pages are drawn, which is the costly part on the A133.
-                        (fadeIn(tween(180, delayMillis = 40)) +
-                            scaleIn(tween(220, easing = FastOutSlowInEasing), initialScale = 0.97f)) togetherWith
-                            fadeOut(tween(110))
+                        // A plain cross-fade, like the MIB: the new page fades in as the old one fades out.
+                        fadeIn(tween(260, delayMillis = 60, easing = FastOutSlowInEasing)) togetherWith fadeOut(tween(160))
                     }
                 },
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
                 label = "mmi_page",
             ) { target ->
+              Column(Modifier.fillMaxSize().padding(end = if (target == MmiPage.HOME || target == MmiPage.NAV) 0.dp else 14.dp)) {
+                headerFor(target, pairOnOpen)?.let { (section, title) ->
+                    MibHeader(section, title, onBack = back, modifier = Modifier.padding(start = 10.dp))
+                }
+                Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (target) {
                     MmiPage.HOME -> HomeGrid(selected, onOpen = { openRing(it) })
                     MmiPage.DASHBOARD -> LiveDashboard(location, bearing, voltage, metric)
@@ -384,9 +404,10 @@ fun MmiHomeScreen(
                     MmiPage.BT_HUB -> MmiBluetoothHub(
                         onTelephone = { page = MmiPage.PHONE },
                         onMusic = { page = MmiPage.MUSIC },
-                        onContacts = { page = MmiPage.CONTACTS },
+                        onContacts = { contactsTab = 0; page = MmiPage.CONTACTS },
                         onDevices = { pairOnOpen = false; bluetoothFrom = MmiPage.BT_HUB; page = MmiPage.BLUETOOTH },
                         onConnectNew = { pairOnOpen = true; bluetoothFrom = MmiPage.BT_HUB; page = MmiPage.BLUETOOTH },
+                        onCallList = { contactsTab = 1; page = MmiPage.CONTACTS },
                     )
                     MmiPage.NAV_SETTINGS -> MmiNavSettingsPage(metric, onSetMetric)
                     MmiPage.NAV -> MmiNavigationPage(location.collectAsStateWithLifecycle().value, metric) { key ->
@@ -402,9 +423,10 @@ fun MmiHomeScreen(
                     MmiPage.MUSIC -> MmiMusicPage(
                         state = nowPlaying,
                         onPlayPause = playPause, onNext = next, onPrev = prev,
-                        onOpenSource = openMusicApp,
+                        onOpenSource = { page = MmiPage.SOURCE },
                         onOpenMusicApp = openMusicApp,
-                        onOpenBluetooth = { page = MmiPage.BT_HUB },
+                        onOpenBluetooth = { pairOnOpen = true; bluetoothFrom = MmiPage.MUSIC; page = MmiPage.BLUETOOTH },
+                        onSettings = { page = MmiPage.EQ },
                     )
                     MmiPage.RADIO -> MmiRadioPage(
                         radio = hardwareRadio,
@@ -413,7 +435,7 @@ fun MmiHomeScreen(
                         onFm = onRadioFm, onAm = onRadioAm,
                         onTune = if (com.openlauncher.app.util.TwBridge.available) { am, f -> com.openlauncher.app.util.TwBridge.radioTune(am, f) } else null,
                     )
-                    MmiPage.CONTACTS -> MmiContactsPage()
+                    MmiPage.CONTACTS -> MmiContactsPage(contactsTab)
                     MmiPage.PHONE -> MmiPhonePage(apps, onOpenContacts = { page = MmiPage.CONTACTS }) {
                         bluetoothFrom = MmiPage.PHONE
                         pairOnOpen = false
@@ -424,9 +446,18 @@ fun MmiHomeScreen(
                         val hidden by prefs.hiddenApps.collectAsStateWithLifecycle()
                         MmiAppsPage(apps, hidden, prefs::toggleHidden, onLaunchPackage)
                     }
+                    MmiPage.SOURCE -> MmiSourcePage(
+                        onBluetooth = { page = MmiPage.MUSIC },
+                        onConnect = { pairOnOpen = true; bluetoothFrom = MmiPage.SOURCE; page = MmiPage.BLUETOOTH },
+                        onUsb = openMusicApp,
+                        onOnline = { page = MmiPage.APPS },
+                    )
                 }
+                }
+              }
             }
-            if (!fullScreen) DateBar(barHeight)
+            }
+            if (page == MmiPage.HOME) DateBar(barHeight)
         }
         HazardBanner(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
         CallBar(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
@@ -698,22 +729,26 @@ private fun TopBar(
     nowPlaying: NowPlayingState?,
     onBack: () -> Unit,
     onTapNowPlaying: () -> Unit,
+    clock: Boolean = true,
 ) {
-    val titleSize = with(LocalDensity.current) { (height * 0.36f).toSp() }
-    Box(Modifier.fillMaxWidth().height(height)) {
-        if (title != null) {
-            Row(
-                Modifier.align(Alignment.CenterStart).padding(start = 28.dp).pressable(onBack),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                MmiLineIcon(MmiLine.CHEVRON_LEFT, MmiDim, Modifier.size(height * 0.4f))
-                Spacer(Modifier.width(6.dp))
-                Text(title, color = MmiInk, fontFamily = MmiFont, fontSize = titleSize)
-            }
+    val context = LocalContext.current
+    val now by produceState(System.currentTimeMillis()) {
+        while (true) {
+            value = System.currentTimeMillis()
+            delay(60_000 - value % 60_000)
         }
+    }
+    val clock24 by CarPrefs.get(context).clock24.collectAsStateWithLifecycle()
+    val timeFmt = remember(clock24) { SimpleDateFormat(if (clock24) "HH:mm" else "h:mm", Locale.getDefault()) }
+    Box(Modifier.fillMaxWidth().height(height)) {
+        // Status strip, as on the MIB: the clock top right.
+        if (clock) Text(
+            timeFmt.format(Date(now)), color = Color.White, fontFamily = MmiFont, fontSize = 20.sp,
+            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 28.dp),
+        )
         if (nowPlaying != null && nowPlaying.title.isNotBlank()) {
             Row(
-                Modifier.align(Alignment.CenterEnd).padding(end = 28.dp).widthIn(max = 420.dp).pressable(onTapNowPlaying),
+                Modifier.align(Alignment.CenterStart).padding(start = 28.dp).widthIn(max = 520.dp).pressable(onTapNowPlaying),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 MmiLineIcon(if (nowPlaying.isPlaying) MmiLine.NOTE else MmiLine.PAUSE, MmiCyan, Modifier.size(height * 0.3f))
@@ -1005,3 +1040,26 @@ private tailrec fun Context.findActivity(): android.app.Activity? = when (this) 
 
 /** Dash buttons that open an MMI page (Radio, Phone, Setup, Tone, Back, Media). */
 private val PAGE_KEYS = setOf(16, 32, 90, 24, 18, 33)
+
+/** Which rail entry an inner page belongs to. */
+private fun railKey(p: MmiPage): String? = when (p) {
+    MmiPage.RADIO -> "radio"
+    MmiPage.MUSIC, MmiPage.SOURCE -> "music"
+    MmiPage.BT_HUB, MmiPage.PHONE, MmiPage.CONTACTS -> "phone"
+    else -> null
+}
+
+/** "Section · Page" for the generic header; null where the page draws its own. */
+private fun headerFor(p: MmiPage, pairing: Boolean): Pair<String?, String>? = when (p) {
+    MmiPage.HOME, MmiPage.NAV, MmiPage.MUSIC, MmiPage.BT_HUB -> null
+    MmiPage.SETTINGS -> null to "Settings"
+    MmiPage.DASHBOARD -> "Car" to "Info"
+    MmiPage.RADIO -> "Radio" to "Stations"
+    MmiPage.APPS -> "Media" to "Apps"
+    MmiPage.PHONE -> "Telephone" to "Dial number"
+    MmiPage.CONTACTS -> "Telephone" to "Contacts"
+    MmiPage.SOURCE -> "Media" to "Source"
+    MmiPage.EQ -> "Settings" to "Sound"
+    MmiPage.BLUETOOTH -> "Settings" to if (pairing) "Searching…" else "Bluetooth"
+    else -> "Settings" to (p.title ?: "")
+}

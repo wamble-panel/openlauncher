@@ -301,64 +301,58 @@ internal fun MmiSoundPage(apps: List<AppInfo>, onLaunchPackage: (String) -> Unit
 @Composable
 internal fun MmiEqualiserPage() {
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 48.dp, vertical = 12.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 18.dp, end = 10.dp, top = 6.dp),
     ) {
         if (!CarAudio.available) {
             Text(
                 "The equaliser needs media access. Allow it in Permissions, or use the car's own sound settings.",
-                color = MmiDim, fontFamily = MmiFont, fontSize = 16.sp,
+                color = MmiDim, fontFamily = MmiFont, fontSize = 18.sp, modifier = Modifier.padding(top = 16.dp),
             )
         } else {
-            EqualizerPanel()
+            ToneControls()
         }
     }
 }
 
+/**
+ * MIB "Settings · Sound": Treble, Middle and Bass, each a group of the unit's
+ * equaliser bands moved together (low bands = bass, middle band, high bands = treble).
+ */
 @Composable
-private fun EqualizerPanel() {
-    var enabled by remember { mutableStateOf(CarAudio.enabled) }
-    // Bumped after a preset so the band sliders re-read their levels.
-    var revision by remember { mutableIntStateOf(0) }
+private fun ToneControls() {
+    val n = CarAudio.bandCount
     val range = CarAudio.levelRange
-    ToggleRow("Sound effects", enabled) {
-        enabled = it
-        CarAudio.setEnabled(it)
+    if (n == 0) return
+    val groups = remember(n) {
+        val mid = n / 2
+        listOf(
+            "Treble" to (if (n >= 4) listOf(n - 2, n - 1) else listOf(n - 1)),
+            "Middle" to listOf(mid),
+            "Bass" to (if (n >= 4) listOf(0, 1) else listOf(0)),
+        )
     }
-    Spacer(Modifier.height(8.dp))
-    Row(Modifier.fillMaxWidth().height(200.dp)) {
-        for (band in 0 until CarAudio.bandCount) {
-            var level by remember(band, revision) { mutableIntStateOf(CarAudio.bandLevel(band)) }
-            Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("%+d".format(level / 100), color = MmiDim, fontFamily = MmiFont, fontSize = 13.sp)
-                MmiSlider(
-                    (level - range.first) / (range.last - range.first).toFloat(),
-                    { v ->
-                        level = (range.first + v * (range.last - range.first)).roundToInt()
-                        CarAudio.setBandLevel(band, level)
-                    },
-                    Modifier.weight(1f).width(40.dp).padding(vertical = 8.dp),
-                    vertical = true,
-                )
-                Text(CarAudio.bandLabel(band), color = MmiInk, fontFamily = MmiFont, fontSize = 13.sp)
-            }
-        }
-    }
-    Spacer(Modifier.height(10.dp))
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ChromePill("Flat", { CarAudio.flat(); revision++ })
-        CarAudio.presets.take(4).forEachIndexed { i, name ->
-            ChromePill(name, { CarAudio.usePreset(i); revision++ })
-        }
+    var revision by remember { mutableIntStateOf(0) }
+    fun toFraction(level: Int) = (level - range.first) / (range.last - range.first).toFloat()
+    groups.forEach { (label, bands) ->
+        var value by remember(label, revision) { mutableFloatStateOf(toFraction(bands.map { CarAudio.bandLevel(it) }.average().roundToInt())) }
+        MibSliderRow(label, value, { v ->
+            value = v
+            if (!CarAudio.enabled) CarAudio.setEnabled(true)
+            val level = (range.first + v * (range.last - range.first)).roundToInt()
+            bands.forEach { CarAudio.setBandLevel(it, level) }
+        })
     }
     if (CarAudio.bassSupported) {
-        var bass by remember { mutableIntStateOf(CarAudio.bassStrength) }
-        Spacer(Modifier.height(10.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Bass boost", color = MmiInk, fontFamily = MmiFont, fontSize = 17.sp, modifier = Modifier.width(120.dp))
-            MmiSlider(bass / 1000f, { v ->
-                bass = (v * 1000).roundToInt()
-                CarAudio.setBass(bass)
-            }, Modifier.weight(1f).height(36.dp))
+        var bass by remember(revision) { mutableFloatStateOf(CarAudio.bassStrength / 1000f) }
+        MibSliderRow("Bass boost", bass, { v ->
+            bass = v
+            CarAudio.setBass((v * 1000).roundToInt())
+        }, minLabel = "Off")
+    }
+    Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        ChromePill("Reset to flat", { CarAudio.flat(); CarAudio.setBass(0); revision++ })
+        CarAudio.presets.take(4).forEachIndexed { i, name ->
+            ChromePill(name, { CarAudio.setEnabled(true); CarAudio.usePreset(i); revision++ })
         }
     }
 }

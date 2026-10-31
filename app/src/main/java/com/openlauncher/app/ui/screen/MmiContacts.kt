@@ -87,7 +87,7 @@ private fun Context.readRecents(): List<RecentCall> = runCatching {
  * Bluetooth stack sync their phonebook and call history here; tap to call.
  */
 @Composable
-internal fun MmiContactsPage() {
+internal fun MmiContactsPage(startTab: Int = 0) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val needed = arrayOf(Manifest.permission.READ_CONTACTS, Manifest.permission.READ_CALL_LOG, Manifest.permission.CALL_PHONE)
@@ -96,7 +96,7 @@ internal fun MmiContactsPage() {
         granted = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
     }
     LaunchedEffect(Unit) { if (!granted) ask.launch(needed) }
-    var tab by remember { mutableIntStateOf(0) }
+    var tab by remember(startTab) { mutableIntStateOf(startTab) }
     var contacts by remember { mutableStateOf<List<Contact>?>(null) }
     var recents by remember { mutableStateOf<List<RecentCall>>(emptyList()) }
     LaunchedEffect(granted) {

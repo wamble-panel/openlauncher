@@ -227,6 +227,7 @@ enum class MmiLine {
     PLUS, MINUS, LOCATE, SEARCH, STAR, STAR_FILLED, HISTORY, PIN, FUEL, CLOSE, HOME, FLAG, CARD, GLOBE,
     SPEAKER, MUTE, CAMERA, MOUNTAIN, BATTERY, GRID, ANTENNA, NAV_ARROW, GEAR, BUMP,
     CAR, CLOUD, FILM, LINK,
+    RETURN, DOTS, CHEVRON_UP, PHONE, SDCARD, USB, VOICEMAIL, DIALPAD,
 }
 
 @Composable
@@ -399,6 +400,31 @@ private fun linePaths(kind: MmiLine, s: Float): Pair<List<Path>, List<Path>> = w
         moveTo(0.06f * it, 0.84f * it); lineTo(0.38f * it, 0.30f * it); lineTo(0.56f * it, 0.58f * it)
         lineTo(0.68f * it, 0.44f * it); lineTo(0.94f * it, 0.84f * it); close()
     }) to emptyList<Path>()
+    MmiLine.RETURN -> listOf(
+        path(s) { moveTo(0.86f * it, 0.28f * it); lineTo(0.86f * it, 0.62f * it); lineTo(0.16f * it, 0.62f * it) },
+        path(s) { moveTo(0.32f * it, 0.46f * it); lineTo(0.16f * it, 0.62f * it); lineTo(0.32f * it, 0.78f * it) },
+    ) to emptyList<Path>()
+    MmiLine.DOTS -> emptyList<Path>() to listOf(circle(0.22f, 0.5f, 0.07f, s), circle(0.5f, 0.5f, 0.07f, s), circle(0.78f, 0.5f, 0.07f, s))
+    MmiLine.CHEVRON_UP -> listOf(path(s) { moveTo(0.20f * it, 0.64f * it); lineTo(0.5f * it, 0.34f * it); lineTo(0.80f * it, 0.64f * it) }) to emptyList<Path>()
+    MmiLine.PHONE -> listOf(
+        path(s) { addRoundRect(RoundRect(Rect(0.30f * it, 0.08f * it, 0.70f * it, 0.92f * it), CornerRadius(0.07f * it))) },
+        path(s) { moveTo(0.45f * it, 0.17f * it); lineTo(0.55f * it, 0.17f * it) },
+    ) to emptyList<Path>()
+    MmiLine.SDCARD -> listOf(
+        path(s) { moveTo(0.26f * it, 0.10f * it); lineTo(0.62f * it, 0.10f * it); lineTo(0.76f * it, 0.24f * it); lineTo(0.76f * it, 0.90f * it); lineTo(0.26f * it, 0.90f * it); close() },
+        path(s) { moveTo(0.38f * it, 0.20f * it); lineTo(0.38f * it, 0.32f * it); moveTo(0.50f * it, 0.20f * it); lineTo(0.50f * it, 0.32f * it) },
+    ) to emptyList<Path>()
+    MmiLine.USB -> listOf(
+        path(s) { moveTo(0.5f * it, 0.16f * it); lineTo(0.5f * it, 0.82f * it) },
+        path(s) { moveTo(0.5f * it, 0.64f * it); lineTo(0.30f * it, 0.50f * it); lineTo(0.30f * it, 0.38f * it) },
+        path(s) { moveTo(0.5f * it, 0.54f * it); lineTo(0.70f * it, 0.42f * it); lineTo(0.70f * it, 0.32f * it) },
+    ) to listOf(poly(s, 0.40f to 0.20f, 0.5f to 0.06f, 0.60f to 0.20f), circle(0.5f, 0.86f, 0.07f, s))
+    MmiLine.VOICEMAIL -> listOf(
+        circle(0.27f, 0.52f, 0.15f, s), circle(0.73f, 0.52f, 0.15f, s),
+        path(s) { moveTo(0.27f * it, 0.67f * it); lineTo(0.73f * it, 0.67f * it) },
+    ) to emptyList<Path>()
+    MmiLine.DIALPAD -> emptyList<Path>() to (listOf(0.26f, 0.5f, 0.74f).flatMap { x -> listOf(0.14f, 0.34f, 0.54f).map { y -> rect(x - 0.07f, y - 0.06f, x + 0.07f, y + 0.06f, s) } } +
+        rect(0.43f, 0.68f, 0.57f, 0.80f, s))
     MmiLine.CAR -> listOf(
         path(s) {
             moveTo(0.10f * it, 0.70f * it); lineTo(0.10f * it, 0.52f * it); lineTo(0.22f * it, 0.48f * it)

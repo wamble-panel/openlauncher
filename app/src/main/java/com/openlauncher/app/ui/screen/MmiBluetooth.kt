@@ -43,6 +43,7 @@ import com.openlauncher.app.util.BtConnect
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.Brush
 import kotlinx.coroutines.delay
 
 internal data class BtDevice(val address: String, val name: String, val isPhone: Boolean, val connected: Boolean, val bonding: Boolean)
@@ -362,9 +363,10 @@ internal fun rememberConnectedPhone(): String? {
 }
 
 /**
- * The ring's Bluetooth entry, as in the Audi MMI: with no phone connected it
- * names this MMI and offers "Connect mobile device" plus saved phones; once a
- * phone is connected it opens telephone, Bluetooth audio, contacts and devices.
+ * MIB "Telephone": with no phone connected, "No device is connected to …" and a big
+ * "Connect mobile device" button (plus saved phones to reconnect); with a phone,
+ * its name in the header and Search, Call list, Favorites, Contacts, Voicemail and
+ * Dial number tiles.
  */
 @Composable
 internal fun MmiBluetoothHub(
@@ -373,7 +375,9 @@ internal fun MmiBluetoothHub(
     onContacts: () -> Unit,
     onDevices: () -> Unit,
     onConnectNew: () -> Unit,
+    onCallList: () -> Unit = onContacts,
 ) {
+    val context = LocalContext.current
     val bt = rememberBluetooth()
     val connectedPhone = bt.paired.firstOrNull { it.connected }
     var connecting by remember { mutableStateOf<String?>(null) }
@@ -383,64 +387,87 @@ internal fun MmiBluetoothHub(
             connecting = null
         }
     }
-
-    if (connectedPhone != null) {
-        Column(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                MmiLineIcon(MmiLine.BLUETOOTH, MmiCyan, Modifier.size(28.dp))
-                Spacer(Modifier.width(12.dp))
-                Text(connectedPhone.name, color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 30.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.width(12.dp))
-                Text("connected", color = MmiCyan, fontFamily = MmiFont, fontSize = 16.sp)
-            }
-            Spacer(Modifier.height(24.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                HubTile("Telephone", MmiLine.CALL, Modifier.weight(1f), onTelephone)
-                HubTile("Bluetooth audio", MmiLine.NOTE, Modifier.weight(1f), onMusic)
-                HubTile("Contacts", MmiLine.CONTACTS, Modifier.weight(1f), onContacts)
-                HubTile("Devices", MmiLine.BLUETOOTH, Modifier.weight(1f), onDevices)
+    val addBox: @Composable RowScope.() -> Unit = {
+        MibBox(onDevices) {
+            Box {
+                MmiLineIcon(MmiLine.PHONE, Color.White, Modifier.size(34.dp))
+                MmiLineIcon(MmiLine.PLUS, Color.White, Modifier.size(16.dp).align(Alignment.TopEnd))
             }
         }
-        return
     }
 
-    Column(
-        Modifier.fillMaxSize().padding(horizontal = 120.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            "No device is connected to the MMI yet. Please select the following function.",
-            color = MmiInk, fontFamily = MmiFont, fontSize = 22.sp, textAlign = TextAlign.Center,
-        )
-        Text(
-            "MMI name: ${bt.name.ifEmpty { "this car" }}",
-            color = MmiInk, fontFamily = MmiFont, fontSize = 22.sp, textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 4.dp),
-        )
-        Spacer(Modifier.height(18.dp))
-        HubRow("Connect mobile device", highlighted = true, onClick = onConnectNew)
-        val saved = bt.paired
-        if (saved.isNotEmpty()) {
-            Text(
-                "SAVED DEVICES", color = MmiCyan, fontFamily = MmiFont, fontSize = 13.sp, letterSpacing = 2.sp,
-                modifier = Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 4.dp),
-            )
-            LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
-                items(saved, key = { it.address }) { d ->
-                    HubRow(
-                        if (connecting == d.address) "${d.name} — connecting…" else d.name,
-                        highlighted = false,
-                        onClick = {
-                            connecting = d.address
-                            if (!BtConnect.connect(d.address)) connecting = null
-                        },
-                    )
+    Column(Modifier.fillMaxSize().padding(start = 10.dp)) {
+        if (connectedPhone != null) {
+            MibHeader("Telephone", connectedPhone.name, leading = addBox)
+            Column(
+                Modifier.fillMaxSize().padding(horizontal = 80.dp, vertical = 22.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    MibTile("Search", MmiLine.SEARCH, Modifier.weight(1f).fillMaxHeight(), onClick = onContacts)
+                    MibTile("Call list", MmiLine.HISTORY, Modifier.weight(1f).fillMaxHeight(), onClick = onCallList)
+                    MibTile("Favorites", MmiLine.STAR, Modifier.weight(1f).fillMaxHeight(), onClick = onContacts)
+                }
+                Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    MibTile("Contacts", MmiLine.CONTACTS, Modifier.weight(1f).fillMaxHeight(), onClick = onContacts)
+                    MibTile("Voicemail", MmiLine.VOICEMAIL, Modifier.weight(1f).fillMaxHeight()) {
+                        if (!context.launchFirst(Intent(Intent.ACTION_CALL, android.net.Uri.parse("voicemail:")))) onTelephone()
+                    }
+                    MibTile("Dial number", MmiLine.DIALPAD, Modifier.weight(1f).fillMaxHeight(), onClick = onTelephone)
                 }
             }
+            return@Column
+        }
+
+        MibHeader("Telephone", "Note", leading = addBox)
+        Column(Modifier.fillMaxSize().padding(horizontal = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Spacer(Modifier.weight(0.5f))
             Text(
-                "Tap a saved phone to connect, or connect from the phone's Bluetooth menu.",
-                color = MmiDim, fontFamily = MmiFont, fontSize = 14.sp, modifier = Modifier.padding(vertical = 4.dp),
+                "No device is connected to ${bt.name.ifEmpty { "MMI" }}.",
+                color = Color.White, fontFamily = MmiFont, fontSize = 28.sp, textAlign = TextAlign.Center,
             )
+            Spacer(Modifier.weight(0.4f))
+            Column(
+                Modifier.width(320.dp).pressable(onConnectNew).padding(vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    MmiLineIcon(MmiLine.PLUS, Color.White.copy(alpha = 0.8f), Modifier.size(40.dp))
+                    Box {
+                        MmiLineIcon(MmiLine.PHONE, Color.White, Modifier.size(120.dp))
+                        MmiLineIcon(MmiLine.BLUETOOTH, Color.White, Modifier.size(46.dp).align(Alignment.Center))
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Text("Connect mobile device", color = Color.White, fontFamily = MmiFont, fontSize = 22.sp)
+            }
+            Spacer(Modifier.weight(0.4f))
+            // Saved phones: one tap reconnects.
+            if (bt.paired.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth().height(64.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)) {
+                    bt.paired.take(4).forEach { d ->
+                        Row(
+                            Modifier.width(240.dp).fillMaxHeight()
+                                .border(1.dp, Brush.verticalGradient(listOf(Color(0x10FFFFFF), Color(0x88FFFFFF))), androidx.compose.ui.graphics.RectangleShape)
+                                .pressable {
+                                    connecting = d.address
+                                    if (!BtConnect.connect(d.address)) connecting = null
+                                }
+                                .padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            MmiLineIcon(MmiLine.PHONE, if (connecting == d.address) MibAccent else Color.White, Modifier.size(26.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                if (connecting == d.address) "Connecting…" else d.name,
+                                color = if (connecting == d.address) MibAccent else Color.White,
+                                fontFamily = MmiFont, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.weight(0.4f))
         }
     }
 }
