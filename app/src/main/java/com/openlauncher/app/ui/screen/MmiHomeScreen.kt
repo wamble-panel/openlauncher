@@ -127,7 +127,8 @@ fun MmiHomeScreen(
     homeSignal: Int,
 ) {
     var page by rememberSaveable { mutableStateOf(MmiPage.HOME) }
-    var selected by rememberSaveable { mutableStateOf("nav") }
+    // Knob selection on Home; empty = nothing outlined (touch use).
+    var selected by rememberSaveable { mutableStateOf("") }
     // Bluetooth is reached from Settings or from the Phone page; Back returns to whichever.
     var bluetoothFrom by rememberSaveable { mutableStateOf(MmiPage.SETTINGS) }
     var pairOnOpen by rememberSaveable { mutableStateOf(false) }
@@ -222,8 +223,9 @@ fun MmiHomeScreen(
         }
     }
     fun stepRing(dir: Int) {
-        val i = ringOrder.indexOf(selected).coerceAtLeast(0)
-        selected = ringOrder[(i + dir + ringOrder.size) % ringOrder.size]
+        val i = ringOrder.indexOf(selected)
+        selected = if (i < 0) (if (dir > 0) ringOrder.first() else ringOrder.last())
+        else ringOrder[(i + dir + ringOrder.size) % ringOrder.size]
     }
     var lastTouch by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var idleFade by remember { mutableStateOf(false) }
@@ -244,7 +246,7 @@ fun MmiHomeScreen(
     }
     fun press() {
         when (page) {
-            MmiPage.HOME -> { com.openlauncher.app.util.UiSound.open(); openRing(selected) }
+            MmiPage.HOME -> if (selected.isNotEmpty()) { com.openlauncher.app.util.UiSound.open(); openRing(selected) }
             MmiPage.APPS -> { com.openlauncher.app.util.UiSound.open(); knob.appsOpen.tryEmit(Unit) }
             MmiPage.MUSIC -> playPause()
             MmiPage.RADIO -> Unit
@@ -340,9 +342,10 @@ fun MmiHomeScreen(
         // Navigation is full screen with its own rail and buttons, as in the Audi MMI.
         val fullScreen = page == MmiPage.NAV
         Column(Modifier.fillMaxSize()) {
-            if (!fullScreen) {
+            // Home draws its own top bar (from the reference screen); the map has none.
+            if (!fullScreen && page != MmiPage.HOME) {
                 TopBar(
-                    height = if (page == MmiPage.HOME) barHeight else barHeight * 0.6f,
+                    height = barHeight * 0.6f,
                     title = null,
                     // The home page has the date bar, and Music shows the track itself.
                     nowPlaying = if (page == MmiPage.MUSIC) null else nowPlaying,
@@ -386,7 +389,7 @@ fun MmiHomeScreen(
                 }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (target) {
-                    MmiPage.HOME -> HomeGrid(selected, onOpen = { openRing(it) })
+                    MmiPage.HOME -> HomeGrid(selected, onOpen = { openRing(it); selected = "" })
                     MmiPage.DASHBOARD -> LiveDashboard(location, bearing, voltage, metric)
                     MmiPage.SETTINGS -> SettingsPanel(metric, onSetMetric) {
                         if (it == MmiPage.BLUETOOTH) {
@@ -457,7 +460,6 @@ fun MmiHomeScreen(
               }
             }
             }
-            if (page == MmiPage.HOME) DateBar(barHeight)
         }
         HazardBanner(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
         CallBar(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
