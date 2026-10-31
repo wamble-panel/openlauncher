@@ -226,6 +226,7 @@ enum class MmiLine {
     CALL, BACKSPACE, OPEN, BLUETOOTH, CONTACTS, NOTE,
     PLUS, MINUS, LOCATE, SEARCH, STAR, STAR_FILLED, HISTORY, PIN, FUEL, CLOSE, HOME, FLAG, CARD, GLOBE,
     SPEAKER, MUTE, CAMERA, MOUNTAIN, BATTERY, GRID, ANTENNA, NAV_ARROW, GEAR, BUMP,
+    CAR, CLOUD, FILM, LINK,
 }
 
 @Composable
@@ -398,6 +399,29 @@ private fun linePaths(kind: MmiLine, s: Float): Pair<List<Path>, List<Path>> = w
         moveTo(0.06f * it, 0.84f * it); lineTo(0.38f * it, 0.30f * it); lineTo(0.56f * it, 0.58f * it)
         lineTo(0.68f * it, 0.44f * it); lineTo(0.94f * it, 0.84f * it); close()
     }) to emptyList<Path>()
+    MmiLine.CAR -> listOf(
+        path(s) {
+            moveTo(0.10f * it, 0.70f * it); lineTo(0.10f * it, 0.52f * it); lineTo(0.22f * it, 0.48f * it)
+            lineTo(0.32f * it, 0.30f * it); lineTo(0.68f * it, 0.30f * it); lineTo(0.78f * it, 0.48f * it)
+            lineTo(0.90f * it, 0.52f * it); lineTo(0.90f * it, 0.70f * it); close()
+        },
+        path(s) { moveTo(0.22f * it, 0.48f * it); lineTo(0.78f * it, 0.48f * it) },
+    ) to listOf(circle(0.28f, 0.74f, 0.08f, s), circle(0.72f, 0.74f, 0.08f, s))
+    MmiLine.CLOUD -> listOf(path(s) {
+        moveTo(0.24f * it, 0.74f * it); lineTo(0.76f * it, 0.74f * it)
+        cubicTo(0.96f * it, 0.74f * it, 0.96f * it, 0.48f * it, 0.76f * it, 0.48f * it)
+        cubicTo(0.74f * it, 0.24f * it, 0.42f * it, 0.20f * it, 0.38f * it, 0.42f * it)
+        cubicTo(0.12f * it, 0.38f * it, 0.06f * it, 0.74f * it, 0.24f * it, 0.74f * it)
+    }) to emptyList<Path>()
+    MmiLine.FILM -> listOf(
+        path(s) { addRoundRect(RoundRect(Rect(0.16f * it, 0.12f * it, 0.84f * it, 0.88f * it), CornerRadius(0.06f * it))) },
+        path(s) { moveTo(0.30f * it, 0.12f * it); lineTo(0.30f * it, 0.88f * it); moveTo(0.70f * it, 0.12f * it); lineTo(0.70f * it, 0.88f * it) },
+    ) to listOf(poly(s, 0.42f to 0.38f, 0.60f to 0.5f, 0.42f to 0.62f))
+    MmiLine.LINK -> listOf(
+        path(s) { addRoundRect(RoundRect(Rect(0.08f * it, 0.20f * it, 0.62f * it, 0.62f * it), CornerRadius(0.05f * it))) },
+        path(s) { addRoundRect(RoundRect(Rect(0.66f * it, 0.30f * it, 0.92f * it, 0.86f * it), CornerRadius(0.05f * it))) },
+        path(s) { moveTo(0.28f * it, 0.76f * it); lineTo(0.52f * it, 0.76f * it); moveTo(0.44f * it, 0.69f * it); lineTo(0.52f * it, 0.76f * it); lineTo(0.44f * it, 0.83f * it) },
+    ) to emptyList<Path>()
     MmiLine.BATTERY -> listOf(
         path(s) { addRoundRect(RoundRect(Rect(0.08f * it, 0.30f * it, 0.92f * it, 0.82f * it), CornerRadius(0.06f * it))) },
         path(s) { moveTo(0.36f * it, 0.56f * it); lineTo(0.64f * it, 0.56f * it); moveTo(0.50f * it, 0.42f * it); lineTo(0.50f * it, 0.70f * it) },

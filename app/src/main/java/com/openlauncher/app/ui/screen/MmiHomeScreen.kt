@@ -78,8 +78,6 @@ import com.openlauncher.app.service.NavGuidance
 import com.openlauncher.app.map.NavigationEngine
 import com.openlauncher.app.service.NavigationTracker
 import com.openlauncher.app.util.BtConnect
-import com.openlauncher.app.util.CarPicture
-import com.openlauncher.app.util.ThemePack
 import com.openlauncher.app.util.IntroVideo
 import com.openlauncher.app.util.LocationData
 import kotlinx.coroutines.launch
@@ -100,8 +98,7 @@ private enum class MmiPage(val title: String?, val inSettings: Boolean = false) 
 }
 
 /**
- * Audi MMI-style shell. HOME is the car-and-ring menu, with a navigation card on the
- * right while our guidance (or Maps/Waze) is running; every other entry
+ * Audi MMI-style shell. HOME is the tile grid with a shortcut rail; every other entry
  * opens an MMI-styled page inside the same frame (chrome bar, date bar), with a
  * zoom-and-fade transition between them.
  */
@@ -155,8 +152,6 @@ fun MmiHomeScreen(
     // Pressing the unit's Home key returns to the ring menu.
     LaunchedEffect(homeSignal) { if (homeSignal > 0) page = MmiPage.HOME }
     val context = LocalContext.current
-    val guidance by NavigationTracker.guidance.collectAsStateWithLifecycle()
-    val ownNav by NavigationEngine.state.collectAsStateWithLifecycle()
 
     val openRadioApp = {
         if (radioPackage.isNotEmpty() || hardwareRadio != null) onLaunchRadio()
@@ -205,11 +200,11 @@ fun MmiHomeScreen(
 
     // The Astra CD300 dash panel (codes learned from the car) drives MMI, so the
     // knob and buttons replace the touchscreen for moving between pages.
-    val ringOrder = remember { listOf("dashboard", "video", "settings", "music", "radio", "phone", "nav", "apps") }
+    val ringOrder = remember { HOME_TILES.map { it.key } }
     fun openRing(key: String) {
         selected = key
         when (key) {
-            "dashboard" -> page = MmiPage.DASHBOARD
+            "carinfo" -> page = MmiPage.DASHBOARD
             "video" -> context.openVideo(apps, onLaunchPackage)
             "settings" -> page = MmiPage.SETTINGS
             "music" -> page = MmiPage.MUSIC
@@ -217,6 +212,11 @@ fun MmiHomeScreen(
             "phone" -> page = MmiPage.BT_HUB
             "nav" -> page = MmiPage.NAV
             "apps" -> page = MmiPage.APPS
+            "eq" -> page = MmiPage.EQ
+            // The unit's phone-mirroring and weather apps, when installed; else the app list.
+            "phonelink" -> apps.findByLabel("phonelink", "phone link", "carlink", "zlink", "easyconnect", "easy connect", "carplay", "autokit")
+                ?.let { onLaunchPackage(it.packageName) } ?: run { page = MmiPage.APPS }
+            "weather" -> apps.findByLabel("weather")?.let { onLaunchPackage(it.packageName) } ?: run { page = MmiPage.APPS }
         }
     }
     fun stepRing(dir: Int) {
@@ -225,16 +225,17 @@ fun MmiHomeScreen(
     }
     var lastTouch by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var idleFade by remember { mutableStateOf(false) }
-    // Knob pages: Home moves the ring, Apps its own grid, Radio tunes, Music skips tracks;
-    // every other page moves a highlight through its buttons and the knob press clicks it.
+    // Knob pages: Home moves through the tiles, Apps its own grid, Radio tunes; every other
+    // page (Music too: the knob never skips songs) moves a highlight through its buttons
+    // and the knob press clicks it.
     val knob = com.openlauncher.app.util.KnobTarget
+    val keyScope = rememberCoroutineScope()
     val activity = remember(context) { context.findActivity() }
     fun turn(dir: Int) {
         when (page) {
             MmiPage.RADIO -> com.openlauncher.app.util.TwBridge.radioStep(dir > 0)
             MmiPage.HOME -> stepRing(dir)
             MmiPage.APPS -> knob.appsStep.tryEmit(dir)
-            MmiPage.MUSIC -> if (dir > 0) next() else prev()
             else -> knob.focusStep(activity, dir > 0)
         }
     }
@@ -254,7 +255,21 @@ fun MmiHomeScreen(
             16 -> page = MmiPage.RADIO
             32 -> page = MmiPage.BT_HUB
             90 -> page = MmiPage.SETTINGS
-            24 -> page = MmiPage.EQ                            // TONE -> equaliser
+            24 -> {                                            // TONE -> equaliser
+                page = MmiPage.EQ
+                // The car's own sound app answers TONE too and opens over MMI: come back on top.
+                keyScope.launch {
+                    for (wait in longArrayOf(350, 900)) {
+                        delay(wait)
+                        runCatching {
+                            context.startActivity(
+                                Intent(context, com.openlauncher.app.MainActivity::class.java)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                            )
+                        }
+                    }
+                }
+            }
             40 -> if (radioPackage.isNotEmpty()) onLaunchRadio()
             18 -> back()
             33 -> page = MmiPage.MUSIC
@@ -317,9 +332,6 @@ fun MmiHomeScreen(
         },
     ) {
         val barHeight = maxHeight * 0.11f
-        val cardWidth = maxWidth * 0.24f
-        // Theme pack: the real MMI floor with its ring behind the home page, icons placed on that ring.
-        val theme by ThemePack.theme.collectAsStateWithLifecycle()
         // Navigation is full screen with its own rail and buttons, as in the Audi MMI.
         val fullScreen = page == MmiPage.NAV
         Column(Modifier.fillMaxSize()) {
@@ -351,51 +363,7 @@ fun MmiHomeScreen(
                 label = "mmi_page",
             ) { target ->
                 when (target) {
-                    MmiPage.HOME -> BoxWithConstraints(Modifier.fillMaxSize()) {
-                        val themeBackground = theme?.background
-                        val themeRing = theme?.ring
-                        // The artwork is stretched over the home area (a gentle squeeze for the floor),
-                        // so its ring maps straight from the pack's fractions and stays left of the card.
-                        val ring = if (themeBackground != null && themeRing != null) {
-                            OrbitRing(maxWidth * themeRing[0], maxHeight * themeRing[1], maxWidth * themeRing[2], maxHeight * themeRing[3])
-                        } else null
-                        if (themeBackground != null) {
-                            Image(themeBackground, contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize())
-                        }
-                        Row(Modifier.fillMaxSize()) {
-                        Orbit(
-                            modifier = Modifier.weight(1f).fillMaxHeight(),
-                            ring = ring,
-                            icons = theme?.icons.orEmpty(),
-                            selected = selected,
-                            onSelect = { key ->
-                                selected = key
-                                when (key) {
-                                    "dashboard" -> page = MmiPage.DASHBOARD
-                                    "video" -> context.openVideo(apps, onLaunchPackage)
-                                    "settings" -> page = MmiPage.SETTINGS
-                                    "music" -> page = MmiPage.MUSIC
-                                    "radio" -> page = MmiPage.RADIO
-                                    "phone" -> page = MmiPage.BT_HUB
-                                    "nav" -> page = MmiPage.NAV
-                                    "apps" -> page = MmiPage.APPS
-                                    else -> Unit
-                                }
-                            },
-                        )
-                        // The side card only shows while a route is running; otherwise the ring has the full width.
-                        val active = guidance
-                        if (ownNav.destination != null || active != null) {
-                            Box(Modifier.fillMaxHeight().width(cardWidth).padding(end = 16.dp, top = 4.dp, bottom = 8.dp)) {
-                                if (ownNav.destination != null) {
-                                    MmiRouteCard(ownNav, metric, Modifier.fillMaxSize()) { page = MmiPage.NAV }
-                                } else if (active != null) {
-                                    NavCard(active, Modifier.fillMaxSize()) { context.openNavigation(active) }
-                                }
-                            }
-                        }
-                    }
-                    }
+                    MmiPage.HOME -> HomeGrid(selected, onOpen = { openRing(it) })
                     MmiPage.DASHBOARD -> LiveDashboard(location, bearing, voltage, metric)
                     MmiPage.SETTINGS -> SettingsPanel(metric, onSetMetric) {
                         if (it == MmiPage.BLUETOOTH) {
@@ -810,339 +778,6 @@ private fun DateBar(height: Dp) {
     }
 }
 
-// ── Orbit menu ───────────────────────────────────────────────────────────────
-
-/**
- * Light trails under the car, like the MMI start screen: cyan streaks run along the
- * floor from under the car back past its tail.
- */
-@Composable
-private fun DriveTrails(carX: Dp, carY: Dp, carW: Dp, carH: Dp, introValue: () -> Float) {
-    // Drawn once and left still: an animated pulse redrew the home screen every frame while driving.
-    val phase = 0.35f
-    Canvas(Modifier.fillMaxSize()) {
-        // Read while drawing, so the entrance only redraws this canvas.
-        val intro = introValue()
-        if (intro <= 0.01f) return@Canvas
-        val cw = carW.toPx()
-        // Ground line under the wheels; the car faces front-right, so "behind" is left and a little up.
-        val groundY = carY.toPx() + carH.toPx() * 0.9f
-        val frontX = carX.toPx() + cw * 0.95f
-        val length = cw * 1.9f * intro
-        val dx = -1f
-        val dy = -0.10f
-        val norm = kotlin.math.sqrt(dx * dx + dy * dy)
-        val ux = dx / norm
-        val uy = dy / norm
-        val lanes = listOf(-0.050f to 0.55f, -0.018f to 0.9f, 0.016f to 1f, 0.048f to 0.6f)
-        lanes.forEachIndexed { i, (offset, strength) ->
-            val start = Offset(frontX, groundY + size.height * offset)
-            val end = Offset(start.x + ux * length, start.y + uy * length + size.height * offset * 0.6f)
-            val trail = Brush.linearGradient(
-                0f to Color.Transparent,
-                0.12f to MmiCyan.copy(alpha = 0.85f * strength),
-                0.45f to MmiCyan.copy(alpha = 0.45f * strength),
-                1f to Color.Transparent,
-                start = start, end = end,
-            )
-            // Soft glow, then the crisp streak.
-            drawLine(trail, start, end, 9.dp.toPx() * strength, StrokeCap.Round, alpha = 0.25f)
-            drawLine(trail, start, end, 1.6.dp.toPx(), StrokeCap.Round)
-            // A bright pulse flowing backwards along the streak.
-            val t = (phase + i * 0.27f) % 1f
-            val p0 = Offset(start.x + (end.x - start.x) * t, start.y + (end.y - start.y) * t)
-            val seg = 0.16f
-            val p1 = Offset(p0.x + (end.x - start.x) * seg, p0.y + (end.y - start.y) * seg)
-            drawLine(
-                Brush.linearGradient(listOf(Color(0xFFE6FAFF).copy(alpha = (1f - t) * strength), Color.Transparent), p0, p1),
-                p0, p1, 2.4.dp.toPx(), StrokeCap.Round,
-            )
-        }
-        // Cyan floor glow right under the car.
-        val gx = carX.toPx() + cw * 0.5f
-        drawOval(
-            Brush.radialGradient(listOf(MmiCyan.copy(alpha = 0.30f * intro), Color.Transparent), Offset(gx, groundY), cw * 0.55f),
-            topLeft = Offset(gx - cw * 0.55f, groundY - size.height * 0.035f), size = Size(cw * 1.1f, size.height * 0.07f),
-        )
-    }
-}
-
-private var orbitIntroPlayed = false
-
-/** Ring centre line in the Orbit's own coordinates (from a theme pack background). */
-private data class OrbitRing(val cx: Dp, val cy: Dp, val rx: Dp, val ry: Dp)
-
-private fun MmiGlyph.themeKey(): String = when (this) {
-    MmiGlyph.GAUGE -> "dashboard"
-    MmiGlyph.REEL -> "video"
-    MmiGlyph.GEARS -> "settings"
-    MmiGlyph.NOTE -> "music"
-    MmiGlyph.HANDSET -> "phone"
-    MmiGlyph.FLAG -> "navigation"
-    MmiGlyph.APPS -> "apps"
-    MmiGlyph.RADIO -> "radio"
-}
-
-/** Ring positions with theme artwork (APPS takes 124°). */
-private val THEMED_ANGLES = mapOf(
-    "dashboard" to -112f, "video" to -78f, "settings" to -44f, "music" to -10f,
-    "radio" to 24f, "phone" to 58f, "nav" to 92f,
-)
-
-private data class OrbitItem(val key: String, val label: String, val glyph: MmiGlyph, val angle: Float)
-
-private val ORBIT_ITEMS = listOf(
-    OrbitItem("dashboard", "Dashboard", MmiGlyph.GAUGE, -110f),
-    OrbitItem("video", "Video", MmiGlyph.REEL, -74f),
-    OrbitItem("settings", "Settings", MmiGlyph.GEARS, -38f),
-    OrbitItem("music", "Music", MmiGlyph.NOTE, -2f),
-    OrbitItem("radio", "Radio", MmiGlyph.RADIO, 34f),
-    OrbitItem("phone", "Bluetooth", MmiGlyph.HANDSET, 70f),
-    OrbitItem("nav", "Navigation", MmiGlyph.FLAG, 108f),
-)
-
-@Composable
-private fun Orbit(
-    modifier: Modifier,
-    selected: String,
-    onSelect: (String) -> Unit,
-    ring: OrbitRing? = null,
-    icons: Map<String, androidx.compose.ui.graphics.ImageBitmap> = emptyMap(),
-) {
-    // Entrance once per start: the ring draws in, the car slides in, items pop in one by one.
-    // Coming back to Home later shows it at once, so it never competes with the page switch.
-    val intro = remember { Animatable(if (orbitIntroPlayed) 1f else 0f) }
-    LaunchedEffect(Unit) {
-        if (orbitIntroPlayed) return@LaunchedEffect
-        orbitIntroPlayed = true
-        intro.animateTo(1f, tween(900, easing = FastOutSlowInEasing))
-    }
-
-    BoxWithConstraints(modifier) {
-        val w = maxWidth
-        val h = maxHeight
-        val cx = ring?.cx ?: (w * 0.42f)
-        val cy = ring?.cy ?: (h * 0.50f)
-        val rx = ring?.rx ?: (w * 0.38f)
-        val ry = ring?.ry ?: (h * 0.44f)
-        val iconSize = h * 0.13f
-        val labelSize = with(LocalDensity.current) { (h * 0.05f).toSp() }
-        // With theme artwork the car sits inside that ring's disc; otherwise the drawn layout.
-        // The car stands in the middle of the ring's disc (drawn or theme artwork).
-        val carW = rx * 1.05f
-        // The owner's own photo of the selected car (imported in Settings), else the built-in one.
-        val carProfile by RoadMemory.carState.collectAsStateWithLifecycle()
-        val pictureVersion by CarPicture.version.collectAsStateWithLifecycle()
-        val pictureContext = LocalContext.current
-        val ownPicture by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, carProfile, pictureVersion) {
-            value = CarPicture.load(pictureContext, carProfile)?.asImageBitmap()
-        }
-        val astra = carProfile == com.openlauncher.app.map.CarProfile.ASTRA_J
-        val carH = carW * (ownPicture?.let { it.height.toFloat() / it.width } ?: if (astra) 540f / 900f else 473f / 900f)
-        val carX = cx - carW / 2
-        val carY = cy - carH * 0.55f
-
-        Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = (intro.value * 1.6f).coerceAtMost(1f) }) {
-            val c = Offset(cx.toPx(), cy.toPx())
-            val rxp = rx.toPx()
-            val ryp = ry.toPx()
-            val band = size.height * 0.035f
-            val ringTL = Offset(c.x - rxp, c.y - ryp)
-            val ringSize = Size(rxp * 2, ryp * 2)
-            val outerTL = Offset(ringTL.x - band / 2, ringTL.y - band / 2)
-            val outerSize = Size(ringSize.width + band, ringSize.height + band)
-            val innerTL = Offset(ringTL.x + band / 2, ringTL.y + band / 2)
-            val innerSize = Size(ringSize.width - band, ringSize.height - band)
-
-            if (ring == null) {
-            // The MMI "disc": a near-black floor inside the ring, slightly lighter towards the rim.
-            drawOval(
-                Brush.radialGradient(
-                    listOf(Color(0xF0030304), Color(0xE0070809), Color(0xC0121418)),
-                    center = c, radius = rxp,
-                ),
-                topLeft = ringTL, size = ringSize,
-            )
-            drawOval(Color(0x80000000), topLeft = ringTL + Offset(0f, band * 0.7f), size = ringSize, style = Stroke(band * 1.5f))
-            drawOval(
-                Brush.verticalGradient(
-                    listOf(Color(0xFF1E2125), Color(0xFF060607), Color(0xFF15171A)),
-                    startY = c.y - ryp, endY = c.y + ryp,
-                ),
-                topLeft = ringTL, size = ringSize, style = Stroke(band),
-            )
-            drawOval(Color(0x30FFFFFF), topLeft = outerTL, size = outerSize, style = Stroke(1.5.dp.toPx()))
-            drawOval(Color(0x70000000), topLeft = innerTL, size = innerSize, style = Stroke(1.5.dp.toPx()))
-            drawArc(
-                Brush.linearGradient(
-                    listOf(Color(0x00FFFFFF), Color(0xFFE8ECF0), Color(0xFFFFFFFF), Color(0x00FFFFFF)),
-                    start = Offset(c.x + rxp, c.y - ryp * 0.4f), end = Offset(c.x - rxp * 0.7f, c.y + ryp),
-                ),
-                startAngle = -35f, sweepAngle = 175f * intro.value, useCenter = false,
-                topLeft = outerTL, size = outerSize,
-                style = Stroke(3.dp.toPx(), cap = StrokeCap.Round),
-            )
-            drawArc(
-                Color(0x60FFFFFF), startAngle = 10f, sweepAngle = 140f * intro.value, useCenter = false,
-                topLeft = innerTL, size = innerSize, style = Stroke(1.dp.toPx(), cap = StrokeCap.Round),
-            )
-
-            }
-
-            val gy = carY.toPx() + carH.toPx() * 0.93f
-            val gx = carX.toPx() + carW.toPx() * 0.47f
-            drawOval(
-                Color(0xB0000000),
-                topLeft = Offset(gx - carW.toPx() * 0.34f, gy - size.height * 0.04f), size = Size(carW.toPx() * 0.68f, size.height * 0.045f),
-            )
-        }
-
-        DriveTrails(carX, carY, carW, carH) { intro.value }
-
-        val slide = with(LocalDensity.current) { 60.dp.toPx() }
-        val carModifier = Modifier.offset(x = carX, y = carY).size(carW, carH).graphicsLayer {
-            alpha = intro.value
-            translationX = (1f - intro.value) * -slide
-        }
-        val picture = ownPicture
-        if (picture != null) {
-            Image(picture, contentDescription = "Your car", contentScale = ContentScale.Fit, modifier = carModifier)
-        } else {
-            Image(
-                painterResource(if (astra) R.drawable.mmi_car_astra else R.drawable.mmi_car),
-                contentDescription = "Your car", contentScale = ContentScale.Fit, modifier = carModifier,
-            )
-        }
-
-        ORBIT_ITEMS.forEachIndexed { index, item ->
-            // The artwork's ring runs off the left edge, so APPS joins the ring and the
-            // lower entries spread out a little to keep clear of it.
-            val angle = if (ring != null) THEMED_ANGLES[item.key] ?: item.angle else item.angle
-            val rad = Math.toRadians(angle.toDouble())
-            OrbitEntry(
-                label = item.label, glyph = item.glyph, image = icons[item.glyph.themeKey()],
-                x = cx + rx * cos(rad).toFloat() - iconSize / 2,
-                y = cy + ry * sin(rad).toFloat() - iconSize / 2,
-                iconSize = iconSize, labelSize = labelSize,
-                selected = selected == item.key,
-                // Lower-right entries sit where the ring climbs; drop their label below it.
-                labelDrop = if (angle in 50f..90f) iconSize * 0.42f else 0.dp,
-                appear = { ((intro.value - 0.25f - index * 0.07f) / 0.3f).coerceIn(0f, 1f) },
-                onClick = { onSelect(item.key) },
-            )
-        }
-        val appsRad = Math.toRadians(124.0)
-        OrbitEntry(
-            label = "APPS", glyph = MmiGlyph.APPS, image = icons["apps"],
-            x = if (ring != null) cx + rx * cos(appsRad).toFloat() - iconSize / 2 else w * 0.02f,
-            y = if (ring != null) cy + ry * sin(appsRad).toFloat() - iconSize / 2 else h * 0.72f,
-            iconSize = iconSize, labelSize = labelSize,
-            selected = selected == "apps",
-            appear = { ((intro.value - 0.2f) / 0.3f).coerceIn(0f, 1f) },
-            onClick = { onSelect("apps") },
-        )
-    }
-}
-
-@Composable
-private fun OrbitEntry(
-    label: String,
-    glyph: MmiGlyph,
-    x: Dp,
-    y: Dp,
-    iconSize: Dp,
-    labelSize: TextUnit,
-    selected: Boolean,
-    appear: () -> Float,
-    onClick: () -> Unit,
-    labelDrop: Dp = 0.dp,
-    image: androidx.compose.ui.graphics.ImageBitmap? = null,
-) {
-    val boxColor by animateColorAsState(if (selected) MmiCyan else Color.Transparent, tween(220), label = "select")
-    Row(
-        Modifier.offset(x = x, y = y)
-            .graphicsLayer {
-                val a = appear()
-                alpha = a
-                scaleX = 0.6f + 0.4f * a
-                scaleY = 0.6f + 0.4f * a
-            }
-            .pressable(onClick),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            Modifier.size(iconSize).drawBehind {
-                drawOval(
-                    Color(0x99000000),
-                    topLeft = Offset(size.width * 0.12f, size.height * 0.86f),
-                    size = Size(size.width * 0.76f, size.height * 0.16f),
-                )
-            }
-        ) {
-            if (image != null) {
-                Image(image, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
-            } else {
-                MmiIcon(glyph, Modifier.fillMaxSize())
-            }
-        }
-        Spacer(Modifier.width(6.dp))
-        Text(
-            label, color = MmiInk, fontFamily = MmiFont, fontSize = labelSize,
-            modifier = Modifier
-                .offset(y = labelDrop)
-                .border(2.dp, boxColor, RoundedCornerShape(4.dp))
-                .padding(horizontal = 6.dp, vertical = 2.dp),
-        )
-    }
-}
-
-// ── Right-hand cards ─────────────────────────────────────────────────────────
-
-@Composable
-private fun NavCard(guidance: NavGuidance, modifier: Modifier, onClick: () -> Unit) {
-    val context = LocalContext.current
-    Column(modifier.pressable(onClick), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Column(
-            Modifier.fillMaxWidth().weight(1f).mmiPanel().padding(14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            Text("NAVIGATION", color = MmiCyan, fontFamily = MmiFont, fontSize = 12.sp, letterSpacing = 3.sp)
-            val arrow = guidance.arrow
-            if (arrow != null) {
-                Image(
-                    bitmap = arrow.asImageBitmap(), contentDescription = null,
-                    colorFilter = ColorFilter.tint(MmiInk),
-                    modifier = Modifier.fillMaxWidth(0.45f).aspectRatio(1f),
-                )
-            } else {
-                MmiIcon(MmiGlyph.FLAG, Modifier.fillMaxWidth(0.4f).aspectRatio(1f))
-            }
-            Text(
-                guidance.instruction, color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light,
-                fontSize = 30.sp, maxLines = 2, textAlign = TextAlign.Center, overflow = TextOverflow.Ellipsis,
-            )
-            guidance.detail?.let {
-                Text(it, color = MmiDim, fontFamily = MmiFont, fontSize = 16.sp, maxLines = 2, textAlign = TextAlign.Center, overflow = TextOverflow.Ellipsis)
-            }
-        }
-        Row(Modifier.fillMaxWidth().height(48.dp).mmiPanel().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                guidance.eta ?: (context.appLabel(guidance.sourcePackage) ?: "Guidance active"),
-                color = MmiInk, fontFamily = MmiFont, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Composable
-private fun LiveDashboard(location: StateFlow<LocationData?>, bearing: StateFlow<Float>, voltage: StateFlow<Float?>, metric: Boolean) {
-    val loc by location.collectAsStateWithLifecycle()
-    val heading by bearing.collectAsStateWithLifecycle()
-    val volts by voltage.collectAsStateWithLifecycle()
-    MmiDashboardPage(loc, heading, volts, metric)
-}
-
 // ── Settings page ────────────────────────────────────────────────────────────
 
 @Composable
@@ -1156,17 +791,6 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
     val openSystem = { context.launchFirst(Intent(Settings.ACTION_SETTINGS)); Unit }
     val carProfile = RoadMemory.carState.collectAsStateWithLifecycle().value
     val carName = carProfile.label
-    val pictureVersion by CarPicture.version.collectAsStateWithLifecycle()
-    val hasPicture = remember(carProfile, pictureVersion) { CarPicture.has(context, carProfile) }
-    val themeState = ThemePack.theme.collectAsStateWithLifecycle().value
-    val themeOn = themeState != null
-    val themeImported = remember(themeState) { ThemePack.isImported(context) }
-    val pickTheme = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch { ThemePack.import(context, uri) }
-    }
-    val pickPicture = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch { CarPicture.import(context, uri, carProfile) }
-    }
     // Software update: new builds download in the background; one tap installs.
     val updater = com.openlauncher.app.util.AppUpdater
     val installedVersion = remember { updater.installedVersion(context) }
@@ -1221,15 +845,6 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
         "Car: ${carName}" to {
             val next = com.openlauncher.app.map.CarProfile.entries[(RoadMemory.car.ordinal + 1) % com.openlauncher.app.map.CarProfile.entries.size]
             RoadMemory.setCar(next)
-        },
-        (if (themeOn) "Look: MMI artwork (tap for drawn)" else "Look: drawn (tap for MMI artwork)") to {
-            ThemePack.setEnabled(context, !themeOn)
-        },
-        (if (themeImported) "Theme pack: yours (tap to remove)" else "Theme pack: import from USB") to {
-            if (themeImported) ThemePack.remove(context) else pickTheme.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
-        },
-        (if (hasPicture) "Car picture: yours (tap to remove)" else "Car picture: import from USB") to {
-            if (hasPicture) CarPicture.remove(context, carProfile) else pickPicture.launch(arrayOf("image/*"))
         },
         "Display" to { onOpen(MmiPage.DISPLAY) },
         "Sound" to { onOpen(MmiPage.SOUND) },

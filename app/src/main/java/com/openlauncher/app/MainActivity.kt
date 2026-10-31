@@ -54,6 +54,12 @@ class MainActivity : ComponentActivity() {
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
         // The car's turn knob tunes the radio while the Radio page is open.
         if (com.openlauncher.app.util.KnobTarget.onKey(event)) return true
+        // The car's own software turns every knob and wheel-scroll step into a fake
+        // next/previous-track key. MMI handles those turns itself, so drop the fake keys.
+        if (event.keyCode == android.view.KeyEvent.KEYCODE_MEDIA_NEXT || event.keyCode == android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS) {
+            val k = com.openlauncher.app.util.CarCore.lastKey.value
+            if (k != null && k.code in KNOB_CODES && System.currentTimeMillis() - k.at < 600) return true
+        }
         // Steering-wheel keys reach the foreground app as media keys; send them to
         // whatever is playing instead of letting them fall on the home screen.
         // Only while something is actually playing: a paused USB-music session must not
@@ -220,3 +226,6 @@ class MainActivity : ComponentActivity() {
         var introPlayed = false
     }
 }
+
+/** Car codes for the dash knob (5/6) and the side / steering-wheel scroll (19/21). */
+private val KNOB_CODES = setOf(5, 6, 19, 21)
