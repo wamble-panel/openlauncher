@@ -292,7 +292,7 @@ internal fun MmiSoundPage(apps: List<AppInfo>, onLaunchPackage: (String) -> Unit
                     )
                 }, MmiLine.OPEN)
             } else {
-                EqualizerPanel()
+                ToneControls()
             }
         }
     }
