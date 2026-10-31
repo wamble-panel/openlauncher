@@ -236,14 +236,15 @@ fun MmiHomeScreen(
             40 -> if (radioPackage.isNotEmpty()) onLaunchRadio()
             18 -> back()
             33 -> page = MmiPage.MUSIC
-            // Knob turn / seek: tune on Radio, move the ring highlight on Home, else prev/next.
-            5, 19 -> when (page) {
+            // Big knob (5/6) and side keys (19/21): tune on Radio, move the ring on Home,
+            // scroll Apps, else previous/next. Anticlockwise = 6 and 19; clockwise = 5 and 21.
+            6, 19 -> when (page) {
                 MmiPage.RADIO -> com.openlauncher.app.util.TwBridge.radioStep(false)
                 MmiPage.HOME -> stepRing(-1)
                 MmiPage.APPS -> com.openlauncher.app.util.KnobTarget.appsStep.tryEmit(-1)
                 else -> prev()
             }
-            6, 21 -> when (page) {
+            5, 21 -> when (page) {
                 MmiPage.RADIO -> com.openlauncher.app.util.TwBridge.radioStep(true)
                 MmiPage.HOME -> stepRing(1)
                 MmiPage.APPS -> com.openlauncher.app.util.KnobTarget.appsStep.tryEmit(1)
@@ -260,9 +261,12 @@ fun MmiHomeScreen(
                 MmiPage.APPS -> com.openlauncher.app.util.KnobTarget.appsOpen.tryEmit(Unit)
                 else -> page = MmiPage.DASHBOARD
             }
-            in 49..54 -> if (page == MmiPage.RADIO) {
-                com.openlauncher.app.util.TwBridge.radioPresets().getOrNull(k.code - 49)?.takeIf { it > 0f }
-                    ?.let { com.openlauncher.app.util.TwBridge.radioTune(it > 200f, it) }
+            in 49..54 -> {
+                // Saved favourite channels: tune from anywhere (open Radio to see it).
+                com.openlauncher.app.util.TwBridge.radioPresets().getOrNull(k.code - 49)?.takeIf { it > 0f }?.let {
+                    if (page != MmiPage.RADIO) page = MmiPage.RADIO
+                    com.openlauncher.app.util.TwBridge.radioTune(it > 200f, it)
+                }
             }
             7 -> if (page == MmiPage.RADIO) {
                 com.openlauncher.app.util.TwBridge.radioLast().let { (_, f) ->
