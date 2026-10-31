@@ -69,7 +69,7 @@ internal fun MmiSlider(value: Float, onChange: (Float) -> Unit, modifier: Modifi
         val end = if (vertical) Offset(size.width / 2, 0f) else Offset(size.width, size.height / 2)
         val knob = if (vertical) Offset(size.width / 2, size.height * (1f - v)) else Offset(size.width * v, size.height / 2)
         drawLine(Color(0xFF2A2E34), start, end, track, StrokeCap.Round)
-        drawLine(Brush.linearGradient(listOf(Color(0xFF1C8FB8), MmiCyan), start, knob), start, knob, track, StrokeCap.Round)
+        drawLine(Brush.linearGradient(listOf(Color(0xFF808080), MmiCyan), start, knob), start, knob, track, StrokeCap.Round)
         drawCircle(Brush.linearGradient(ChromeRim, knob - Offset(10f, 10f), knob + Offset(10f, 10f)), 9.dp.toPx(), knob)
     }
 }

@@ -213,7 +213,7 @@ internal fun MmiRouteCard(nav: NavState, metric: Boolean, modifier: Modifier, on
 @Composable
 private fun CardText(big: String, small: String?) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(big, color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 30.sp, maxLines = 1)
+        Text(big, color = MmiInk, fontFamily = MmiFont, fontSize = 30.sp, maxLines = 1)
         if (!small.isNullOrEmpty()) {
             Text(
                 small, color = MmiDim, fontFamily = MmiFont, fontSize = 16.sp, maxLines = 2,

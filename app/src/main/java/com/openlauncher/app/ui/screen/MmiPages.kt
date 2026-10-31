@@ -86,11 +86,12 @@ import kotlin.math.sin
 
 // ── Shared MMI building blocks ───────────────────────────────────────────────
 
-internal val MmiInk = Color(0xFFF0F2F4)
-internal val MmiDim = Color(0xFF9AA0A8)
-internal val MmiCyan = Color(0xFF3EC6F0)
+// The reference look: pure black, white Roboto Regular, neutral grey for secondary text.
+internal val MmiInk = Color.White
+internal val MmiDim = Color(0xFFA6A6A6)
+internal val MmiCyan = Color.White
 internal val MmiFont = FontFamily.SansSerif
-internal val MmiPageBg = Color(0xFF0B0C0E)
+internal val MmiPageBg = Color.Black
 
 internal val ChromeRim = listOf(Color(0xFFF2F4F7), Color(0xFF8C939C), Color(0xFFDDE1E6), Color(0xFF4F555D))
 
@@ -151,30 +152,25 @@ internal fun Modifier.pressable(onClick: () -> Unit): Modifier {
         }
 }
 
-internal fun Modifier.mmiPanel(): Modifier {
-    val shape = RoundedCornerShape(4.dp)
-    return this.clip(shape)
-        .background(Brush.verticalGradient(listOf(Color(0xFF17191C), Color(0xFF0D0E11))))
-        .border(1.dp, Brush.verticalGradient(listOf(Color(0xFF5A6068), Color(0xFF1E2125), Color(0xFF3A3F46))), shape)
-}
+internal fun Modifier.mmiPanel(): Modifier =
+    this.background(Color.Black)
+        .border(1.dp, Brush.verticalGradient(listOf(Color(0x1AFFFFFF), Color(0x80FFFFFF))), androidx.compose.ui.graphics.RectangleShape)
 
-/** Round chrome-rimmed button with a white line glyph. */
+/** Round button: black disc, thin ring fading from top to bottom, white line glyph. */
 @Composable
 internal fun ChromeButton(kind: MmiLine, size: Dp, onClick: () -> Unit, highlighted: Boolean = false) {
     Box(
         Modifier.size(size).pressable(onClick).drawBehind {
             val r = this.size.minDimension / 2f
-            drawCircle(Color(0x99000000), r, center + Offset(0f, r * 0.12f))
-            drawCircle(Brush.linearGradient(ChromeRim, start = Offset.Zero, end = Offset(this.size.width, this.size.height)), r)
+            drawCircle(Color.Black, r)
             drawCircle(
-                Brush.radialGradient(listOf(Color(0xFF2B2F35), Color(0xFF0A0B0D)), center = center - Offset(0f, r * 0.3f), radius = r),
-                r * 0.86f,
+                Brush.verticalGradient(listOf(Color(0x33FFFFFF), if (highlighted) Color.White else Color(0x99FFFFFF))),
+                r - 1.dp.toPx(), style = Stroke((if (highlighted) 2.dp else 1.dp).toPx()),
             )
-            if (highlighted) drawCircle(MmiCyan.copy(alpha = 0.9f), r * 0.86f, style = Stroke(2.dp.toPx()))
         },
         contentAlignment = Alignment.Center,
     ) {
-        MmiLineIcon(kind, if (highlighted) MmiCyan else MmiInk, Modifier.size(size * 0.38f))
+        MmiLineIcon(kind, Color.White, Modifier.size(size * 0.38f))
     }
 }
 
@@ -469,7 +465,7 @@ private fun MusicProgress(state: NowPlayingState) {
         ) {
             val y = size.height / 2f
             val x = size.width * shown
-            drawLine(Color(0xFFD5D8DC), Offset(0f, y), Offset(size.width, y), 2.dp.toPx())
+            drawLine(Color(0x55FFFFFF), Offset(0f, y), Offset(size.width, y), 2.dp.toPx())
             drawLine(MibAccent, Offset(0f, y), Offset(x, y), 2.5.dp.toPx())
             drawCircle(Color(0xFF0B0C0E), 7.dp.toPx(), Offset(x, y))
             drawCircle(MibAccent, 7.dp.toPx(), Offset(x, y), style = Stroke(2.dp.toPx()))
@@ -506,7 +502,7 @@ internal fun MmiRadioPage(
             Text(radio?.band ?: "FM", color = MmiCyan, fontFamily = MmiFont, fontSize = 16.sp, letterSpacing = 3.sp)
             Text(
                 radio?.freq ?: "– – –", color = MmiInk, fontFamily = MmiFont,
-                fontWeight = FontWeight.Light, fontSize = 64.sp,
+                fontSize = 64.sp,
             )
             Text(
                 radio?.stationName ?: if (radio == null) "Radio not connected" else (if (isAm) "kHz" else "MHz"),
@@ -850,7 +846,7 @@ internal fun MmiDashboardPage(
         Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             SpeedGauge(speed, maxSpeed, if (metric) "km/h" else "mph", Modifier.size(dial))
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(speed.roundToInt().toString(), color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 72.sp)
+                Text(speed.roundToInt().toString(), color = MmiInk, fontFamily = MmiFont, fontSize = 72.sp)
                 Text(if (metric) "km/h" else "mph", color = MmiDim, fontFamily = MmiFont, fontSize = 16.sp)
                 Spacer(Modifier.height(8.dp))
                 DashStat("Altitude", location?.let { "${(if (metric) it.altitude else it.altitude * 3.281).roundToInt()} ${if (metric) "m" else "ft"}" } ?: "--")
@@ -998,7 +994,7 @@ private fun CompassGauge(bearing: Float, modifier: Modifier) {
         }
         Text(
             "${(((bearing % 360f) + 360f) % 360f).roundToInt()}°",
-            color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 30.sp,
+            color = MmiInk, fontFamily = MmiFont, fontSize = 30.sp,
             modifier = Modifier.align(Alignment.Center),
         )
     }

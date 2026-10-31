@@ -338,58 +338,47 @@ fun MmiHomeScreen(
             }
         },
     ) {
-        val barHeight = maxHeight * 0.11f
-        // Navigation is full screen with its own rail and buttons, as in the Audi MMI.
+        // One frame for every page but the map, cut from the reference screen: its top bar
+        // across the top and its five-cell rail on the left; pages fill the rest.
+        val k = refScale(maxWidth)
         val fullScreen = page == MmiPage.NAV
-        Column(Modifier.fillMaxSize()) {
-            // Home draws its own top bar (from the reference screen); the map has none.
-            if (!fullScreen && page != MmiPage.HOME) {
-                TopBar(
-                    height = barHeight * 0.6f,
-                    title = null,
-                    // The home page has the date bar, and Music shows the track itself.
-                    nowPlaying = if (page == MmiPage.MUSIC) null else nowPlaying,
-                    clock = page != MmiPage.HOME,
-                    onBack = back,
-                    onTapNowPlaying = { page = MmiPage.MUSIC },
-                )
+        val frameTop = if (fullScreen) 0.dp else refTopBarHeight(k)
+        val frameLeft = if (fullScreen) 0.dp else refRailWidth(k)
+        if (!fullScreen) {
+            RefTopBar(k, maxWidth)
+            if (page != MmiPage.HOME) StatusClock(Modifier.align(Alignment.TopEnd).padding(end = 28.dp).height(frameTop))
+            RefRail(k, maxHeight, railKey(page)) { key ->
+                page = when (key) {
+                    "music" -> MmiPage.MUSIC
+                    "nav" -> MmiPage.NAV
+                    "phone" -> MmiPage.BT_HUB
+                    "settings" -> MmiPage.SETTINGS
+                    else -> MmiPage.DASHBOARD
+                }
             }
-            Row(Modifier.weight(1f).fillMaxWidth()) {
-            // Inner pages: the MIB rail stays put on the left while the page fades.
-            if (page != MmiPage.HOME && page != MmiPage.NAV) {
-                MibRail(railKey(page), onOpen = { key ->
-                    page = when (key) {
-                        "home" -> MmiPage.HOME
-                        "radio" -> MmiPage.RADIO
-                        "music" -> MmiPage.MUSIC
-                        "phone" -> MmiPage.BT_HUB
-                        else -> MmiPage.NAV
-                    }
-                })
-            }
-            AnimatedContent(
-                targetState = page,
-                transitionSpec = {
-                    if (targetState == MmiPage.NAV || initialState == MmiPage.NAV) {
-                        // The map is a separate GPU surface: it can't be faded or scaled with the
-                        // page, and animating both pages at once is what made the switch stutter.
-                        // Switch instantly; the map fades itself in on its first frame.
-                        androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
-                    } else {
-                        // A plain cross-fade, like the MIB: the new page fades in as the old one fades out.
-                        fadeIn(tween(260, delayMillis = 60, easing = FastOutSlowInEasing)) togetherWith fadeOut(tween(160))
-                    }
-                },
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-                label = "mmi_page",
-            ) { target ->
-              Column(Modifier.fillMaxSize().padding(end = if (target == MmiPage.HOME || target == MmiPage.NAV) 0.dp else 14.dp)) {
+        }
+        AnimatedContent(
+            targetState = page,
+            transitionSpec = {
+                if (targetState == MmiPage.NAV || initialState == MmiPage.NAV) {
+                    // The map is a separate GPU surface: it can't be faded with the page.
+                    // Switch instantly; the map fades itself in on its first frame.
+                    androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
+                } else {
+                    // A plain cross-fade: the new page fades in as the old one fades out.
+                    fadeIn(tween(260, delayMillis = 60, easing = FastOutSlowInEasing)) togetherWith fadeOut(tween(160))
+                }
+            },
+            modifier = Modifier.padding(start = frameLeft, top = frameTop).fillMaxSize(),
+            label = "mmi_page",
+        ) { target ->
+            Column(Modifier.fillMaxSize().padding(start = if (target == MmiPage.HOME || target == MmiPage.NAV) 0.dp else 24.dp, end = if (target == MmiPage.HOME || target == MmiPage.NAV) 0.dp else 24.dp)) {
                 headerFor(target, pairOnOpen)?.let { (section, title) ->
-                    MibHeader(section, title, onBack = back, modifier = Modifier.padding(start = 10.dp))
+                    MibHeader(section, title, onBack = back)
                 }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (target) {
-                    MmiPage.HOME -> HomeGrid(selected, onOpen = { openRing(it); selected = "" })
+                    MmiPage.HOME -> HomeGrid(selected, k, onOpen = { openRing(it); selected = "" })
                     MmiPage.DASHBOARD -> LiveDashboard(location, bearing, voltage, metric)
                     MmiPage.SETTINGS -> SettingsPanel(metric, onSetMetric) {
                         if (it == MmiPage.BLUETOOTH) {
@@ -457,8 +446,6 @@ fun MmiHomeScreen(
                     )
                 }
                 }
-              }
-            }
             }
         }
         HazardBanner(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
@@ -492,7 +479,7 @@ private fun HomeAppPrompt() {
             Modifier.width(520.dp).mmiPanel().padding(28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Make MMI your home screen?", color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 26.sp)
+            Text("Make MMI your home screen?", color = MmiInk, fontFamily = MmiFont, fontSize = 26.sp)
             Spacer(Modifier.height(10.dp))
             Text(
                 "The unit then always starts in MMI, and the Home button and steering-wheel keys come back here.",
@@ -645,7 +632,7 @@ private fun ClimatePopup(modifier: Modifier) {
                 .border(1.dp, Color(0xFF3A3F46), RoundedCornerShape(6.dp)).padding(horizontal = 28.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(temp(climate.left, climate.leftLo, climate.leftHi), color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 40.sp)
+            Text(temp(climate.left, climate.leftLo, climate.leftHi), color = MmiInk, fontFamily = MmiFont, fontSize = 40.sp)
             Spacer(Modifier.width(32.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 // Fan level as bars.
@@ -668,7 +655,7 @@ private fun ClimatePopup(modifier: Modifier) {
                 )
             }
             Spacer(Modifier.width(32.dp))
-            Text(temp(climate.right, climate.rightLo, climate.rightHi), color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 40.sp)
+            Text(temp(climate.right, climate.rightLo, climate.rightHi), color = MmiInk, fontFamily = MmiFont, fontSize = 40.sp)
         }
     }
 }
@@ -677,50 +664,7 @@ private const val IDLE_TO_MAP_MS = 120_000L
 
 // ── Backdrop ─────────────────────────────────────────────────────────────────
 
-private fun Modifier.mmiBackdrop() = drawWithCache {
-    val w = size.width
-    val h = size.height
-    val base = Brush.verticalGradient(
-        0f to Color(0xFF16181B),
-        0.12f to Color(0xFF0A0B0D),
-        1f to Color(0xFF0C0D10),
-    )
-    val horizonY = h * 0.28f
-    val vanishX = w * 0.5f
-    val line = Color(0xFF1B1E23)
-    val floorRows = (1..14).map { i -> val t = i / 14f; horizonY + (h - horizonY) * t * t }
-    val vignette = Brush.radialGradient(
-        listOf(Color.Transparent, Color(0xB0000000)),
-        center = Offset(w / 2f, h * 0.55f),
-        radius = w * 0.75f,
-    )
-    val chromeY = h * 0.105f
-    val chromeGlow = Brush.radialGradient(
-        listOf(Color(0x40A0B4CC), Color.Transparent),
-        center = Offset(w / 2f, chromeY),
-        radius = w * 0.35f,
-    )
-    val chrome = Brush.horizontalGradient(
-        0f to Color.Transparent,
-        0.2f to Color(0x553A4048),
-        0.5f to Color(0xFFB4BCC6),
-        0.8f to Color(0x553A4048),
-        1f to Color.Transparent,
-    )
-    val stroke = 1.dp.toPx()
-    onDrawBehind {
-        drawRect(base)
-        floorRows.forEach { y -> drawLine(line, Offset(0f, y), Offset(w, y), stroke) }
-        val spokes = 22
-        for (i in -spokes..spokes) {
-            val step = w / spokes
-            drawLine(line, Offset(vanishX + i * step * 0.18f, horizonY), Offset(vanishX + i * step * 1.7f, h), stroke)
-        }
-        drawRect(vignette)
-        drawRect(chromeGlow, topLeft = Offset.Zero, size = Size(w, chromeY * 2f))
-        drawRect(chrome, topLeft = Offset(0f, chromeY - stroke), size = Size(w, stroke * 2.5f))
-    }
-}
+private fun Modifier.mmiBackdrop() = background(Color.Black)
 
 // ── Top bar and date bar ─────────────────────────────────────────────────────
 
@@ -1043,12 +987,30 @@ private tailrec fun Context.findActivity(): android.app.Activity? = when (this) 
 /** Dash buttons that open an MMI page (Radio, Phone, Setup, Tone, Back, Media). */
 private val PAGE_KEYS = setOf(16, 32, 90, 24, 18, 33)
 
-/** Which rail entry an inner page belongs to. */
-private fun railKey(p: MmiPage): String? = when (p) {
-    MmiPage.RADIO -> "radio"
-    MmiPage.MUSIC, MmiPage.SOURCE -> "music"
-    MmiPage.BT_HUB, MmiPage.PHONE, MmiPage.CONTACTS -> "phone"
+/** Which reference-rail cell an inner page belongs to (lit on that page). */
+private fun railKey(p: MmiPage): String? = when {
+    p == MmiPage.MUSIC || p == MmiPage.SOURCE -> "music"
+    p == MmiPage.BT_HUB || p == MmiPage.PHONE || p == MmiPage.CONTACTS -> "phone"
+    p == MmiPage.DASHBOARD -> "carinfo"
+    p == MmiPage.SETTINGS || p.inSettings -> "settings"
     else -> null
+}
+
+/** Clock in the top bar of the inner pages. */
+@Composable
+private fun StatusClock(modifier: Modifier) {
+    val context = LocalContext.current
+    val now by produceState(System.currentTimeMillis()) {
+        while (true) {
+            value = System.currentTimeMillis()
+            delay(60_000 - value % 60_000)
+        }
+    }
+    val clock24 by CarPrefs.get(context).clock24.collectAsStateWithLifecycle()
+    val fmt = remember(clock24) { SimpleDateFormat(if (clock24) "HH:mm" else "h:mm", Locale.getDefault()) }
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Text(fmt.format(Date(now)), color = Color.White, fontFamily = MmiFont, fontSize = 20.sp)
+    }
 }
 
 /** "Section · Page" for the generic header; null where the page draws its own. */

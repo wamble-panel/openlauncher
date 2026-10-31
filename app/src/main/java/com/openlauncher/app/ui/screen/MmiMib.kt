@@ -39,7 +39,8 @@ import androidx.compose.ui.unit.sp
 // Audi MIB3 look for the inner pages: a quiet dark page, thin light lines, one warm
 // accent for "where you are" (rail entry, breadcrumb, selection, progress).
 
-internal val MibAccent = Color(0xFFF2A33A)
+internal val MibAccent = Color.White
+private val MibSection = Color(0xFFA6A6A6)
 internal val MibLine = Color(0x55FFFFFF)
 private val MibRailBg = Color(0xFF14171B)
 
@@ -92,7 +93,7 @@ internal fun MibHeader(
         leading()
         Row(Modifier.weight(1f).padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             if (section != null) {
-                Text(section, color = MibAccent, fontFamily = MmiFont, fontSize = 24.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Text(section, color = MibSection, fontFamily = MmiFont, fontSize = 24.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 Text("  ·  ", color = Color.White, fontFamily = MmiFont, fontSize = 24.sp)
             }
             Text(title, color = Color.White, fontFamily = MmiFont, fontSize = 24.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -162,7 +163,7 @@ internal fun MibSlider(value: Float, onChange: (Float) -> Unit, modifier: Modifi
     ) {
         val y = size.height / 2
         val x = size.width * value.coerceIn(0f, 1f)
-        drawLine(Color(0xFFD5D8DC), Offset(0f, y), Offset(size.width, y), 2.dp.toPx())
+        drawLine(Color(0x55FFFFFF), Offset(0f, y), Offset(size.width, y), 2.dp.toPx())
         drawLine(MibAccent, Offset(0f, y), Offset(x, y), 2.dp.toPx())
         drawCircle(Color(0xFF1A1D21), 12.dp.toPx(), Offset(x, y))
         drawCircle(Color(0xFFBFC3C8), 10.dp.toPx(), Offset(x, y))

@@ -89,72 +89,83 @@ private val HOME_RAIL = listOf(
     RailEntry("carinfo", R.drawable.home_rail_car, 61f, 47f),
 )
 
+/** Reference top bar (grey gradient with its hairline), full width, 86 px tall. */
+@Composable
+internal fun RefTopBar(k: Dp, width: Dp) {
+    Image(
+        painterResource(R.drawable.home_topbar), null, contentScale = ContentScale.FillBounds,
+        modifier = Modifier.size(width, k * TOP_BAR),
+    )
+}
+
+/** Reference scale: dp per pixel of the 1920-wide reference screen. */
+internal fun refScale(width: Dp): Dp = width / REF_W
+
+/** Height of the reference top bar for scale [k]. */
+internal fun refTopBarHeight(k: Dp): Dp = k * TOP_BAR
+internal fun refRailWidth(k: Dp): Dp = k * RAIL_W
+
 /**
- * Home, laid out to the reference screen: top bar, five-cell rail, two pages of
- * 4 × 2 tiles and the page dots. The knob moves [selected] (outlined; nothing is
- * outlined until the knob is used) and turns the page; a press opens it.
+ * Reference rail: five cells (Music, Navigation, Phone, Settings, Car) with 2 px black
+ * gaps, from 105 px down to 22 px above the bottom; [active] lights its cell.
  */
 @Composable
-internal fun HomeGrid(selected: String, onOpen: (String) -> Unit, modifier: Modifier = Modifier) {
+internal fun RefRail(k: Dp, height: Dp, active: String?, onOpen: (String) -> Unit) {
+    val railTop = k * RAIL_TOP
+    val cellH = (height - railTop - k * RAIL_BOTTOM_GAP - k * RAIL_GAP * 4) / 5
+    HOME_RAIL.forEachIndexed { i, entry ->
+        Box(
+            Modifier.offset(0.dp, railTop + (cellH + k * RAIL_GAP) * i).size(k * RAIL_W, cellH)
+                .pressable { onOpen(entry.key) },
+        ) {
+            RailCell(k, entry.key == active)
+            Image(
+                painterResource(entry.icon), null,
+                modifier = Modifier.align(Alignment.Center).offset(x = -(k * 2f)).size(k * entry.w, k * entry.h),
+            )
+        }
+    }
+}
+
+/**
+ * Home tiles, laid out to the reference screen inside the content area (right of
+ * the rail, below the top bar): two pages of 4 × 2 tiles and the page dots. The knob
+ * moves [selected] (outlined; nothing is outlined until the knob is used) and turns
+ * the page; a press opens it.
+ */
+@Composable
+internal fun HomeGrid(selected: String, k: Dp, onOpen: (String) -> Unit, modifier: Modifier = Modifier) {
     val pages = (HOME_TILES.size + PER_PAGE - 1) / PER_PAGE
     val pager = rememberPagerState { pages }
     LaunchedEffect(selected) {
         val i = HOME_TILES.indexOfFirst { it.key == selected }
         if (i >= 0 && i / PER_PAGE != pager.currentPage) pager.animateScrollToPage(i / PER_PAGE)
     }
-    BoxWithConstraints(modifier.fillMaxSize().background(Color.Black)) {
-        val k = maxWidth / REF_W
+    // This area starts at x = 180 (rail) and y = 86 (top bar) of the reference screen.
+    val left = RAIL_W
+    val top = TOP_BAR
+    BoxWithConstraints(modifier.fillMaxSize()) {
         val h = maxHeight
         fun x(v: Float): Dp = k * v
-
-        // Top bar artwork, stretched only along its width (it is the full 1920 wide).
-        Image(
-            painterResource(R.drawable.home_topbar), null, contentScale = ContentScale.FillBounds,
-            modifier = Modifier.size(maxWidth, x(TOP_BAR)),
-        )
-
-        // Rail: five cells with 2 px black gaps.
-        val railTop = x(RAIL_TOP)
-        val cellH = (h - railTop - x(RAIL_BOTTOM_GAP) - x(RAIL_GAP) * 4) / 5
-        HOME_RAIL.forEachIndexed { i, entry ->
-            Box(
-                Modifier.offset(0.dp, railTop + (cellH + x(RAIL_GAP)) * i).size(x(RAIL_W), cellH)
-                    .pressable { onOpen(entry.key) },
-            ) {
-                RailCell(k)
-                Image(
-                    painterResource(entry.icon), null,
-                    modifier = Modifier.align(Alignment.Center).offset(x = -x(2f)).size(x(entry.w), x(entry.h)),
-                )
-            }
-        }
-
-        // Tiles: rows stretch to the screen height; columns are exact.
-        val tileTop = x(TILE_TOP)
+        val tileTop = x(TILE_TOP - top)
         val tileH = (h - tileTop - x(TILE_BOTTOM_GAP) - x(ROW_GAP)) / 2
-        val pagerLeft = x(RAIL_W)
-        HorizontalPager(
-            pager,
-            modifier = Modifier.offset(x = pagerLeft).size(maxWidth - pagerLeft, h),
-            beyondViewportPageCount = 1,
-        ) { page ->
+        HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1) { page ->
             Box(Modifier.fillMaxSize()) {
                 HOME_TILES.drop(page * PER_PAGE).take(PER_PAGE).forEachIndexed { i, tile ->
                     val row = i / 4
                     val col = i % 4
                     HomeTileView(
                         tile, tile.key == selected, k, x(TILE_W[col]), tileH,
-                        Modifier.offset(x(TILE_X[col]) - pagerLeft, tileTop + (tileH + x(ROW_GAP)) * row),
+                        Modifier.offset(x(TILE_X[col] - left), tileTop + (tileH + x(ROW_GAP)) * row),
                     ) { onOpen(tile.key) }
                 }
             }
         }
-
         // Page dots: 28 × 11 (active, white) and 27 × 11 (grey), 26 px from the bottom.
         val dotY = h - x(26f)
         repeat(pages) { i ->
             Box(
-                Modifier.offset(x(if (i == 0) 1009f else 1062f + (i - 1) * 53f), dotY)
+                Modifier.offset(x((if (i == 0) 1009f else 1062f + (i - 1) * 53f) - left), dotY)
                     .size(x(if (i == 0) 28f else 27f), x(11f))
                     .clip(RoundedCornerShape(x(2f)))
                     .background(if (i == pager.currentPage) Color.White else Color(0xFF7E7E7E)),
@@ -165,13 +176,14 @@ internal fun HomeGrid(selected: String, onOpen: (String) -> Unit, modifier: Modi
 
 /** Rail cell background: dark-to-grey across, 1 px highlight on top, bright 2 px right edge. */
 @Composable
-private fun RailCell(k: Dp) {
+private fun RailCell(k: Dp, active: Boolean) {
     val d = LocalDensity.current
     Canvas(Modifier.fillMaxSize()) {
         val px = with(d) { k.toPx() }
-        drawRect(Brush.horizontalGradient(0f to Color(0xFF000000), 0.5f to Color(0xFF1E1E1E), 1f to Color(0xFF3A3A3A)))
+        if (active) drawRect(Brush.horizontalGradient(0f to Color(0xFF2A2A2A), 0.5f to Color(0xFF4A4A4A), 1f to Color(0xFF6A6A6A)))
+        else drawRect(Brush.horizontalGradient(0f to Color(0xFF000000), 0.5f to Color(0xFF1E1E1E), 1f to Color(0xFF3A3A3A)))
         drawRect(Color(0xFFBBBBBB), size = Size(size.width, px.coerceAtLeast(1f)))
-        drawRect(Color(0xFFD8D8D8), topLeft = Offset(size.width - 2 * px, 0f), size = Size(2 * px, size.height))
+        drawRect(if (active) Color.White else Color(0xFFD8D8D8), topLeft = Offset(size.width - 2 * px, 0f), size = Size(2 * px, size.height))
     }
 }
 

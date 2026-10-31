@@ -435,7 +435,7 @@ private fun NavMap(
                     val speed = if (metric) nav.speedKmh else nav.speedKmh / 1.609f
                     Text(
                         "${speed.roundToInt()}", color = if (nav.overspeed) Color(0xFFFF5252) else MmiInk,
-                        fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 28.sp,
+                        fontFamily = MmiFont, fontSize = 28.sp,
                     )
                     Spacer(Modifier.width(4.dp))
                     Text(if (metric) "km/h" else "mph", color = MmiDim, fontFamily = MmiFont, fontSize = 12.sp)
@@ -547,11 +547,11 @@ private fun ManeuverPanel(nav: NavState, metric: Boolean) {
             Column(Modifier.weight(1f)) {
                 when {
                     nav.arrived -> {
-                        Text("Arrived", color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 32.sp)
+                        Text("Arrived", color = MmiInk, fontFamily = MmiFont, fontSize = 32.sp)
                         Text(nav.destination?.title ?: "", color = MmiDim, fontFamily = MmiFont, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                     next != null -> {
-                        Text(formatDistance(nav.distanceToNextM, metric), color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 32.sp)
+                        Text(formatDistance(nav.distanceToNextM, metric), color = MmiInk, fontFamily = MmiFont, fontSize = 32.sp)
                         Text(next.text, color = MmiInk, fontFamily = MmiFont, fontSize = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                     else -> Text("Calculating…", color = MmiDim, fontFamily = MmiFont, fontSize = 20.sp)
@@ -608,7 +608,7 @@ private fun GuidanceBanner(target: Place, here: LatLng?, course: Float, metric: 
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(distance?.let { formatDistance(it, metric) } ?: "--", color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 28.sp)
+            Text(distance?.let { formatDistance(it, metric) } ?: "--", color = MmiInk, fontFamily = MmiFont, fontSize = 28.sp)
             Text(target.title, color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
@@ -969,7 +969,7 @@ private fun ImportPanel(onBack: (() -> Unit)?, onDone: () -> Unit) {
                 }
                 Spacer(Modifier.width(20.dp))
             }
-            Text("Offline maps for Egypt", color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 30.sp)
+            Text("Offline maps for Egypt", color = MmiInk, fontFamily = MmiFont, fontSize = 30.sp)
         }
         Spacer(Modifier.height(8.dp))
         key(refresh) {

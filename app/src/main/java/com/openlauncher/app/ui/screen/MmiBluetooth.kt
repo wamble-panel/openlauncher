@@ -199,7 +199,7 @@ internal fun MmiBluetoothPage(apps: List<AppInfo>, onLaunchPackage: (String) -> 
 
     if (bt.adapter == null) {
         Column(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 16.dp)) {
-            Text("Bluetooth", color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 30.sp)
+            Text("Bluetooth", color = MmiInk, fontFamily = MmiFont, fontSize = 30.sp)
             Spacer(Modifier.height(10.dp))
             Text(
                 "This unit runs Bluetooth in its own module, so phones are paired in the unit's Bluetooth app.",
@@ -259,7 +259,7 @@ internal fun MmiBluetoothPage(apps: List<AppInfo>, onLaunchPackage: (String) -> 
         // Right: pairing.
         Column(Modifier.weight(1f).fillMaxHeight().mmiPanel().padding(16.dp)) {
             if (!pairing) {
-                Text("Pair a new phone", color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 26.sp)
+                Text("Pair a new phone", color = MmiInk, fontFamily = MmiFont, fontSize = 26.sp)
                 Spacer(Modifier.height(10.dp))
                 Text(
                     "Makes the car visible for 5 minutes and searches for nearby phones.",
@@ -294,7 +294,7 @@ private fun ColumnScope.PairingPanel(bt: BluetoothState, onClose: () -> Unit) {
         }
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Pairing", color = MmiInk, fontFamily = MmiFont, fontWeight = FontWeight.Light, fontSize = 26.sp, modifier = Modifier.weight(1f))
+        Text("Pairing", color = MmiInk, fontFamily = MmiFont, fontSize = 26.sp, modifier = Modifier.weight(1f))
         Box(Modifier.size(40.dp).pressable(onClose), contentAlignment = Alignment.Center) {
             MmiLineIcon(MmiLine.CLOSE, MmiInk, Modifier.size(18.dp))
         }
