@@ -32,7 +32,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -96,9 +98,19 @@ internal val ChromeRim = listOf(Color(0xFFF2F4F7), Color(0xFF8C939C), Color(0xFF
 internal fun Modifier.pressable(onClick: () -> Unit): Modifier {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.92f else 1f, tween(110), label = "press")
+    // Knob highlight: only ever shows after a knob step (touch never focuses).
+    val focused by source.collectIsFocusedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.92f else if (focused) 1.04f else 1f, tween(110), label = "press")
     return this
         .graphicsLayer { scaleX = scale; scaleY = scale }
+        .drawWithContent {
+            if (focused) drawRoundRect(MmiCyan.copy(alpha = 0.2f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx()))
+            drawContent()
+            if (focused) drawRoundRect(
+                MmiCyan, cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx()),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()),
+            )
+        }
         .clickable(interactionSource = source, indication = null, onClick = onClick)
 }
 

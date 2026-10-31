@@ -26,6 +26,25 @@ object KnobTarget {
         KeyEvent.KEYCODE_NAVIGATE_PREVIOUS, KeyEvent.KEYCODE_MEDIA_REWIND,
     )
 
+    /**
+     * Knob on ordinary pages: moves the highlight through the page's buttons in
+     * reading order (as Tab does) and presses the highlighted one. Real key events,
+     * so the page switches to knob mode and shows the highlight; a touch hides it again.
+     */
+    fun focusStep(activity: android.app.Activity?, forward: Boolean) {
+        val meta = if (forward) 0 else KeyEvent.META_SHIFT_ON
+        send(activity, KeyEvent.KEYCODE_TAB, meta)
+    }
+
+    fun focusPress(activity: android.app.Activity?) = send(activity, KeyEvent.KEYCODE_ENTER, 0)
+
+    private fun send(activity: android.app.Activity?, code: Int, meta: Int) {
+        val view = activity?.window?.decorView ?: return
+        val t = android.os.SystemClock.uptimeMillis()
+        view.dispatchKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, code, 0, meta))
+        view.dispatchKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_UP, code, 0, meta))
+    }
+
     /** Returns true when the key was used. */
     fun onKey(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN && logged.add(event.keyCode)) {

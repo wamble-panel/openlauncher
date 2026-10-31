@@ -223,11 +223,34 @@ fun MmiHomeScreen(
         val i = ringOrder.indexOf(selected).coerceAtLeast(0)
         selected = ringOrder[(i + dir + ringOrder.size) % ringOrder.size]
     }
-    val lastCarKey by com.openlauncher.app.util.CarCore.lastKey.collectAsStateWithLifecycle()
-    LaunchedEffect(lastCarKey) {
-        val k = lastCarKey ?: return@LaunchedEffect
-        if (k.press != 1) return@LaunchedEffect
-        when (k.code) {
+    var lastTouch by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var idleFade by remember { mutableStateOf(false) }
+    // Knob pages: Home moves the ring, Apps its own grid, Radio tunes, Music skips tracks;
+    // every other page moves a highlight through its buttons and the knob press clicks it.
+    val knob = com.openlauncher.app.util.KnobTarget
+    val activity = remember(context) { context.findActivity() }
+    fun turn(dir: Int) {
+        when (page) {
+            MmiPage.RADIO -> com.openlauncher.app.util.TwBridge.radioStep(dir > 0)
+            MmiPage.HOME -> stepRing(dir)
+            MmiPage.APPS -> knob.appsStep.tryEmit(dir)
+            MmiPage.MUSIC -> if (dir > 0) next() else prev()
+            else -> knob.focusStep(activity, dir > 0)
+        }
+    }
+    fun press() {
+        when (page) {
+            MmiPage.HOME -> openRing(selected)
+            MmiPage.APPS -> knob.appsOpen.tryEmit(Unit)
+            MmiPage.MUSIC -> playPause()
+            MmiPage.RADIO -> Unit
+            else -> knob.focusPress(activity)
+        }
+    }
+    fun onCarKey(code: Int) {
+        lastTouch = System.currentTimeMillis()
+        idleFade = false
+        when (code) {
             16 -> page = MmiPage.RADIO
             32 -> page = MmiPage.BT_HUB
             90 -> page = MmiPage.SETTINGS
@@ -235,34 +258,13 @@ fun MmiHomeScreen(
             40 -> if (radioPackage.isNotEmpty()) onLaunchRadio()
             18 -> back()
             33 -> page = MmiPage.MUSIC
-            // Big knob (5/6) and side keys (19/21): tune on Radio, move the ring on Home,
-            // scroll Apps, else previous/next. Anticlockwise = 6 and 19; clockwise = 5 and 21.
-            6, 19 -> when (page) {
-                MmiPage.RADIO -> com.openlauncher.app.util.TwBridge.radioStep(false)
-                MmiPage.HOME -> stepRing(-1)
-                MmiPage.APPS -> com.openlauncher.app.util.KnobTarget.appsStep.tryEmit(-1)
-                else -> prev()
-            }
-            5, 21 -> when (page) {
-                MmiPage.RADIO -> com.openlauncher.app.util.TwBridge.radioStep(true)
-                MmiPage.HOME -> stepRing(1)
-                MmiPage.APPS -> com.openlauncher.app.util.KnobTarget.appsStep.tryEmit(1)
-                else -> next()
-            }
-            // Knob press (66) or INFO (37): open what is highlighted; INFO opens the dashboard elsewhere.
-            66 -> when (page) {
-                MmiPage.HOME -> openRing(selected)
-                MmiPage.APPS -> com.openlauncher.app.util.KnobTarget.appsOpen.tryEmit(Unit)
-                else -> Unit
-            }
-            37 -> when (page) {
-                MmiPage.HOME -> openRing(selected)
-                MmiPage.APPS -> com.openlauncher.app.util.KnobTarget.appsOpen.tryEmit(Unit)
-                else -> page = MmiPage.DASHBOARD
-            }
+            // Big knob: 6 anticlockwise, 5 clockwise. Side keys: 19 down, 21 up.
+            6, 19 -> turn(-1)
+            5, 21 -> turn(1)
+            66, 37 -> press()                                   // knob press / INFO
             in 49..54 -> {
                 // Saved favourite channels: tune from anywhere (open Radio to see it).
-                com.openlauncher.app.util.TwBridge.radioPresets().getOrNull(k.code - 49)?.takeIf { it > 0f }?.let {
+                com.openlauncher.app.util.TwBridge.radioPresets().getOrNull(code - 49)?.takeIf { it > 0f }?.let {
                     if (page != MmiPage.RADIO) page = MmiPage.RADIO
                     com.openlauncher.app.util.TwBridge.radioTune(it > 200f, it)
                 }
@@ -274,11 +276,13 @@ fun MmiHomeScreen(
             }
         }
     }
+    val carKeyHandler by rememberUpdatedState(::onCarKey)
+    LaunchedEffect(Unit) {
+        com.openlauncher.app.util.CarCore.keys.collect { k -> if (k.press == 1) carKeyHandler(k.code) }
+    }
 
     // Idle: with no touch, no music playing and no phone connected for a while,
     // the screen fades over to the map, like a parked MMI.
-    var lastTouch by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    var idleFade by remember { mutableStateOf(false) }
     val playing = nowPlaying?.isPlaying == true
     // Opening Music selects Bluetooth as the car's audio source, like the vendor
     // launcher's Bluetooth page; otherwise the phone's music never reaches the speakers.
@@ -337,9 +341,10 @@ fun MmiHomeScreen(
                         // Switch instantly; the map fades itself in on its first frame.
                         androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
                     } else {
-                        (fadeIn(tween(260, delayMillis = 60)) +
-                            scaleIn(tween(320, easing = FastOutSlowInEasing), initialScale = 0.94f)) togetherWith
-                            (fadeOut(tween(180)) + scaleOut(tween(220), targetScale = 1.04f))
+                        // Short: while it runs both pages are drawn, which is the costly part on the A133.
+                        (fadeIn(tween(180, delayMillis = 40)) +
+                            scaleIn(tween(220, easing = FastOutSlowInEasing), initialScale = 0.97f)) togetherWith
+                            fadeOut(tween(110))
                     }
                 },
                 modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -812,10 +817,12 @@ private fun DateBar(height: Dp) {
  * floor from under the car back past its tail.
  */
 @Composable
-private fun DriveTrails(carX: Dp, carY: Dp, carW: Dp, carH: Dp, intro: Float) {
+private fun DriveTrails(carX: Dp, carY: Dp, carW: Dp, carH: Dp, introValue: () -> Float) {
     // Drawn once and left still: an animated pulse redrew the home screen every frame while driving.
     val phase = 0.35f
     Canvas(Modifier.fillMaxSize()) {
+        // Read while drawing, so the entrance only redraws this canvas.
+        val intro = introValue()
         if (intro <= 0.01f) return@Canvas
         val cw = carW.toPx()
         // Ground line under the wheels; the car faces front-right, so "behind" is left and a little up.
@@ -860,6 +867,8 @@ private fun DriveTrails(carX: Dp, carY: Dp, carW: Dp, carH: Dp, intro: Float) {
     }
 }
 
+private var orbitIntroPlayed = false
+
 /** Ring centre line in the Orbit's own coordinates (from a theme pack background). */
 private data class OrbitRing(val cx: Dp, val cy: Dp, val rx: Dp, val ry: Dp)
 
@@ -900,9 +909,14 @@ private fun Orbit(
     ring: OrbitRing? = null,
     icons: Map<String, androidx.compose.ui.graphics.ImageBitmap> = emptyMap(),
 ) {
-    // One-shot entrance: the ring draws in, the car slides in, items pop in one by one.
-    val intro = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { intro.animateTo(1f, tween(900, easing = FastOutSlowInEasing)) }
+    // Entrance once per start: the ring draws in, the car slides in, items pop in one by one.
+    // Coming back to Home later shows it at once, so it never competes with the page switch.
+    val intro = remember { Animatable(if (orbitIntroPlayed) 1f else 0f) }
+    LaunchedEffect(Unit) {
+        if (orbitIntroPlayed) return@LaunchedEffect
+        orbitIntroPlayed = true
+        intro.animateTo(1f, tween(900, easing = FastOutSlowInEasing))
+    }
 
     BoxWithConstraints(modifier) {
         val w = maxWidth
@@ -983,7 +997,7 @@ private fun Orbit(
             )
         }
 
-        DriveTrails(carX, carY, carW, carH, intro.value)
+        DriveTrails(carX, carY, carW, carH) { intro.value }
 
         val slide = with(LocalDensity.current) { 60.dp.toPx() }
         val carModifier = Modifier.offset(x = carX, y = carY).size(carW, carH).graphicsLayer {
@@ -1350,4 +1364,10 @@ private fun Context.openVideo(apps: List<AppInfo>, onLaunchPackage: (String) -> 
     val video = apps.findByLabel("video", "movie")
     if (video != null) onLaunchPackage(video.packageName)
     else launchFirst(Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_GALLERY))
+}
+
+private tailrec fun Context.findActivity(): android.app.Activity? = when (this) {
+    is android.app.Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
 }

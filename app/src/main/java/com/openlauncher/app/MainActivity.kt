@@ -58,12 +58,13 @@ class MainActivity : ComponentActivity() {
         // whatever is playing instead of letting them fall on the home screen.
         // Only while something is actually playing: a paused USB-music session must not
         // grab the keys meant for Bluetooth music.
-        val playingNow = com.openlauncher.app.service.MediaListenerService.nowPlaying.value?.takeIf { it.isPlaying }
+        val session = com.openlauncher.app.service.MediaListenerService.nowPlaying.value
+        val playingNow = session?.takeIf { it.isPlaying }
         val controls = playingNow?.controller?.transportControls
         val tw = com.openlauncher.app.util.TwBridge
+        val down = event.action == android.view.KeyEvent.ACTION_DOWN
         if (controls == null && tw.available && tw.btTrack.value != null) {
             // Bluetooth music on a TS10 unit: steering keys go to the vendor Bluetooth app.
-            val down = event.action == android.view.KeyEvent.ACTION_DOWN
             when (event.keyCode) {
                 android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> { if (down) tw.btNext(); return true }
                 android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> { if (down) tw.btPrev(); return true }
@@ -72,16 +73,18 @@ class MainActivity : ComponentActivity() {
         }
         if (controls != null) {
             when (event.keyCode) {
-                android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> { if (event.action == android.view.KeyEvent.ACTION_DOWN) controls.skipToNext(); return true }
-                android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> { if (event.action == android.view.KeyEvent.ACTION_DOWN) controls.skipToPrevious(); return true }
-                android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, android.view.KeyEvent.KEYCODE_HEADSETHOOK -> {
-                    if (event.action == android.view.KeyEvent.ACTION_DOWN) {
-                        controls.pause()
-                    }
-                    return true
-                }
-                android.view.KeyEvent.KEYCODE_MEDIA_PAUSE -> { if (event.action == android.view.KeyEvent.ACTION_DOWN) controls.pause(); return true }
+                android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> { if (down) controls.skipToNext(); return true }
+                android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> { if (down) controls.skipToPrevious(); return true }
+                android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, android.view.KeyEvent.KEYCODE_HEADSETHOOK,
+                android.view.KeyEvent.KEYCODE_MEDIA_PAUSE -> { if (down) controls.pause(); return true }
             }
+        }
+        // Paused (and no Bluetooth track): play/pause resumes the last player instead of doing nothing.
+        val paused = session?.controller?.transportControls
+        if (paused != null && (event.keyCode == android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE ||
+                event.keyCode == android.view.KeyEvent.KEYCODE_HEADSETHOOK || event.keyCode == android.view.KeyEvent.KEYCODE_MEDIA_PLAY)) {
+            if (down) paused.play()
+            return true
         }
         return super.dispatchKeyEvent(event)
     }

@@ -48,6 +48,9 @@ object CarCore {
     data class CarKey(val code: Int, val press: Int, val at: Long)
     private val _lastKey = MutableStateFlow<CarKey?>(null)
     val lastKey: StateFlow<CarKey?> = _lastKey
+    // Every press in order: a StateFlow drops the in-between steps of a fast knob turn.
+    private val _keys = kotlinx.coroutines.flow.MutableSharedFlow<CarKey>(extraBufferCapacity = 32)
+    val keys: kotlinx.coroutines.flow.SharedFlow<CarKey> = _keys
     private var keysLogged = 0
 
     private val _data = MutableStateFlow(CarData())
@@ -121,7 +124,9 @@ object CarCore {
         val kind = (m.what.toLong() shl 32) or (m.arg1.toLong() and 0xFFFFFFFFL)
         if (m.what == KEY) {
             // Every button press is logged (capped), so each panel button's code can be mapped.
-            _lastKey.value = CarKey(m.arg2, m.arg1, System.currentTimeMillis())
+            val key = CarKey(m.arg2, m.arg1, System.currentTimeMillis())
+            _lastKey.value = key
+            _keys.tryEmit(key)
             if (keysLogged++ < 400) TwBridge.log("CARKEY code=${m.arg2} press=${m.arg1}")
         }
         val n = seen.getOrDefault(kind, 0)
