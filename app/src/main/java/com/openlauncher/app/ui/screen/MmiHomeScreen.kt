@@ -218,11 +218,11 @@ fun MmiHomeScreen(
             40 -> if (radioPackage.isNotEmpty()) onLaunchRadio() // AUX (vendor source)
             18 -> back()                                      // BACK
             33 -> if (page == MmiPage.RADIO) {} else page = MmiPage.MUSIC // FAV -> music/favourites
-            5, 21 -> when (page) {                            // seek left / knob left
+            5, 19 -> when (page) {                            // seek left / knob anticlockwise
                 MmiPage.RADIO -> com.openlauncher.app.util.TwBridge.radioStep(false)
                 else -> prev()
             }
-            6, 19 -> when (page) {                            // seek right / knob right
+            6, 21 -> when (page) {                            // seek right / knob clockwise
                 MmiPage.RADIO -> com.openlauncher.app.util.TwBridge.radioStep(true)
                 else -> next()
             }
