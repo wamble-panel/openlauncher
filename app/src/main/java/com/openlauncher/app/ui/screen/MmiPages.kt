@@ -49,6 +49,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -93,25 +94,61 @@ internal val MmiPageBg = Color(0xFF0B0C0E)
 
 internal val ChromeRim = listOf(Color(0xFFF2F4F7), Color(0xFF8C939C), Color(0xFFDDE1E6), Color(0xFF4F555D))
 
-/** Click with a quick press-in scale, read in the draw phase so it never recomposes. */
+/**
+ * Click that feels like touching glass: a soft press-in, a light sheen that spreads
+ * from the finger and fades, and a short glass tap sound. Everything animates in the
+ * draw phase, so a press never recomposes the screen.
+ */
 @Composable
 internal fun Modifier.pressable(onClick: () -> Unit): Modifier {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     // Knob highlight: only ever shows after a knob step (touch never focuses).
     val focused by source.collectIsFocusedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.92f else if (focused) 1.04f else 1f, tween(110), label = "press")
+    val scale by animateFloatAsState(if (pressed) 0.965f else if (focused) 1.03f else 1f, tween(if (pressed) 70 else 160), label = "press")
+    val sheen = remember { androidx.compose.animation.core.Animatable(0f) }
+    var at by remember { mutableStateOf(Offset.Unspecified) }
+    LaunchedEffect(source) {
+        source.interactions.collect { i ->
+            when (i) {
+                is androidx.compose.foundation.interaction.PressInteraction.Press -> {
+                    at = i.pressPosition
+                    launch { sheen.animateTo(1f, tween(70)) }
+                }
+                is androidx.compose.foundation.interaction.PressInteraction.Release,
+                is androidx.compose.foundation.interaction.PressInteraction.Cancel -> launch { sheen.animateTo(0f, tween(320)) }
+            }
+        }
+    }
     return this
         .graphicsLayer { scaleX = scale; scaleY = scale }
         .drawWithContent {
             if (focused) drawRoundRect(MmiCyan.copy(alpha = 0.2f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx()))
             drawContent()
+            val g = sheen.value
+            if (g > 0.01f) {
+                val c = if (at.isSpecified) at else center
+                drawRect(
+                    Brush.radialGradient(
+                        listOf(Color.White.copy(alpha = 0.20f * g), Color.White.copy(alpha = 0.06f * g), Color.Transparent),
+                        center = c, radius = size.maxDimension * (0.45f + 0.45f * g),
+                    )
+                )
+                // Thin bright edge along the top, like light catching a glass pane.
+                drawRect(
+                    Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.35f * g), Color.Transparent)),
+                    size = androidx.compose.ui.geometry.Size(size.width, 1.5.dp.toPx()),
+                )
+            }
             if (focused) drawRoundRect(
                 MmiCyan, cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx()),
                 style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()),
             )
         }
-        .clickable(interactionSource = source, indication = null, onClick = onClick)
+        .clickable(interactionSource = source, indication = null) {
+            com.openlauncher.app.util.UiSound.tap()
+            onClick()
+        }
 }
 
 internal fun Modifier.mmiPanel(): Modifier {

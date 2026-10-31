@@ -232,6 +232,7 @@ fun MmiHomeScreen(
     val keyScope = rememberCoroutineScope()
     val activity = remember(context) { context.findActivity() }
     fun turn(dir: Int) {
+        com.openlauncher.app.util.UiSound.tick()
         when (page) {
             MmiPage.RADIO -> com.openlauncher.app.util.TwBridge.radioStep(dir > 0)
             MmiPage.HOME -> stepRing(dir)
@@ -241,8 +242,8 @@ fun MmiHomeScreen(
     }
     fun press() {
         when (page) {
-            MmiPage.HOME -> openRing(selected)
-            MmiPage.APPS -> knob.appsOpen.tryEmit(Unit)
+            MmiPage.HOME -> { com.openlauncher.app.util.UiSound.open(); openRing(selected) }
+            MmiPage.APPS -> { com.openlauncher.app.util.UiSound.open(); knob.appsOpen.tryEmit(Unit) }
             MmiPage.MUSIC -> playPause()
             MmiPage.RADIO -> Unit
             else -> knob.focusPress(activity)
@@ -251,6 +252,8 @@ fun MmiHomeScreen(
     fun onCarKey(code: Int) {
         lastTouch = System.currentTimeMillis()
         idleFade = false
+        // Dash buttons that open a page get the same small chime as the knob press.
+        if (code in PAGE_KEYS) com.openlauncher.app.util.UiSound.open()
         when (code) {
             16 -> page = MmiPage.RADIO
             32 -> page = MmiPage.BT_HUB
@@ -831,6 +834,7 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
     var mmiCallBar by remember { mutableStateOf(runCatching { com.openlauncher.app.util.TwBridge.mmiCallBar() }.getOrDefault(true)) }
     var mmiClimatePopup by remember { mutableStateOf(runCatching { com.openlauncher.app.util.Climate.replaceVendorPopup() }.getOrDefault(true)) }
     var keepReverseMusic by remember { mutableStateOf(com.openlauncher.app.util.TwBridge.keepMusicInReverse()) }
+    var uiSounds by remember { mutableStateOf(com.openlauncher.app.util.UiSound.enabled) }
     var popupsHidden by remember { mutableStateOf(com.openlauncher.app.service.MediaListenerService.popupsHidden(context)) }
     val rows: List<Pair<String, () -> Unit>> = listOfNotNull(
         updateLabel to runUpdate,
@@ -845,6 +849,10 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
         "Car: ${carName}" to {
             val next = com.openlauncher.app.map.CarProfile.entries[(RoadMemory.car.ordinal + 1) % com.openlauncher.app.map.CarProfile.entries.size]
             RoadMemory.setCar(next)
+        },
+        (if (uiSounds) "Touch sounds: on" else "Touch sounds: off") to {
+            uiSounds = !uiSounds
+            com.openlauncher.app.util.UiSound.setEnabled(uiSounds)
         },
         "Display" to { onOpen(MmiPage.DISPLAY) },
         "Sound" to { onOpen(MmiPage.SOUND) },
@@ -986,3 +994,6 @@ private tailrec fun Context.findActivity(): android.app.Activity? = when (this) 
     is android.content.ContextWrapper -> baseContext.findActivity()
     else -> null
 }
+
+/** Dash buttons that open an MMI page (Radio, Phone, Setup, Tone, Back, Media). */
+private val PAGE_KEYS = setOf(16, 32, 90, 24, 18, 33)

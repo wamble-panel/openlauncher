@@ -15,6 +15,7 @@ class CarApp : Application() {
         // car messages from the start.
         RoadMemory.init(this)
         com.openlauncher.app.util.TwBridge.init(this)
+        com.openlauncher.app.util.UiSound.init(this)
         // The rest (text-to-speech, routing data, equalizer, Bluetooth profiles,
         // updates) waits until the home screen is on screen: the main thread is
         // idle by then, so start-up after ignition shows MMI sooner.
