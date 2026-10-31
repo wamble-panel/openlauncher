@@ -13,6 +13,10 @@ object KnobTarget {
     @Volatile var radio = false
     private val logged = HashSet<Int>()
 
+    // Knob events for the Apps page (the dash handler emits, the Apps page collects).
+    val appsStep = kotlinx.coroutines.flow.MutableSharedFlow<Int>(extraBufferCapacity = 8)
+    val appsOpen = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 4)
+
     private val UP = setOf(
         KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_PAGE_UP,
         KeyEvent.KEYCODE_NAVIGATE_NEXT, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD, KeyEvent.KEYCODE_TAB,

@@ -300,6 +300,22 @@ internal fun MmiSoundPage(apps: List<AppInfo>, onLaunchPackage: (String) -> Unit
 }
 
 @Composable
+internal fun MmiEqualiserPage() {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 48.dp, vertical = 12.dp),
+    ) {
+        if (!CarAudio.available) {
+            Text(
+                "The equaliser needs media access. Allow it in Permissions, or use the car's own sound settings.",
+                color = MmiDim, fontFamily = MmiFont, fontSize = 16.sp,
+            )
+        } else {
+            EqualizerPanel()
+        }
+    }
+}
+
+@Composable
 private fun EqualizerPanel() {
     var enabled by remember { mutableStateOf(CarAudio.enabled) }
     // Bumped after a preset so the band sliders re-read their levels.

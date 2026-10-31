@@ -97,7 +97,7 @@ private enum class MmiPage(val title: String?, val inSettings: Boolean = false) 
     HOME(null), DASHBOARD("Dashboard"), SETTINGS("Settings"),
     MUSIC("Music"), RADIO("Radio"), BT_HUB("Bluetooth"), PHONE("Telephone"), CONTACTS("Contacts"), APPS("Apps"),
     NAV("Navigation"), SYSTEM("System check", true),
-    PERMISSIONS("Permissions", true), CLEANUP("Unit cleanup & speed", true), TUNER("System tuning", true), STORAGE("Storage & about", true), DISPLAY("Display", true), SOUND("Sound", true), BLUETOOTH("Bluetooth devices", true), NAV_SETTINGS("Navigation settings", true),
+    PERMISSIONS("Permissions", true), CLEANUP("Unit cleanup & speed", true), TUNER("System tuning", true), STORAGE("Storage & about", true), DISPLAY("Display", true), SOUND("Sound", true), EQ("Equaliser", true), BLUETOOTH("Bluetooth devices", true), NAV_SETTINGS("Navigation settings", true),
 }
 
 /**
@@ -204,33 +204,67 @@ fun MmiHomeScreen(
         }
     }
 
-    // The Astra CD300 dash panel (codes learned from the car): each button drives MMI.
+    // The Astra CD300 dash panel (codes learned from the car) drives MMI, so the
+    // knob and buttons replace the touchscreen for moving between pages.
+    val ringOrder = remember { listOf("dashboard", "video", "settings", "music", "radio", "phone", "nav", "apps") }
+    fun openRing(key: String) {
+        selected = key
+        when (key) {
+            "dashboard" -> page = MmiPage.DASHBOARD
+            "video" -> context.openVideo(apps, onLaunchPackage)
+            "settings" -> page = MmiPage.SETTINGS
+            "music" -> page = MmiPage.MUSIC
+            "radio" -> page = MmiPage.RADIO
+            "phone" -> page = MmiPage.BT_HUB
+            "nav" -> page = MmiPage.NAV
+            "apps" -> page = MmiPage.APPS
+        }
+    }
+    fun stepRing(dir: Int) {
+        val i = ringOrder.indexOf(selected).coerceAtLeast(0)
+        selected = ringOrder[(i + dir + ringOrder.size) % ringOrder.size]
+    }
     val lastCarKey by com.openlauncher.app.util.CarCore.lastKey.collectAsStateWithLifecycle()
     LaunchedEffect(lastCarKey) {
         val k = lastCarKey ?: return@LaunchedEffect
-        if (k.press != 1) return@LaunchedEffect  // short press only
+        if (k.press != 1) return@LaunchedEffect
         when (k.code) {
-            16 -> page = MmiPage.RADIO                       // RADIO/BAND
-            32 -> page = MmiPage.BT_HUB                       // PHONE
-            37 -> page = MmiPage.DASHBOARD                    // INFO
-            90 -> page = MmiPage.SETTINGS                     // CONFIG
-            24 -> page = MmiPage.SOUND                        // TONE
-            40 -> if (radioPackage.isNotEmpty()) onLaunchRadio() // AUX (vendor source)
-            18 -> back()                                      // BACK
-            33 -> if (page == MmiPage.RADIO) {} else page = MmiPage.MUSIC // FAV -> music/favourites
-            5, 19 -> when (page) {                            // seek left / knob anticlockwise
+            16 -> page = MmiPage.RADIO
+            32 -> page = MmiPage.BT_HUB
+            90 -> page = MmiPage.SETTINGS
+            24 -> page = MmiPage.EQ                            // TONE -> equaliser
+            40 -> if (radioPackage.isNotEmpty()) onLaunchRadio()
+            18 -> back()
+            33 -> page = MmiPage.MUSIC
+            // Knob turn / seek: tune on Radio, move the ring highlight on Home, else prev/next.
+            5, 19 -> when (page) {
                 MmiPage.RADIO -> com.openlauncher.app.util.TwBridge.radioStep(false)
+                MmiPage.HOME -> stepRing(-1)
+                MmiPage.APPS -> com.openlauncher.app.util.KnobTarget.appsStep.tryEmit(-1)
                 else -> prev()
             }
-            6, 21 -> when (page) {                            // seek right / knob clockwise
+            6, 21 -> when (page) {
                 MmiPage.RADIO -> com.openlauncher.app.util.TwBridge.radioStep(true)
+                MmiPage.HOME -> stepRing(1)
+                MmiPage.APPS -> com.openlauncher.app.util.KnobTarget.appsStep.tryEmit(1)
                 else -> next()
             }
-            in 49..54 -> if (page == MmiPage.RADIO) {          // presets 1-6
+            // Knob press (66) or INFO (37): open what is highlighted; INFO opens the dashboard elsewhere.
+            66 -> when (page) {
+                MmiPage.HOME -> openRing(selected)
+                MmiPage.APPS -> com.openlauncher.app.util.KnobTarget.appsOpen.tryEmit(Unit)
+                else -> Unit
+            }
+            37 -> when (page) {
+                MmiPage.HOME -> openRing(selected)
+                MmiPage.APPS -> com.openlauncher.app.util.KnobTarget.appsOpen.tryEmit(Unit)
+                else -> page = MmiPage.DASHBOARD
+            }
+            in 49..54 -> if (page == MmiPage.RADIO) {
                 com.openlauncher.app.util.TwBridge.radioPresets().getOrNull(k.code - 49)?.takeIf { it > 0f }
                     ?.let { com.openlauncher.app.util.TwBridge.radioTune(it > 200f, it) }
             }
-            7 -> if (page == MmiPage.RADIO) {                 // AS -> store current across presets (quick)
+            7 -> if (page == MmiPage.RADIO) {
                 com.openlauncher.app.util.TwBridge.radioLast().let { (_, f) ->
                     com.openlauncher.app.util.TwBridge.radioSavePreset(0, f)
                 }
@@ -386,6 +420,7 @@ fun MmiHomeScreen(
                         }
                     }
                     MmiPage.SYSTEM -> MmiSystemCheckPage(apps, location.collectAsStateWithLifecycle().value)
+                    MmiPage.EQ -> MmiEqualiserPage()
                     MmiPage.MUSIC -> MmiMusicPage(
                         state = nowPlaying,
                         onPlayPause = playPause, onNext = next, onPrev = prev,

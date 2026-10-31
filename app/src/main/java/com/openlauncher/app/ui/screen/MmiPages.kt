@@ -39,6 +39,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -644,6 +645,21 @@ internal fun MmiAppsPage(
     val perPage = 18
     val pages = ((shown.size + perPage - 1) / perPage).coerceAtLeast(1)
     val pager = rememberPagerState { pages }
+    // Car knob: move a highlight through the apps and open on press (no touchscreen needed).
+    var focus by remember(shown.size) { mutableIntStateOf(-1) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(shown.size) {
+        com.openlauncher.app.util.KnobTarget.appsStep.collect { d ->
+            if (shown.isEmpty()) return@collect
+            focus = ((if (focus < 0) 0 else focus) + d + shown.size) % shown.size
+            scope.launch { pager.animateScrollToPage(focus / perPage) }
+        }
+    }
+    LaunchedEffect(shown) {
+        com.openlauncher.app.util.KnobTarget.appsOpen.collect {
+            shown.getOrNull(focus)?.let { onLaunch(it.packageName) }
+        }
+    }
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 4.dp)) {
         HorizontalPager(pager, Modifier.weight(1f).fillMaxWidth()) { page ->
@@ -653,8 +669,11 @@ internal fun MmiAppsPage(
                     Row(Modifier.fillMaxWidth()) {
                         row.forEach { app ->
                             val isHidden = app.packageName in hidden
+                            val focused = shown.getOrNull(focus) === app
                             AppCell(
-                                app, Modifier.weight(1f).graphicsLayer { alpha = if (editing && isHidden) 0.3f else 1f },
+                                app,
+                                Modifier.weight(1f).graphicsLayer { alpha = if (editing && isHidden) 0.3f else 1f }
+                                    .then(if (focused) Modifier.border(2.dp, MmiCyan, RoundedCornerShape(10.dp)) else Modifier),
                                 onLongClick = { menuApp = app },
                             ) {
                                 if (editing) onToggleHidden(app.packageName) else onLaunch(app.packageName)
