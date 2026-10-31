@@ -129,19 +129,21 @@ private fun HomeTileView(tile: HomeTile, selected: Boolean, modifier: Modifier, 
                 if (selected) 2.dp else 1.dp,
                 if (selected) Brush.verticalGradient(listOf(Color(0xFFE9ECEF), Color(0xFF8E959E)))
                 else Brush.verticalGradient(listOf(Color(0x14FFFFFF), Color(0x40FFFFFF))),
+                androidx.compose.ui.graphics.RectangleShape,
             )
             .pressable(onClick),
     ) {
-        val labelSize = with(LocalDensity.current) { (maxHeight * 0.12f).toSp() }
+        val h = maxHeight
+        val labelSize = with(LocalDensity.current) { (h * 0.12f).toSp() }
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.weight(1f).fillMaxWidth().padding(top = 10.dp, start = 18.dp, end = 18.dp), contentAlignment = Alignment.Center) {
                 when {
                     tile.art != null -> Image(painterResource(tile.art), null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
-                    tile.glyph != null -> MmiIcon(tile.glyph, Modifier.size(maxHeight * 0.5f))
+                    tile.glyph != null -> MmiIcon(tile.glyph, Modifier.size(h * 0.5f))
                 }
             }
             Row(Modifier.padding(bottom = 8.dp, top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                MmiLineIcon(tile.line, Color.White, Modifier.size(maxHeight * 0.13f))
+                MmiLineIcon(tile.line, Color.White, Modifier.size(h * 0.13f))
                 Spacer(Modifier.width(12.dp))
                 Text(tile.label, color = Color.White, fontFamily = MmiFont, fontSize = labelSize, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }

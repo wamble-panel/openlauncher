@@ -781,6 +781,14 @@ private fun DateBar(height: Dp) {
     }
 }
 
+@Composable
+private fun LiveDashboard(location: StateFlow<LocationData?>, bearing: StateFlow<Float>, voltage: StateFlow<Float?>, metric: Boolean) {
+    val loc by location.collectAsStateWithLifecycle()
+    val heading by bearing.collectAsStateWithLifecycle()
+    val volts by voltage.collectAsStateWithLifecycle()
+    MmiDashboardPage(loc, heading, volts, metric)
+}
+
 // ── Settings page ────────────────────────────────────────────────────────────
 
 @Composable
