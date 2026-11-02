@@ -23,6 +23,13 @@ object CarAppsExport {
     private val PACKAGES = listOf(
         "com.zjinnova.zlink", "com.tw.rightview", "com.tw.dvr", "com.tw.tv", "com.tw.color",
         "com.tw.bootanimation", "com.tw.radio.theme",
+        // Car-data side: TPMS, CAN-box UART and the car apps bundle.
+        "com.dofun.tpms", "com.tw.canuart", "com.tw.carapps",
+    )
+    /** Loose files: the per-car data names CarInfoService uses for this car. */
+    private val EXTRA_FILES = listOf(
+        "/system/etc/CarServiceTheme.apk",
+        "/sdcard/.ResourcePicture/Apk/CarServiceTheme.apk",
     )
     // GitHub's web upload takes files up to 25 MB: parts stay well below that.
     private const val PART_LIMIT = 20L * 1024 * 1024
@@ -51,6 +58,9 @@ object CarAppsExport {
                 File(ai.sourceDir).parentFile?.let { File(it, "oat") }?.walkTopDown()?.filter { it.isFile && it.canRead() }
                     ?.forEach { files += "apps/$pkg/oat/${it.parentFile?.name}/${it.name}" to it }
             }
+        }
+        EXTRA_FILES.map(::File).filter { it.isFile && it.canRead() }.forEach { f ->
+            files += "files" + f.path to f
         }
         // The car library's native side, if readable (framework.jar is already in).
         nativeLibs().filter { it.name.contains("twutil", ignoreCase = true) || it.name.startsWith("libtw") }
