@@ -590,3 +590,44 @@ internal object VendorApps {
         )
     }
 }
+
+/**
+ * How the A133 is doing: its temperature sensors (CPU, GPU, memory), CPU speed per
+ * core, free RAM and MMI's own memory. Read from the kernel's files; anything the
+ * unit hides is left out.
+ */
+internal object UnitHealth {
+    private fun read(path: String): String? = runCatching { java.io.File(path).readText().trim() }.getOrNull()
+
+    fun get(c: Context): Map<String, Any?> {
+        val temps = java.io.File("/sys/class/thermal").listFiles { f -> f.name.startsWith("thermal_zone") }
+            ?.sortedBy { it.name }
+            ?.mapNotNull { z ->
+                val raw = read("${z.path}/temp")?.toIntOrNull() ?: return@mapNotNull null
+                val c2 = if (raw > 1000) raw / 1000.0 else raw.toDouble()
+                mapOf("name" to (read("${z.path}/type") ?: z.name), "c" to c2)
+            }.orEmpty()
+        val cores = (0 until Runtime.getRuntime().availableProcessors()).map { i ->
+            val base = "/sys/devices/system/cpu/cpu$i/cpufreq"
+            mapOf(
+                "cur" to read("$base/scaling_cur_freq")?.toIntOrNull()?.div(1000),
+                "max" to (read("$base/cpuinfo_max_freq") ?: read("$base/scaling_max_freq"))?.toIntOrNull()?.div(1000),
+            )
+        }
+        val mem = read("/proc/meminfo")?.lines().orEmpty().associate { l ->
+            val parts = l.split(Regex("\\s+"))
+            parts[0].trimEnd(':') to (parts.getOrNull(1)?.toLongOrNull() ?: 0L)
+        }
+        val gpu = java.io.File("/sys/class/devfreq").listFiles()?.firstOrNull { it.name.contains("gpu", true) }
+            ?.let { read("${it.path}/cur_freq")?.toLongOrNull()?.div(1_000_000) }
+        return mapOf(
+            "temps" to temps,
+            "cores" to cores,
+            "gpuMhz" to gpu,
+            "ramTotalMb" to (mem["MemTotal"] ?: 0) / 1024,
+            "ramFreeMb" to (mem["MemAvailable"] ?: 0) / 1024,
+            "mmiMb" to android.os.Debug.getPss() / 1024,
+            "uptimeMin" to android.os.SystemClock.elapsedRealtime() / 60000,
+        )
+    }
+}

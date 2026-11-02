@@ -65,7 +65,7 @@ class _RadioPageState extends State<RadioPage> with Live<RadioPage> {
               width: 148,
               decoration: BoxDecoration(border: Border.all(color: const Color(0x99FFFFFF))),
               child: logo != null && File(logo).existsSync()
-                  ? Padding(padding: const EdgeInsets.all(10), child: Image.file(File(logo), fit: BoxFit.contain))
+                  ? Padding(padding: const EdgeInsets.all(10), child: Image.file(File(logo), fit: BoxFit.contain, cacheWidth: 128))
                   : const Center(child: Icon(MibIcons.cell_tower, size: 84, color: Mib.white)),
             ),
             const SizedBox(width: 34),

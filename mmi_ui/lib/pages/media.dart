@@ -160,7 +160,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> with Live<NowPlayingPag
                       height: 266,
                       decoration: BoxDecoration(border: Border.all(color: const Color(0xCCFFFFFF), width: 1.5), color: const Color(0xFF111111)),
                       child: _art != null
-                          ? Image.memory(_art!, fit: BoxFit.cover, gaplessPlayback: true)
+                          ? Image.memory(_art!, fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: 263)
                           : const Center(child: Icon(MibIcons.music_note, size: 110, color: Color(0x66FFFFFF))),
                     ),
                   ),

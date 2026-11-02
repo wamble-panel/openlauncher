@@ -41,7 +41,7 @@ class _CarInfoPageState extends State<CarInfoPage> with Live<CarInfoPage> {
           ),
           Expanded(
             child: Column(children: [
-              Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Image.asset('assets/images/boot_car.webp', fit: BoxFit.contain))),
+              Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Image.asset('assets/images/boot_car.webp', fit: BoxFit.contain, cacheWidth: 600))),
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 _Big(f('speed', (v) => '${v.round()}') ?? '--', 'km/h'),
                 const SizedBox(width: 60),

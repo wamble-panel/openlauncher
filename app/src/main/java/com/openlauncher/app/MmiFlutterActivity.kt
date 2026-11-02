@@ -150,6 +150,9 @@ class MmiFlutterActivity : FlutterActivity() {
                     "btGet" -> result.success(car.bt())
                     "carGet" -> result.success(carInfo())
                     "vendorGet" -> result.success(VendorApps.list(this))
+                    "healthGet" -> scope.launch {
+                        result.success(kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { UnitHealth.get(this@MmiFlutterActivity) })
+                    }
                     "vendorOpen" -> { VendorApps.open(this, arg<String>("pkg") ?: ""); result.success(null) }
                     "ampGet" -> result.success(mapOf(
                         "balance" to com.openlauncher.app.util.Amplifier.balance(this),

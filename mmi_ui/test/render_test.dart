@@ -17,6 +17,11 @@ Future<void> _fonts() async {
 }
 
 final _demo = <String, Object?>{
+  'healthGet': {
+    'temps': [{'name': 'cpu_thermal_zone', 'c': 62.0}, {'name': 'gpu_thermal_zone', 'c': 58.0}, {'name': 'ddr_thermal_zone', 'c': 55.0}],
+    'cores': [{'cur': 1416, 'max': 1608}, {'cur': 1416, 'max': 1608}, {'cur': 1008, 'max': 1608}, {'cur': 1008, 'max': 1608}],
+    'gpuMhz': 504, 'ramTotalMb': 1964, 'ramFreeMb': 812, 'mmiMb': 186, 'uptimeMin': 42,
+  },
   'soundGet': {
     'gains': [1.0, 1.0, -1.5, -2.0, -0.5, 0.0, 1.5, 1.5, 1.0, 0.5],
     'effective': [3.4, 3.0, -0.3, -1.6, -0.5, 0.0, 1.5, 1.9, 2.0, 1.7],

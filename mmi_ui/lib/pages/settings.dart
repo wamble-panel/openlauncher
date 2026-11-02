@@ -172,6 +172,7 @@ class _CategoryPageState extends State<CategoryPage> with Live<CategoryPage>, Se
           toggle('OpenGL ES graphics', 'gles', sub: 'try if pages stutter; used from the next start'),
           MibRow(label: 'Classic MMI', sub: 'switch back to the previous screens', trailing: MibToggle(value: false, onChanged: (_) => Bridge.call('classic'))),
           MibRow(label: 'Version', value: '${v('version', '')}'),
+          open('Unit health', 'health', icon: MibIcons.device_thermostat, sub: 'chip temperatures, speed and memory'),
           open('Vendor apps', 'vendor', icon: MibIcons.apps, sub: 'which ones MMI replaces; disable them one by one'),
           const _DevSend(),
         ],
@@ -258,5 +259,90 @@ class _VendorAppsPageState extends State<VendorAppsPage> with Live<VendorAppsPag
           ),
         ),
     ]);
+  }
+}
+
+/// Settings · Unit health: the A133's three temperature sensors, CPU speed per core,
+/// GPU speed, free memory and MMI's own share. The chip is made for up to 110 °C
+/// inside (70 °C around it); it slows itself down when it gets close.
+class HealthPage extends StatefulWidget {
+  const HealthPage({super.key});
+  @override
+  State<HealthPage> createState() => _HealthPageState();
+}
+
+class _HealthPageState extends State<HealthPage> with Live<HealthPage> {
+  @override
+  String get liveMethod => 'healthGet';
+  @override
+  Duration get liveEvery => const Duration(seconds: 2);
+
+  static String _label(String raw) {
+    final n = raw.toLowerCase();
+    if (n.contains('cpu')) return 'CPU';
+    if (n.contains('gpu')) return 'GPU';
+    if (n.contains('ddr') || n.contains('dram') || n.contains('mem')) return 'Memory';
+    return raw;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final temps = ((live?['temps'] as List?) ?? const []).cast<Map<Object?, Object?>>();
+    final cores = ((live?['cores'] as List?) ?? const []).cast<Map<Object?, Object?>>();
+    final total = (live?['ramTotalMb'] as num?)?.toInt() ?? 0;
+    final free = (live?['ramFreeMb'] as num?)?.toInt() ?? 0;
+    final hottest = temps.fold<double>(0, (m, t) => (t['c'] as num).toDouble() > m ? (t['c'] as num).toDouble() : m);
+    final verdict = hottest >= 100 ? ('Hot: the chip is slowing itself down to cool off', const Color(0xFFE5484D))
+        : hottest >= 85 ? ('Warm: fine, but close to where it slows down', const Color(0xFFF0A030))
+        : ('Cool: full speed available', const Color(0xFF5BD35B));
+    return ListView(padding: const EdgeInsets.only(top: 14, bottom: 24, left: 8), children: [
+      if (temps.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 14), child: Text(verdict.$1, style: Mib.text(25, color: verdict.$2))),
+      SizedBox(
+        height: 150,
+        child: Row(children: [
+          for (final t in temps.take(4)) ...[
+            Expanded(child: _Gauge(_label('${t['name']}'), (t['c'] as num).toDouble())),
+            const SizedBox(width: 14),
+          ],
+          if (temps.isEmpty) Expanded(child: Center(child: Text('The unit does not show its temperatures to apps.', style: Mib.text(22, color: Mib.grey)))),
+        ]),
+      ),
+      const SizedBox(height: 18),
+      MibRow(label: 'CPU speed', value: '${cores.map((c) => c['cur'] == null ? '--' : '${c['cur']}').join(' · ')} MHz',
+          sub: cores.isNotEmpty && cores.first['max'] != null ? 'up to ${cores.first['max']} MHz per core (4 × Cortex-A53)' : null),
+      if (live?['gpuMhz'] != null) MibRow(label: 'GPU speed', value: '${live!['gpuMhz']} MHz', sub: 'PowerVR GE8300'),
+      MibRow(label: 'Memory free', value: '$free of $total MB', sub: 'MMI uses ${live?['mmiMb'] ?? '--'} MB'),
+      MibRow(label: 'On for', value: '${live?['uptimeMin'] ?? '--'} min'),
+    ]);
+  }
+}
+
+class _Gauge extends StatelessWidget {
+  const _Gauge(this.label, this.c);
+  final String label;
+  final double c;
+  @override
+  Widget build(BuildContext context) {
+    final color = c >= 100 ? const Color(0xFFE5484D) : c >= 85 ? const Color(0xFFF0A030) : Mib.white;
+    return Container(
+      decoration: Mib.glass(),
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: Mib.text(22, color: Mib.grey)),
+        const Spacer(),
+        Text('${c.round()} °C', style: Mib.text(44, color: color, height: 1.0)),
+        const SizedBox(height: 10),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: SizedBox(
+            height: 5,
+            child: Stack(children: [
+              const Positioned.fill(child: ColoredBox(color: Color(0xFF3A3A3A))),
+              FractionallySizedBox(widthFactor: (c / 110).clamp(0.0, 1.0), child: ColoredBox(color: color)),
+            ]),
+          ),
+        ),
+      ]),
+    );
   }
 }

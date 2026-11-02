@@ -42,7 +42,8 @@ enum MmiPage {
   weather(null, 'Weather', null),
   help(null, 'Help', null),
   vendor('Settings', 'Vendor apps', null),
-  equaliser('Sound', 'Equaliser', null);
+  equaliser('Sound', 'Equaliser', null),
+  health('Settings', 'Unit health', null);
 
   const MmiPage(this.section, this.title, this.rail);
   final String? section;
@@ -236,7 +237,7 @@ class _MmiShellState extends State<MmiShell> {
       child: FocusScope(
         node: _scope,
         child: Stack(children: [
-          Positioned(left: 0, top: 0, right: 0, height: top, child: Image.asset('assets/images/home_topbar.webp', fit: BoxFit.fill)),
+          Positioned(left: 0, top: 0, right: 0, height: top, child: Image.asset('assets/images/home_topbar.webp', fit: BoxFit.fill, cacheWidth: size.width.round())),
           if (_page != MmiPage.home || _call != null) Positioned(right: 28, top: 0, height: top, child: const Center(child: _Clock())),
           Positioned(left: 0, top: 0, width: rail, bottom: 0, child: _Rail(k: k, active: _call != null ? 'phone' : _page.rail, onOpen: _openKey)),
           Positioned(
@@ -298,6 +299,7 @@ class _MmiShellState extends State<MmiShell> {
       MmiPage.weather => const WeatherPage(),
       MmiPage.help => HelpPage(onOpen: _openKey),
       MmiPage.vendor => const VendorAppsPage(),
+      MmiPage.health => const HealthPage(),
       _ => CategoryPage(category: _page.name, onOpen: _openKey),
     };
     return Padding(

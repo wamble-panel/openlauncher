@@ -135,7 +135,9 @@ class _Tile extends StatelessWidget {
               top: artTop,
               width: _artW * k,
               height: _artH * k,
-              child: Image.asset('assets/images/home_art_${tile.art}.webp', fit: BoxFit.contain, filterQuality: FilterQuality.medium),
+              child: Image.asset('assets/images/home_art_${tile.art}.webp', fit: BoxFit.contain, filterQuality: FilterQuality.medium,
+                  // Decoded at the size shown (a third of the file): less memory traffic on the A133.
+                  cacheWidth: (_artW * k * MediaQuery.devicePixelRatioOf(context)).round()),
             ),
             Positioned(
               left: 0,
