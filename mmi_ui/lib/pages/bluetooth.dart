@@ -19,6 +19,10 @@ class BtSearchPage extends StatefulWidget {
 class _BtSearchPageState extends State<BtSearchPage> with Live<BtSearchPage>, SingleTickerProviderStateMixin {
   @override
   String get liveMethod => 'btGet';
+  @override
+  Duration get liveEvery => const Duration(seconds: 2);
+  @override
+  String? get liveTopic => 'bt';
   late final AnimationController _spin = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat();
 
   @override

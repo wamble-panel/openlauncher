@@ -60,6 +60,7 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
             "voice" to NavigationEngine.state.value.voiceOn,
             "callBar" to TwBridge.mmiCallBar(),
             "keepMusicReverse" to TwBridge.keepMusicInReverse(),
+            "gles" to prefs.getBoolean("gles", false),
             "version" to runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull(),
         )
     }
@@ -86,6 +87,7 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
             "voice" -> NavigationEngine.setVoice(on)
             "callBar" -> TwBridge.setMmiCallBar(on)
             "keepMusicReverse" -> TwBridge.setKeepMusicInReverse(on)
+            "gles" -> prefs.edit().putBoolean("gles", on).apply() // used from the next start
         }
     }
 

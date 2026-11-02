@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/services.dart';
 
 /// Talks to MMI's Kotlin side (car buttons, radio, Bluetooth, media, settings).
@@ -17,6 +18,9 @@ class Bridge {
       return null;
     }
   }
+
+  /// Topics the host says have changed (see Live).
+  static final changes = StreamController<String>.broadcast();
 
   /// Car buttons and other pushes from the host (knob turns, page keys).
   static void listen(Future<dynamic> Function(MethodCall call) handler) => _channel.setMethodCallHandler(handler);

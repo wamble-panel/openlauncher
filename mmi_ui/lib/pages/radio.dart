@@ -19,7 +19,9 @@ class _RadioPageState extends State<RadioPage> with Live<RadioPage> {
   @override
   String get liveMethod => 'radioGet';
   @override
-  Duration get liveEvery => const Duration(milliseconds: 700);
+  String? get liveTopic => 'radio';
+  @override
+  Duration get liveEvery => const Duration(seconds: 5);
 
   bool get am => live?['am'] == true;
   double get freq => ((live?['freq'] ?? 98.5) as num).toDouble();
@@ -218,7 +220,7 @@ class _Scale extends CustomPainter {
           Paint()..color = Color(tall ? 0xFF9A9A9A : 0xFF5E5E5E)..strokeWidth = 1.3);
     }
     final mx = l + (r - l) * at.clamp(0, 1);
-    canvas.drawRect(Rect.fromLTRB(mx - 2.5, top, mx + 2.5, bottom + 2), Paint()..color = const Color(0x55FFFFFF)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3));
+    canvas.drawRect(Rect.fromLTRB(mx - 2.5, top, mx + 2.5, bottom + 2), Paint()..color = const Color(0x40FFFFFF));
     canvas.drawLine(Offset(mx, top), Offset(mx, bottom + 2), Paint()..color = Mib.white..strokeWidth = 3.4);
     void label(String s, double x) {
       final tp = TextPainter(text: TextSpan(text: s, style: Mib.text(19, color: Mib.grey)), textDirection: TextDirection.ltr)..layout();

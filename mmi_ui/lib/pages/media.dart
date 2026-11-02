@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 import '../bridge.dart';
@@ -22,9 +23,23 @@ class _NowPlayingPageState extends State<NowPlayingPage> with Live<NowPlayingPag
   @override
   String get liveMethod => 'mediaGet';
   @override
-  Duration get liveEvery => const Duration(milliseconds: 500);
+  String? get liveTopic => 'media';
+  @override
+  Duration get liveEvery => const Duration(seconds: 5);
 
   Object? _artId;
+  // The position moves on locally between updates from the car side.
+  late final Timer _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+    if (live?['playing'] == true && _drag == null) setState(() => _sinceUpdate += 1000);
+  });
+  int _sinceUpdate = 0;
+  Object? _lastPos;
+
+  @override
+  void dispose() {
+    _tick.cancel();
+    super.dispose();
+  }
   Uint8List? _art;
   double? _drag;
 
@@ -60,8 +75,13 @@ class _NowPlayingPageState extends State<NowPlayingPage> with Live<NowPlayingPag
     final artist = (live?['artist'] as String?) ?? '';
     final album = (live?['album'] as String?) ?? '';
     final playing = live?['playing'] == true;
-    final pos = ((live?['pos'] ?? 0) as num).toInt();
     final dur = ((live?['dur'] ?? 0) as num).toInt();
+    if (live?['pos'] != _lastPos) {
+      _lastPos = live?['pos'];
+      _sinceUpdate = 0;
+    }
+    final raw = ((live?['pos'] ?? 0) as num).toInt() + (_tick.isActive ? _sinceUpdate : 0);
+    final pos = dur > 0 ? raw.clamp(0, dur) : raw;
     final source = (live?['source'] as String?) ?? 'Media';
     final v = _drag ?? (dur > 0 ? (pos / dur).clamp(0.0, 1.0) : 0.0);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -261,6 +281,8 @@ class SourcePage extends StatefulWidget {
 class _SourcePageState extends State<SourcePage> with Live<SourcePage> {
   @override
   String get liveMethod => 'sourcesGet';
+  @override
+  String? get liveTopic => 'media';
   @override
   Duration get liveEvery => const Duration(seconds: 5);
 

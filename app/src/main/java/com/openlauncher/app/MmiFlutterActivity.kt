@@ -18,6 +18,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.conflate
 import kotlin.math.roundToInt
 
 /**
@@ -36,10 +38,22 @@ class MmiFlutterActivity : FlutterActivity() {
         }
     }
 
+    // The engine started at power-on (FlutterEngines.warm): the screens are ready the
+    // moment this opens. It outlives the activity, so going back to MMI is instant too.
+    private var prewarmed = false
+
+    override fun provideFlutterEngine(context: Context): FlutterEngine {
+        prewarmed = FlutterEngines.running
+        return FlutterEngines.get(context)
+    }
+
+    override fun shouldDestroyEngineWithHost(): Boolean = false
+
     // Starting page, e.g. "/sound" (adb: --es flutter_page sound).
     override fun getInitialRoute(): String {
         val page = intent.getStringExtra("flutter_page") ?: "home"
         // The start-up screen once per power-on (first start of the app process).
+        if (prewarmed) return "/home" // already running; the page is sent on attach
         val splash = !splashShown && page == "home"
         splashShown = true
         return "/$page" + if (splash) "?splash=1" else ""
@@ -157,6 +171,24 @@ class MmiFlutterActivity : FlutterActivity() {
         scope.launch {
             TwBridge.call.collect { ch.invokeMethod("call", car.callState()) }
         }
+        // A pre-started engine is already on Home: open the asked-for page and the
+        // start-up screen (once per power-on) now.
+        if (prewarmed) {
+            val page = intent.getStringExtra("flutter_page") ?: "home"
+            if (page != "home") ch.invokeMethod("page", page)
+            if (!splashShown && page == "home") { splashShown = true; ch.invokeMethod("splash", null) }
+        }
+        // Tell the screens when car data changes, instead of them asking all the time.
+        fun push(topic: String, flow: kotlinx.coroutines.flow.Flow<Any?>, gapMs: Long = 0) = scope.launch {
+            flow.distinctUntilChanged().drop(1).conflate().collect {
+                ch.invokeMethod("changed", topic)
+                if (gapMs > 0) kotlinx.coroutines.delay(gapMs)
+            }
+        }
+        push("media", kotlinx.coroutines.flow.combine(com.openlauncher.app.service.MediaListenerService.nowPlaying, TwBridge.btTrack) { a, b -> listOf(a?.title, a?.artist, a?.isPlaying, a?.albumArt?.generationId, b?.title, b?.playing) }, 300)
+        push("radio", TwBridge.radio)
+        push("calls", TwBridge.call.map { it.state })
+        push("car", kotlinx.coroutines.flow.combine(com.openlauncher.app.util.CarCore.data, com.openlauncher.app.util.CarInfoLink.info) { a, b -> a to b }, 1000)
         // Speed camera ahead, on every page (also without the map).
         scope.launch {
             com.openlauncher.app.map.NavigationEngine.state
@@ -331,5 +363,34 @@ class MmiFlutterActivity : FlutterActivity() {
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
             )
         }
+    }
+}
+
+/**
+ * One Flutter engine for MMI's screens, started in the background at power-on so
+ * Home appears instantly. Graphics mode: the default renderer, or OpenGL ES when
+ * Settings › System › "OpenGL ES graphics" is on (for GPUs whose Vulkan is slow).
+ */
+internal object FlutterEngines {
+    private const val ID = "mmi"
+    val running: Boolean get() = io.flutter.embedding.engine.FlutterEngineCache.getInstance().contains(ID)
+
+    fun glesOnly(c: Context) = c.getSharedPreferences("mmi_prefs", Context.MODE_PRIVATE).getBoolean("gles", false)
+
+    fun get(c: Context): FlutterEngine {
+        val cache = io.flutter.embedding.engine.FlutterEngineCache.getInstance()
+        cache.get(ID)?.let { return it }
+        val args = if (glesOnly(c)) arrayOf("--impeller-backend=opengles") else arrayOf<String>()
+        val engine = FlutterEngine(c.applicationContext, args)
+        cache.put(ID, engine)
+        return engine
+    }
+
+    /** Starts the screens on Home in the background (only when the new MMI is on). */
+    fun warm(c: Context) {
+        if (running || !MmiFlutterActivity.isOn(c)) return
+        val engine = get(c)
+        engine.navigationChannel.setInitialRoute("/home")
+        engine.dartExecutor.executeDartEntrypoint(io.flutter.embedding.engine.dart.DartExecutor.DartEntrypoint.createDefault())
     }
 }

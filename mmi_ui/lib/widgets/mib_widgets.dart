@@ -250,7 +250,7 @@ class _TrackPainter extends CustomPainter {
     final x = l + (r - l) * v;
     canvas.drawLine(Offset(l, y), Offset(r, y), Paint()..color = const Color(0xFF6A6A6A)..strokeWidth = 1.5);
     canvas.drawLine(Offset(l, y), Offset(x, y), Paint()..color = Mib.white..strokeWidth = 4..strokeCap = StrokeCap.round);
-    canvas.drawCircle(Offset(x, y + 1), 16, Paint()..color = const Color(0x88000000)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3));
+    canvas.drawCircle(Offset(x, y + 1.5), 16.5, Paint()..color = const Color(0x77000000));
     canvas.drawCircle(Offset(x, y), 15, Paint()..color = const Color(0xFFB4B4B4));
   }
 

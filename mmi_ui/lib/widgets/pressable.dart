@@ -152,9 +152,8 @@ class _Sheen extends CustomPainter {
         rr,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 6
-          ..color = const Color(0x33FFFFFF)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+          ..strokeWidth = 7
+          ..color = const Color(0x22FFFFFF),
       );
       canvas.drawRRect(
         rr,

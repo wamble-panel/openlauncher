@@ -15,6 +15,8 @@ class CarInfoPage extends StatefulWidget {
 class _CarInfoPageState extends State<CarInfoPage> with Live<CarInfoPage> {
   @override
   String get liveMethod => 'carGet';
+  @override
+  String? get liveTopic => 'car';
 
   String? f(String key, String Function(num v) fmt) {
     final v = live?[key];

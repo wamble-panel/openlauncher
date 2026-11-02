@@ -96,6 +96,10 @@ class _MmiShellState extends State<MmiShell> {
           _volumeHide.after(const Duration(seconds: 2), () {
             if (mounted) setState(() => _volume = null);
           });
+        case 'changed':
+          Bridge.changes.add('${call.arguments}');
+        case 'splash':
+          setState(() => _splash = true);
         case 'page':
           _openKey('${call.arguments}');
       }

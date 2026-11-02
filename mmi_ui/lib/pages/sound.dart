@@ -172,7 +172,7 @@ class _SoundPageState extends State<SoundPage> {
                       decoration: const BoxDecoration(
                         shape: BoxShape.circle,
                         color: Mib.white,
-                        boxShadow: [BoxShadow(color: Color(0x88000000), blurRadius: 4)],
+                        border: Border.fromBorderSide(BorderSide(color: Color(0x88000000), width: 1.5)),
                       ),
                     ),
                   ),

@@ -24,7 +24,9 @@ class _CallListPageState extends State<CallListPage> with Live<CallListPage> {
   @override
   String get liveMethod => 'callsGet';
   @override
-  Duration get liveEvery => const Duration(seconds: 5);
+  String? get liveTopic => 'calls';
+  @override
+  Duration get liveEvery => const Duration(seconds: 30);
   final _scroll = ScrollController();
 
   @override

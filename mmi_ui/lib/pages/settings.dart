@@ -80,6 +80,8 @@ class SettingsList extends StatelessWidget {
 mixin SettingsState<T extends StatefulWidget> on State<T>, Live<T> {
   @override
   String get liveMethod => 'settingsGet';
+  @override
+  String? get liveTopic => 'settings';
   Object? v(String key, Object? or) => live?[key] ?? or;
   bool b(String key) => v(key, false) == true;
   void set(String key, Object value) {
@@ -167,6 +169,7 @@ class _CategoryPageState extends State<CategoryPage> with Live<CategoryPage>, Se
       'system' => [
           open('Software update', 'classic:SYSTEM_SET', icon: MibIcons.sync),
           open('Storage', 'classic:SYSTEM_SET', icon: MibIcons.storage),
+          toggle('OpenGL ES graphics', 'gles', sub: 'try if pages stutter; used from the next start'),
           MibRow(label: 'Classic MMI', sub: 'switch back to the previous screens', trailing: MibToggle(value: false, onChanged: (_) => Bridge.call('classic'))),
           MibRow(label: 'Version', value: '${v('version', '')}'),
           const _DevSend(),
@@ -188,6 +191,8 @@ class _DevSend extends StatefulWidget {
 class _DevSendState extends State<_DevSend> with Live<_DevSend> {
   @override
   String get liveMethod => 'devStatus';
+  @override
+  Duration get liveEvery => const Duration(seconds: 1);
 
   @override
   Widget build(BuildContext context) {

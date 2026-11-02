@@ -32,6 +32,8 @@ class CarApp : Application() {
             com.openlauncher.app.util.CarInfoLink.start(this)
             com.openlauncher.app.util.VendorCommand.start(this)
             com.openlauncher.app.util.PhoneLink.startEngine(this)
+            // New MMI: start its screens in the background so they open instantly.
+            runCatching { FlutterEngines.warm(this) }
             // Only restarts MMI for an update while the car stands still.
             com.openlauncher.app.util.AppUpdater.startBackground(this) {
                 (com.openlauncher.app.util.CarLocation.get(this).location.value?.speedMps ?: 0f) < 0.5f
