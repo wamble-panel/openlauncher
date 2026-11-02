@@ -185,7 +185,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> with Live<NowPlayingPag
                           setState(() => _drag = null);
                         }
                       : null,
-                  child: SizedBox(height: 40, child: CustomPaint(painter: _Position(v))),
+                  child: RepaintBoundary(child: SizedBox(height: 40, child: CustomPaint(painter: _Position(v)))),
                 );
               }),
               const SizedBox(height: 28),

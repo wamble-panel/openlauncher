@@ -49,7 +49,7 @@ class _BtSearchPageState extends State<BtSearchPage> with Live<BtSearchPage>, Si
         title: scanning ? 'Searching…' : 'Phones nearby',
         onBack: widget.onBack,
         titleTrailing: scanning
-            ? RotationTransition(turns: _spin, child: const SizedBox(width: 44, height: 44, child: CustomPaint(painter: _Ring())))
+            ? RepaintBoundary(child: RotationTransition(turns: _spin, child: const SizedBox(width: 44, height: 44, child: CustomPaint(painter: _Ring()))))
             : Pressable(onTap: () => Bridge.call('btScan'), child: const Padding(padding: EdgeInsets.all(6), child: Icon(MibIcons.refresh, size: 38, color: Mib.white))),
       ),
       Expanded(

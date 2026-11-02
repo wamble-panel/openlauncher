@@ -149,6 +149,7 @@ class MmiFlutterActivity : FlutterActivity() {
                     "source" -> { car.source(arg<String>("key") ?: ""); result.success(null) }
                     "btGet" -> result.success(car.bt())
                     "carGet" -> result.success(carInfo())
+                    "carStream" -> { com.openlauncher.app.util.CarInfoLink.stream(arg<Boolean>("on") == true); result.success(null) }
                     "vendorGet" -> result.success(VendorApps.list(this))
                     "healthGet" -> scope.launch {
                         result.success(kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { UnitHealth.get(this@MmiFlutterActivity) })

@@ -99,7 +99,7 @@ object SoundEngine {
         val cfg = DynamicsProcessing.Config.Builder(
             DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION, 2,
             true, 10, false, 0, false, 0, true,
-        ).setPreferredFrameDuration(10f)
+        ).setPreferredFrameDuration(20f) // bigger audio blocks: less CPU per second on the A53
         val pre = DynamicsProcessing.Eq(true, true, 10)
         for (i in 0 until 10) pre.setBand(i, DynamicsProcessing.EqBand(true, CUTOFFS[i], 0f))
         cfg.setPreEqAllChannelsTo(pre)

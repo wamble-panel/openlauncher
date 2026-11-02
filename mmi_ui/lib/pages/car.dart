@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import '../bridge.dart';
 import '../live.dart';
 import '../theme/mib.dart';
 import '../theme/mib_icons.dart';
@@ -17,6 +18,19 @@ class _CarInfoPageState extends State<CarInfoPage> with Live<CarInfoPage> {
   String get liveMethod => 'carGet';
   @override
   String? get liveTopic => 'car';
+
+  // Speed and rpm stream from the car only while this page is open.
+  @override
+  void initState() {
+    super.initState();
+    Bridge.call('carStream', {'on': true});
+  }
+
+  @override
+  void dispose() {
+    Bridge.call('carStream', {'on': false});
+    super.dispose();
+  }
 
   String? f(String key, String Function(num v) fmt) {
     final v = live?[key];

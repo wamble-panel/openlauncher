@@ -304,10 +304,31 @@ object TwBridge {
         synchronized(log) {
             log.addLast("$stamp  $line")
             while (log.size > 300) log.removeFirst()
-            runCatching {
-                File(File(app.filesDir, "reports").apply { mkdirs() }, "mmi-twlog.txt").writeText(log.joinToString("\n"))
-            }
         }
+        // Written at most every 10 s, not on every line: the unit's eMMC is slow and
+        // every rewrite of the file costs a stall and flash wear.
+        if (!flushQueued) {
+            flushQueued = true
+            main.postDelayed(::flushLog, 10_000)
+        }
+    }
+
+    @Volatile private var flushQueued = false
+
+    /** Writes the log file right away, on this thread (before sending reports). */
+    fun flushLogNow() {
+        flushQueued = false
+        val text = synchronized(log) { log.joinToString("\n") }
+        runCatching { File(File(app.filesDir, "reports").apply { mkdirs() }, "mmi-twlog.txt").writeText(text) }
+    }
+
+    /** Writes the log file in the background. */
+    fun flushLog() {
+        flushQueued = false
+        val text = synchronized(log) { log.joinToString("\n") }
+        Thread {
+            runCatching { File(File(app.filesDir, "reports").apply { mkdirs() }, "mmi-twlog.txt").writeText(text) }
+        }.start()
     }
 
     fun recent(): List<String> = synchronized(log) { log.toList() }

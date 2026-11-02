@@ -74,7 +74,8 @@ object CarInfoLink {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder) {
             service = binder
             connected = call(1) { it.writeStrongBinder(callback) }
-            call(47)   // speed / rpm stream on
+            // Speed / rpm only stream while a page shows them (see stream()).
+            if (streaming) call(47) else call(46)
             call(3)    // send every current value now
             TwBridge.log("CarInfoLink: " + if (connected) "connected" else "register refused")
         }
@@ -100,6 +101,18 @@ object CarInfoLink {
         } finally {
             p.recycle(); r.recycle()
         }
+    }
+
+    @Volatile private var streaming = false
+
+    /**
+     * Speed and rpm many times a second only while a page shows them (Car information,
+     * map): otherwise the car service, the binder and MMI would wake for nothing.
+     */
+    fun stream(on: Boolean) {
+        if (streaming == on) return
+        streaming = on
+        call(if (on) 47 else 46)
     }
 
     fun start(context: Context) {

@@ -48,6 +48,7 @@ object DevUpload {
                 }
                 say("Packing the car apps…")
                 prepare()
+                runCatching { TwBridge.flushLogNow() }
                 val files = reportFiles(context)
                 say(send(context, files) { say(it) }.fold({ n -> "Sent $n files. Tell Claude \"sent\"." }, { e -> "Sending failed: ${e.message}" }))
             } finally {
