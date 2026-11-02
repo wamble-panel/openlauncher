@@ -10,6 +10,7 @@ import '../pages/apps.dart';
 import '../pages/bluetooth.dart';
 import '../pages/car.dart';
 import '../pages/weather.dart';
+import '../pages/help.dart';
 import '../pages/home.dart';
 import '../pages/media.dart';
 import '../pages/phone.dart';
@@ -37,7 +38,8 @@ enum MmiPage {
   language('Settings', 'Language & keyboard', null),
   system('Settings', 'System & updates', null),
   carinfo('Car', 'Car information', null),
-  weather(null, 'Weather', null);
+  weather(null, 'Weather', null),
+  help(null, 'Help', null);
 
   const MmiPage(this.section, this.title, this.rail);
   final String? section;
@@ -286,6 +288,7 @@ class _MmiShellState extends State<MmiShell> {
       MmiPage.sound => const SoundPage(),
       MmiPage.carinfo => const CarInfoPage(),
       MmiPage.weather => const WeatherPage(),
+      MmiPage.help => HelpPage(onOpen: _openKey),
       _ => CategoryPage(category: _page.name, onOpen: _openKey),
     };
     return Padding(
