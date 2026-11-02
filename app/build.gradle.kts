@@ -18,7 +18,9 @@ android {
         versionName    = "2.0.0-mmi"
         // Head units are ARM: leave out the x86 builds of MapLibre and ML Kit (about half the APK).
         ndk {
-            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+            // The TS10's Android runs 32-bit only (no 64-bit ABI, no /system/lib64; see the
+            // unit's system report), so only 32-bit ARM code goes in: about half the size.
+            abiFilters += listOf("armeabi-v7a")
             // -Pemulator: also x86_64, for CI's screenshot emulator only.
             if (providers.gradleProperty("emulator").isPresent) abiFilters += "x86_64"
         }

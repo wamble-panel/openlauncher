@@ -40,7 +40,7 @@ jobs:
           flutter pub get
           flutter analyze
           flutter test --update-goldens
-          flutter build aar --no-debug --no-profile --build-number 1.0 --target-platform android-arm,android-arm64,android-x64
+          flutter build aar --no-debug --no-profile --build-number 1.0 --target-platform android-arm,android-x64
 
       - name: Attach Flutter renders to the mmi-screens release
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/mbux'
