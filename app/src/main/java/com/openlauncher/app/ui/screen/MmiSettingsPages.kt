@@ -89,7 +89,7 @@ internal fun MmiDisplayPage() {
     val modePrefs = remember(context) { context.getSharedPreferences("mmi_prefs", android.content.Context.MODE_PRIVATE) }
     var dayNight by remember { mutableIntStateOf(modePrefs.getInt("day_night", 0)) }
     var touchSounds by remember { mutableStateOf(com.openlauncher.app.util.UiSound.enabled) }
-    var newMmi by remember { mutableStateOf(modePrefs.getBoolean("flutter_ui", false)) }
+    var newMmi by remember { mutableStateOf(modePrefs.getBoolean("flutter_ui", true)) }
     var screenOff by remember {
         mutableStateOf(runCatching { Settings.System.getInt(cr, Settings.System.SCREEN_OFF_TIMEOUT) }.getOrDefault(Int.MAX_VALUE) <= 1_800_000)
     }
@@ -116,7 +116,7 @@ internal fun MmiDisplayPage() {
             })
             Spacer(Modifier.height(10.dp))
         }
-        ToggleRow("New MMI (preview)", newMmi) { on ->
+        ToggleRow("New MMI", newMmi) { on ->
             newMmi = on
             modePrefs.edit().putBoolean("flutter_ui", on).apply()
             if (on) com.openlauncher.app.MmiFlutterActivity.start(context)

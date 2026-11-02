@@ -373,7 +373,7 @@ class MmiFlutterActivity : FlutterActivity() {
         )
 
         fun isOn(context: Context) =
-            context.getSharedPreferences("mmi_prefs", Context.MODE_PRIVATE).getBoolean("flutter_ui", false)
+            context.getSharedPreferences("mmi_prefs", Context.MODE_PRIVATE).getBoolean("flutter_ui", true)
 
         fun start(context: Context, page: String = "home") {
             context.startActivity(
