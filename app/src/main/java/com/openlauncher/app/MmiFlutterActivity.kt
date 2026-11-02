@@ -8,6 +8,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.openlauncher.app.util.CarAudio
 import com.openlauncher.app.util.SpeedVolume
+import com.openlauncher.app.util.TwBridge
 import com.openlauncher.app.util.UiSound
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -15,6 +16,8 @@ import io.flutter.plugin.common.MethodChannel
 import kotlin.math.abs
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlin.math.roundToInt
 
 /**
@@ -34,7 +37,13 @@ class MmiFlutterActivity : FlutterActivity() {
     }
 
     // Starting page, e.g. "/sound" (adb: --es flutter_page sound).
-    override fun getInitialRoute(): String = "/" + (intent.getStringExtra("flutter_page") ?: "home")
+    override fun getInitialRoute(): String {
+        val page = intent.getStringExtra("flutter_page") ?: "home"
+        // The start-up screen once per power-on (first start of the app process).
+        val splash = !splashShown && page == "home"
+        splashShown = true
+        return "/$page" + if (splash) "?splash=1" else ""
+    }
 
     private var channel: MethodChannel? = null
     private val scope = kotlinx.coroutines.MainScope()
@@ -118,6 +127,37 @@ class MmiFlutterActivity : FlutterActivity() {
         scope.launch {
             TwBridge.call.collect { ch.invokeMethod("call", car.callState()) }
         }
+        // Speed camera ahead, on every page (also without the map).
+        scope.launch {
+            com.openlauncher.app.map.NavigationEngine.state
+                .map { st ->
+                    st.camera?.let { cam ->
+                        mapOf(
+                            "user" to cam.user,
+                            "distance" to com.openlauncher.app.map.formatDistance(cam.distanceM, com.openlauncher.app.data.CarPrefs.get(this@MmiFlutterActivity).metric.value),
+                            "limit" to cam.limit,
+                            "over" to (cam.limit > 0 && st.speedKmh > cam.limit + 3),
+                        )
+                    }
+                }
+                .distinctUntilChanged()
+                .collect { ch.invokeMethod("camera", it) }
+        }
+        // Volume pop-up when the music volume changes.
+        val audio = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+        volumeReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: Context, i: Intent) {
+                if (i.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1) != android.media.AudioManager.STREAM_MUSIC) return
+                ch.invokeMethod("volume", mapOf(
+                    "level" to audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC),
+                    "max" to audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC),
+                ))
+            }
+        }
+        androidx.core.content.ContextCompat.registerReceiver(
+            this, volumeReceiver, android.content.IntentFilter("android.media.VOLUME_CHANGED_ACTION"),
+            androidx.core.content.ContextCompat.RECEIVER_EXPORTED,
+        )
         // Car knob and buttons, while the new screens are in front.
         scope.launch {
             com.openlauncher.app.util.CarCore.keys.collect { k ->
@@ -136,7 +176,10 @@ class MmiFlutterActivity : FlutterActivity() {
         super.onPause()
     }
 
+    private var volumeReceiver: android.content.BroadcastReceiver? = null
+
     override fun onDestroy() {
+        volumeReceiver?.let { runCatching { unregisterReceiver(it) } }
         scope.cancel()
         super.onDestroy()
     }
@@ -231,6 +274,7 @@ class MmiFlutterActivity : FlutterActivity() {
         /** True while the new screens are in front (the classic shell then ignores the car's keys). */
         @Volatile var resumed = false
             private set
+        private var splashShown = false
 
         private val CLASSIC_PAGES = mapOf(
             "home" to "HOME", "radio" to "RADIO", "music" to "MUSIC", "phone" to "PHONE",

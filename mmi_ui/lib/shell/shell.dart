@@ -5,6 +5,7 @@ import '../theme/mib.dart';
 import '../theme/mib_icons.dart';
 import '../widgets/pressable.dart';
 import '../widgets/mib_widgets.dart';
+import '../widgets/overlays.dart';
 import '../pages/apps.dart';
 import '../pages/bluetooth.dart';
 import '../pages/home.dart';
@@ -50,7 +51,8 @@ const _railIcons = [MibIcons.home, MibIcons.cell_tower, MibIcons.music_note, Mib
 /// pages cross-fading in the rest. Back goes to the page before; the car's knob and
 /// buttons arrive from the host; a call takes over the page area until it ends.
 class MmiShell extends StatefulWidget {
-  const MmiShell({super.key, this.initialPage = 'home', this.initialCall});
+  const MmiShell({super.key, this.initialPage = 'home', this.initialCall, this.splash = false});
+  final bool splash;
   final String initialPage;
   final Map<Object?, Object?>? initialCall;
 
@@ -64,6 +66,10 @@ class _MmiShellState extends State<MmiShell> {
   String _selected = '';
   late Map<Object?, Object?>? _call = widget.initialCall;
   final _scope = FocusScopeNode(debugLabel: 'mmi');
+  late bool _splash = widget.splash;
+  Map<Object?, Object?>? _camera;
+  Map<Object?, Object?>? _volume;
+  final _volumeHide = Hide();
 
   @override
   void initState() {
@@ -75,6 +81,15 @@ class _MmiShellState extends State<MmiShell> {
         case 'call':
           final m = call.arguments as Map?;
           setState(() => _call = m == null || m['state'] == 'none' ? null : m);
+        case 'camera':
+          final m = call.arguments as Map?;
+          if (m != null && _camera == null) Bridge.chime();
+          setState(() => _camera = m);
+        case 'volume':
+          setState(() => _volume = call.arguments as Map?);
+          _volumeHide.after(const Duration(seconds: 2), () {
+            if (mounted) setState(() => _volume = null);
+          });
         case 'page':
           _openKey('${call.arguments}');
       }
@@ -84,6 +99,7 @@ class _MmiShellState extends State<MmiShell> {
 
   @override
   void dispose() {
+    _volumeHide.cancel();
     _scope.dispose();
     super.dispose();
   }
@@ -222,6 +238,25 @@ class _MmiShellState extends State<MmiShell> {
               child: KeyedSubtree(key: ValueKey(key), child: _call != null ? InCallPage(call: _call!) : _pageView()),
             ),
           ),
+          // Speed camera banner and volume pop-up, over every page.
+          Positioned(
+            left: rail,
+            right: 0,
+            top: top + 14,
+            child: Center(child: Fade(visible: _camera != null, child: _camera == null ? const SizedBox() : CameraBanner(cam: _camera!))),
+          ),
+          Positioned(
+            left: rail,
+            right: 0,
+            bottom: 40,
+            child: Center(
+              child: Fade(
+                visible: _volume != null,
+                child: _volume == null ? const SizedBox(width: 560, height: 76) : VolumePopup(level: (_volume!['level'] as num).toInt(), max: (_volume!['max'] as num).toInt()),
+              ),
+            ),
+          ),
+          if (_splash) Positioned.fill(child: Splash(onDone: () => setState(() => _splash = false))),
         ]),
       ),
     );

@@ -75,6 +75,21 @@ void main() {
   for (final page in MmiPage.values) {
     testWidgets('render ${page.name}', (tester) => _render(tester, MmiApp(initialPage: page.name), page.name));
   }
+  testWidgets('render boot', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(const MmiApp(splash: true));
+    await tester.runAsync(() async {
+      for (final e in find.byType(Image).evaluate()) {
+        await precacheImage((e.widget as Image).image, e);
+      }
+    });
+    await tester.pump(const Duration(milliseconds: 1400));
+    await expectLater(find.byType(MmiApp), matchesGoldenFile('../goldens/boot.png'));
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('render call', (tester) => _render(
       tester,
       MmiApp(initialCall: {'state': 'active', 'name': 'Ahmed', 'number': '0100 123 4567', 'since': DateTime.now().millisecondsSinceEpoch - 151000}),

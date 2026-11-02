@@ -304,7 +304,7 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
             "artist" to np.artist,
             "album" to (meta?.getString(MediaMetadata.METADATA_KEY_ALBUM) ?: ""),
             "playing" to np.isPlaying,
-            "pos" to pos.coerceIn(0, if (dur > 0) dur else Long.MAX_VALUE).toInt(),
+            "pos" to pos.coerceIn(0L, if (dur > 0) dur else Long.MAX_VALUE).toInt(),
             "dur" to dur.toInt(),
             "source" to (source ?: "Media"),
             "artId" to artKey,

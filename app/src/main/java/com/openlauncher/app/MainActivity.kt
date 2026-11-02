@@ -124,6 +124,7 @@ class MainActivity : ComponentActivity() {
         val flutterPage = intent?.getStringExtra("flutter_page")
         if (flutterPage != null || (MmiFlutterActivity.isOn(this) && intent?.hasExtra("mmi_page") != true)) {
             MmiFlutterActivity.start(this, flutterPage ?: "home")
+            splashShown = true // the new screens show their own start-up screen
         }
         intent?.getStringExtra("mmi_page")?.let { pageRequest.value = it; splashShown = true }
         hideSystemBars()
