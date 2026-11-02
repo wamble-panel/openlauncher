@@ -89,7 +89,7 @@ private fun MmiSwitch(on: Boolean) {
 // Settings pages use the MIB list parts (MmiMib.kt).
 @Composable
 private fun SettingRow(label: String, value: String? = null, onClick: (() -> Unit)? = null, trailing: @Composable (() -> Unit)? = null) =
-    MibListRow(label, value, onClick, trailing)
+    MibListRow(label, value, onClick, trailing = trailing)
 
 @Composable
 private fun ToggleRow(label: String, on: Boolean, onToggle: (Boolean) -> Unit) =

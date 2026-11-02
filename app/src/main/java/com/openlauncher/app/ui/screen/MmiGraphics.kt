@@ -265,7 +265,7 @@ private fun outlineIcon(kind: MmiLine): androidx.compose.ui.graphics.vector.Imag
         MmiLine.HOME -> "home"
         MmiLine.FLAG -> "flag"
         MmiLine.CARD -> "info"
-        MmiLine.GLOBE -> "public"
+        MmiLine.GLOBE -> "language"
         MmiLine.SPEAKER -> "volume_up"
         MmiLine.MUTE -> "volume_off"
         MmiLine.CAMERA -> "photo_camera"

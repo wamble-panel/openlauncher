@@ -985,7 +985,7 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, categ
     if (category != null) {
         // A category: MIB list, label left, chevron right, thin dividers.
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            rows.filter { it.first == category }.forEach { (_, label, action) -> MibListRow(label, onClick = action) }
+            rows.filter { it.first == category }.forEach { (_, label, action) -> MibListRow(label, onClick = action, icon = settingsIcon(label)) }
         }
         return
     }
@@ -1116,4 +1116,31 @@ private fun headerFor(p: MmiPage, pairing: Boolean): Pair<String?, String>? = wh
     MmiPage.EQ -> "Settings" to "Sound"
     MmiPage.BLUETOOTH -> "Settings" to if (pairing) "Searching…" else "Bluetooth"
     else -> "Settings" to (p.title ?: "")
+}
+
+/** Outline icon for a settings row, by what the row is about. */
+private fun settingsIcon(label: String): androidx.compose.ui.graphics.vector.ImageVector {
+    val l = label.lowercase()
+    return MibSymbols.get(
+        when {
+            "software update" in l || "silent update" in l -> "restart_alt"
+            "diagnostic" in l -> "build"
+            "car info" in l -> "speed"
+            l.startsWith("car:") -> "directions_car"
+            "touch sound" in l -> "volume_up"
+            "bluetooth" in l -> "bluetooth"
+            "wi-fi" in l -> "wifi"
+            "units" in l -> "straighten"
+            "phone call" in l -> "call"
+            "climate" in l -> "ac_unit"
+            "reversing" in l -> "queue_music"
+            "pop-up" in l -> "notifications"
+            "startup video" in l -> "movie"
+            "date" in l -> "schedule"
+            "permission" in l -> "verified_user"
+            "cleanup" in l -> "cleaning_services"
+            "storage" in l -> "storage"
+            else -> "settings"
+        }
+    )
 }

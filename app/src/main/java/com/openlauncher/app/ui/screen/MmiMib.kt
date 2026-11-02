@@ -105,7 +105,10 @@ internal val MIB_ROW_H = 76.dp
 
 /** List row: white label left, optional grey value / trailing control right, thin divider below. */
 @Composable
-internal fun MibListRow(label: String, value: String? = null, onClick: (() -> Unit)? = null, trailing: (@Composable () -> Unit)? = null) {
+internal fun MibListRow(
+    label: String, value: String? = null, onClick: (() -> Unit)? = null,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null, trailing: (@Composable () -> Unit)? = null,
+) {
     Row(
         Modifier.fillMaxWidth().height(MIB_ROW_H)
             .drawBehind { drawLine(MibLine.copy(alpha = 0.22f), Offset(0f, size.height - 1), Offset(size.width, size.height - 1), 1.dp.toPx()) }
@@ -113,6 +116,10 @@ internal fun MibListRow(label: String, value: String? = null, onClick: (() -> Un
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (icon != null) {
+            androidx.compose.material3.Icon(icon, contentDescription = null, modifier = Modifier.size(38.dp), tint = Color.White)
+            Spacer(Modifier.width(26.dp))
+        }
         Text(label, color = Color.White, fontFamily = MmiFont, fontSize = 24.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (value != null) Text(value, color = MibSection, fontFamily = MmiFont, fontSize = 20.sp, maxLines = 1)
         if (trailing != null) {
