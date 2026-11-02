@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId  = "com.openlauncher.app"
-        minSdk         = 21
+        minSdk         = 24
         targetSdk      = 36
         // CI builds count up with the run number, so Settings → Software update can compare.
         versionCode    = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()?.plus(1000) ?: 21
