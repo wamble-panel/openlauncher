@@ -28,12 +28,10 @@ class CarApp : Application() {
             // MMI's own link to the car library (switches itself off if not allowed).
             com.openlauncher.app.util.CarCore.start()
             com.openlauncher.app.util.CarCore.vendorRadioPresent = vendorEnabled("com.tw.radio")
-            // Car Info Service (speed, rpm, lights…), the vendor command relay (amplifier)
-            // and the CarPlay / Android Auto engine, so a phone can connect at once.
+            // Car Info Service (speed, rpm, lights…) and the vendor command relay (amplifier).
             com.openlauncher.app.util.CarInfoLink.start(this)
             com.openlauncher.app.util.UsbMusic.init(this)
             com.openlauncher.app.util.VendorCommand.start(this)
-            com.openlauncher.app.util.PhoneLink.startEngine(this)
             // New MMI: start its screens in the background so they open instantly.
             runCatching { FlutterEngines.warm(this) }
             // Only restarts MMI for an update while the car stands still.

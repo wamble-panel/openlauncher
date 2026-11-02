@@ -142,12 +142,10 @@ class MmiFlutterActivity : FlutterActivity() {
                     "dial" -> { car.dial(arg<String>("number") ?: ""); result.success(null) }
                     "answer" -> {
                         TwBridge.answer()
-                        if (com.openlauncher.app.util.PhoneLink.status.value.inCall) com.openlauncher.app.util.PhoneLink.function(this, com.openlauncher.app.util.PhoneLink.ANSWER)
                         result.success(null)
                     }
                     "hangUp" -> {
                         TwBridge.hangUp()
-                        if (com.openlauncher.app.util.PhoneLink.status.value.inCall) com.openlauncher.app.util.PhoneLink.function(this, com.openlauncher.app.util.PhoneLink.HANG_UP)
                         result.success(null)
                     }
                     "mediaGet" -> result.success(car.media())
@@ -157,15 +155,14 @@ class MmiFlutterActivity : FlutterActivity() {
                     "source" -> { car.source(arg<String>("key") ?: ""); result.success(null) }
                     "btGet" -> result.success(car.bt())
                     "carGet" -> result.success(carInfo())
-                    "phoneLinkGet" -> {
-                        val st = com.openlauncher.app.util.PhoneLink.status.value
+                    "phoneGet" -> {
+                        val ph = TwBridge.phone.value
                         result.success(mapOf(
-                            "installed" to com.openlauncher.app.util.PhoneLink.installed(this),
-                            "connected" to st.connected, "mode" to st.mode,
-                            "auto" to com.openlauncher.app.util.PhoneLink.autoOpen(this),
+                            "connected" to (TwBridge.phoneConnected.value == true || com.openlauncher.app.util.BtConnect.anyConnected()),
+                            "name" to ph.name, "battery" to ph.battery, "signal" to ph.signal,
+                            "music" to (TwBridge.btTrack.value?.title),
                         ))
                     }
-                    "phoneLinkOpen" -> result.success(com.openlauncher.app.util.PhoneLink.open(this))
                     "usbGet" -> result.success(UsbLibrary.get(arg<String>("mode") ?: "songs", arg<String>("filter")))
                     "usbPlay" -> {
                         UsbLibrary.play(arg<String>("mode") ?: "songs", arg<String>("filter"), (arg<String>("id") ?: "0").toLong())
@@ -247,7 +244,7 @@ class MmiFlutterActivity : FlutterActivity() {
         push("media", kotlinx.coroutines.flow.combine(com.openlauncher.app.service.MediaListenerService.nowPlaying, TwBridge.btTrack, com.openlauncher.app.util.UsbMusic.state) { a, b, u -> listOf(a?.title, a?.artist, a?.isPlaying, a?.albumArt?.generationId, b?.title, b?.playing, u.song?.id, u.playing) }, 300)
         push("radio", kotlinx.coroutines.flow.combine(TwBridge.radio, com.openlauncher.app.util.CarCore.radio) { a, b -> a to b }, 250)
         push("calls", TwBridge.call.map { it.state })
-        push("phonelink", com.openlauncher.app.util.PhoneLink.status)
+        push("phone", kotlinx.coroutines.flow.combine(TwBridge.phoneConnected, TwBridge.phone) { a, b -> a to b })
         push("car", kotlinx.coroutines.flow.combine(com.openlauncher.app.util.CarCore.data, com.openlauncher.app.util.CarInfoLink.info) { a, b -> a to b }, 1000)
         // Doors: a banner while any is open.
         scope.launch {
@@ -354,9 +351,6 @@ class MmiFlutterActivity : FlutterActivity() {
             "browser" -> car.launch("browser")
             "weather" -> car.launch("weather")
             "video" -> car.launch("video")
-            // Phone Link: CarPlay / Android Auto (the unit's ZLink engine, no vendor screens first).
-            "phonelink" -> com.openlauncher.app.util.PhoneLink.open(this) || car.launch("pkg:" + (packageManager.getInstalledApplications(0)
-                .firstOrNull { a -> listOf("zlink", "carlink", "autokit", "easyconnect", "phonelink").any { a.packageName.contains(it, true) } }?.packageName ?: ""))
             else -> false
         }
         if (!launched) openClassic(key)

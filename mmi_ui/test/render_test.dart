@@ -17,7 +17,7 @@ Future<void> _fonts() async {
 }
 
 final _demo = <String, Object?>{
-  'phoneLinkGet': {'installed': true, 'connected': true, 'mode': 'carplay_wireless', 'auto': true},
+  'phoneGet': {'connected': true, 'name': 'iPhone', 'battery': 4, 'signal': 3, 'music': 'Blinding Lights'},
   'usbGet': {
     'scanning': false, 'count': 214,
     'items': [

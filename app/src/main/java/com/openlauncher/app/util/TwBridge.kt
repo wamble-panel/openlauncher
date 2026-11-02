@@ -45,7 +45,7 @@ object TwBridge {
     private const val UNMUTE = "com.unisound.intent.action.DO_UNMUTE"
 
     private val ACTIONS = listOf(
-        ID3, CALL, MUTE, UNMUTE, "com.tw.bt_phone_info", "com.tw.radio.state", "com.tw.radio.av", "com.tw.bt.av.play",
+        ID3, CALL, MUTE, UNMUTE, "com.tw.bt_phone_info", "com.unisound.intent.action.SEND_PAIR_INFO", "com.tw.radio.state", "com.tw.radio.av", "com.tw.bt.av.play",
         "com.android.bt.connected", "com.android.bt.disconnected", "com.tw.launcher.theme", "com.tw.launcher.dvrinfo",
         "action.bt.AIOS_INCOMING_RINGING", "action.bt.AIOS_INCOMING_OFFHOOK", "action.bt.AIOS_INCOMING_IDLE",
         "action.bt.AIOS_OUTGOING_RINGING", "action.bt.AIOS_OUTGOING_OFFHOOK", "action.bt.AIOS_OUTGOING_IDLE",
@@ -58,6 +58,11 @@ object TwBridge {
     val btTrack: StateFlow<BtTrack?> = _btTrack
     private val _phoneConnected = MutableStateFlow<Boolean?>(null)
     val phoneConnected: StateFlow<Boolean?> = _phoneConnected
+    /** The connected phone: name, battery and signal (0-5 as the Bluetooth module reports them). */
+    data class Phone(val name: String? = null, val battery: Int? = null, val signal: Int? = null)
+    private val _phone = MutableStateFlow(Phone())
+    val phone: StateFlow<Phone> = _phone
+
     private val _reversing = MutableStateFlow(false)
     /** True while reverse gear is engaged (the car service's own signal). */
     val reversing: StateFlow<Boolean> = _reversing
@@ -291,8 +296,16 @@ object TwBridge {
                 if (was != true) acquireBluetoothAudio(play = false)
                 applyCallWindow()
                 send(Intent("com.unisound.intent.action.GET_ID3_INFO"))
+                // Ask the Bluetooth module who it is and how its battery / signal are.
+                send(Intent("com.unisound.intent.action.GET_PAIR_INFO"))
+                send(Intent("com.unisound.intent.action.GET_BATTARY_INFO"))
             }
-            "com.android.bt.disconnected" -> { _phoneConnected.value = false; _btTrack.value = null }
+            "com.android.bt.disconnected" -> { _phoneConnected.value = false; _btTrack.value = null; _phone.value = Phone() }
+            "com.unisound.intent.action.SEND_PAIR_INFO" -> text(extras, "pairName")?.let { n -> _phone.value = _phone.value.copy(name = n) }
+            "com.tw.bt_phone_info" -> _phone.value = _phone.value.copy(
+                battery = extras?.getInt("power", -1)?.takeIf { it >= 0 } ?: _phone.value.battery,
+                signal = extras?.getInt("singal", -1)?.takeIf { it >= 0 } ?: _phone.value.signal,
+            )
             MUTE, UNMUTE -> extras?.let { if (it.containsKey("reverse")) onReverse(it.getInt("reverse", 0) != 0) }
         }
     }

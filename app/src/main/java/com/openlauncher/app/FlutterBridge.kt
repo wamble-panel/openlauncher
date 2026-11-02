@@ -60,7 +60,6 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
             "voice" to NavigationEngine.state.value.voiceOn,
             "callBar" to TwBridge.mmiCallBar(),
             "keepMusicReverse" to TwBridge.keepMusicInReverse(),
-            "phonelinkAuto" to com.openlauncher.app.util.PhoneLink.autoOpen(ctx),
             "gles" to prefs.getBoolean("gles", false),
             "version" to runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull(),
         )
@@ -88,7 +87,6 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
             "voice" -> NavigationEngine.setVoice(on)
             "callBar" -> TwBridge.setMmiCallBar(on)
             "keepMusicReverse" -> TwBridge.setKeepMusicInReverse(on)
-            "phonelinkAuto" -> com.openlauncher.app.util.PhoneLink.setAutoOpen(ctx, on)
             "gles" -> prefs.edit().putBoolean("gles", on).apply() // used from the next start
         }
     }
@@ -590,7 +588,7 @@ internal object VendorApps {
         Row("com.tw.eq", "EQ", "test", "MMI equaliser and balance / fader; check the sound first"),
         Row("com.tw.music", "Music (USB)", "test", "MMI USB music replaces it; play a stick first"),
         Row("com.tw.bt", "Bluetooth", "keep", "Calls, phonebook and Bluetooth music"),
-        Row("com.zjinnova.zlink", "Tlink5 (ZLink)", "keep", "CarPlay and Android Auto engine"),
+        Row("com.zjinnova.zlink", "Tlink5 (ZLink)", "safe", "Not used by MMI (no CarPlay / Android Auto)"),
         Row("com.tw.service", "TW service", "keep", "Car link; part of the system"),
         Row("com.tw.service.xt", "XT service", "keep", "Command relay MMI uses (amplifier)"),
         Row("com.tw.core", "TW core", "keep", "Car link; part of the system"),
