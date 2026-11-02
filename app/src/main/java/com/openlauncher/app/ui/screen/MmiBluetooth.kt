@@ -24,6 +24,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -41,6 +42,7 @@ import androidx.core.content.ContextCompat
 import com.openlauncher.app.model.AppInfo
 import com.openlauncher.app.util.BtConnect
 import androidx.compose.foundation.border
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Brush
@@ -214,73 +216,87 @@ internal fun MmiBluetoothPage(apps: List<AppInfo>, onLaunchPackage: (String) -> 
         return
     }
 
-    Row(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 6.dp)) {
-        // Left: this car and the paired phones.
-        Column(Modifier.weight(1f).fillMaxHeight()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                MmiLineIcon(MmiLine.BLUETOOTH, if (bt.enabled) MmiCyan else MmiDim, Modifier.size(30.dp))
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(bt.name.ifEmpty { "This car" }, color = MmiInk, fontFamily = MmiFont, fontSize = 22.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(
+    // MIB list: while pairing, the phones found nearby; otherwise the saved phones.
+    LaunchedEffect(pairing) {
+        if (!pairing) return@LaunchedEffect
+        // Discovery stops on its own after ~12 s; keep searching while this page is open.
+        while (true) {
+            delay(15_000)
+            if (!bt.scanning) bt.startScan()
+        }
+    }
+    Column(Modifier.fillMaxSize().padding(top = 12.dp)) {
+        LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
+            if (pairing) {
+                val list = bt.nearby.sortedByDescending { it.isPhone }
+                itemsIndexed(list, key = { _, d -> d.address }) { i, d ->
+                    PhoneRow(d.name, if (d.bonding) "Pairing…" else "Tap to connect", highlighted = i == 0) { bt.pair(d.address) }
+                }
+                item { PhoneRow("Searching…", null, highlighted = false, dim = true, spinner = true) {} }
+            } else {
+                item {
+                    PhoneRow("Pair new phone", null, highlighted = false, plus = true) {
+                        if (!granted) ask.launch(bluetoothPermissions())
+                        if (!bt.enabled) bt.requestOn()
+                        pairing = true
+                        bt.makeDiscoverable()
+                        bt.startScan()
+                    }
+                }
+                itemsIndexed(bt.paired, key = { _, d -> d.address }) { _, d ->
+                    PhoneRow(
+                        d.name,
                         when {
-                            !bt.enabled -> "Bluetooth is off"
-                            bt.discoverable -> "Visible to phones"
-                            else -> "On"
+                            d.connected -> "Connected"
+                            selected == d.address -> "Tap again to forget"
+                            else -> "Tap to connect"
                         },
-                        color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp,
-                    )
-                }
-                if (!bt.enabled) ChromePill("Turn on", bt::requestOn)
-            }
-            Spacer(Modifier.height(12.dp))
-            Text("PAIRED PHONES", color = MmiCyan, fontFamily = MmiFont, fontSize = 13.sp, letterSpacing = 2.sp)
-            LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
-                if (bt.paired.isEmpty()) {
-                    item { Text("No phones paired yet.", color = MmiDim, fontFamily = MmiFont, fontSize = 17.sp, modifier = Modifier.padding(vertical = 12.dp)) }
-                }
-                items(bt.paired, key = { it.address }) { d ->
-                    DeviceRow(d, selected = selected == d.address, onClick = { selected = if (selected == d.address) null else d.address }) {
-                        if (selected == d.address) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (!d.connected) ChromePill("Connect", { BtConnect.connect(d.address); selected = null })
-                                ChromePill("Forget", { bt.forget(d.address); selected = null })
-                            }
+                        highlighted = d.connected,
+                    ) {
+                        when {
+                            d.connected -> Unit
+                            selected == d.address -> { bt.forget(d.address); selected = null }
+                            else -> { BtConnect.connect(d.address); selected = d.address }
                         }
                     }
                 }
+                if (vendorApp != null) item { PhoneRow(vendorApp.appName, "Open", highlighted = false) { onLaunchPackage(vendorApp.packageName) } }
             }
-            Text(
-                "Phones reconnect by themselves when you get in. To switch phones, connect from the phone's Bluetooth menu.",
-                color = MmiDim, fontFamily = MmiFont, fontSize = 14.sp, modifier = Modifier.padding(vertical = 6.dp),
+        }
+        Text(
+            if (!bt.enabled) "Bluetooth is off" else "Visible to phones as: ${bt.name.ifEmpty { "MMI" }}",
+            color = MmiDim, fontFamily = MmiFont, fontSize = 22.sp, modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 22.dp),
+        )
+    }
+}
+
+/** MIB phone row: phone outline icon, name, grey status on the right; highlighted = lit left bar. */
+@Composable
+private fun PhoneRow(
+    name: String, status: String?, highlighted: Boolean, dim: Boolean = false, spinner: Boolean = false, plus: Boolean = false,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().height(86.dp)
+            .then(
+                if (highlighted) Modifier.background(Color(0x14FFFFFF)).border(1.dp, Color(0x66FFFFFF), androidx.compose.ui.graphics.RectangleShape)
+                else Modifier
             )
-        }
-        Spacer(Modifier.width(32.dp))
-        // Right: pairing.
-        Column(Modifier.weight(1f).fillMaxHeight().mmiPanel().padding(16.dp)) {
-            if (!pairing) {
-                Text("Pair a new phone", color = MmiInk, fontFamily = MmiFont, fontSize = 26.sp)
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Makes the car visible for 5 minutes and searches for nearby phones.",
-                    color = MmiDim, fontFamily = MmiFont, fontSize = 16.sp,
-                )
-                Spacer(Modifier.weight(1f))
-                ChromePill("Pair new phone", {
-                    if (!granted) ask.launch(bluetoothPermissions())
-                    if (!bt.enabled) bt.requestOn()
-                    pairing = true
-                    bt.makeDiscoverable()
-                    bt.startScan()
-                }, MmiLine.PLUS, Modifier.fillMaxWidth())
-                if (vendorApp != null) {
-                    Spacer(Modifier.height(10.dp))
-                    ChromePill(vendorApp.appName, { onLaunchPackage(vendorApp.packageName) }, MmiLine.OPEN, Modifier.fillMaxWidth())
-                }
-            } else {
-                PairingPanel(bt, onClose = { pairing = false; bt.stopScan() })
+            .drawBehind {
+                if (highlighted) drawRect(Color.White, size = androidx.compose.ui.geometry.Size(8.dp.toPx(), size.height))
+                else drawLine(Color(0x38FFFFFF), androidx.compose.ui.geometry.Offset(8.dp.toPx(), size.height - 1), androidx.compose.ui.geometry.Offset(size.width, size.height - 1), 1.dp.toPx())
             }
+            .pressable(onClick).padding(start = 44.dp, end = 20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box {
+            MmiLineIcon(MmiLine.PHONE, Color.White, Modifier.size(40.dp))
+            if (plus) MmiLineIcon(MmiLine.PLUS, Color.White, Modifier.size(20.dp).align(Alignment.TopEnd))
         }
+        Spacer(Modifier.width(48.dp))
+        Text(name, color = if (dim) MmiDim else Color.White, fontFamily = MmiFont, fontSize = 30.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (spinner) SearchingDots()
+        if (status != null) Text(status, color = MmiDim, fontFamily = MmiFont, fontSize = 23.sp)
     }
 }
 

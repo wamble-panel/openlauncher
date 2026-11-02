@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.border
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -105,38 +106,34 @@ internal fun MmiContactsPage(startTab: Int = 0) {
         recents = withContext(Dispatchers.IO) { context.readRecents() }
     }
 
-    Row(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 6.dp)) {
-        Column(Modifier.width(200.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ChromePill("Contacts", { tab = 0 }, MmiLine.CONTACTS, Modifier.fillMaxWidth())
-            ChromePill("Recent calls", { tab = 1 }, MmiLine.HISTORY, Modifier.fillMaxWidth())
-            Spacer(Modifier.weight(1f))
-            if (!granted) ChromePill("Allow access", { ask.launch(needed) }, MmiLine.OPEN, Modifier.fillMaxWidth())
-        }
-        Spacer(Modifier.width(24.dp))
-        Box(Modifier.weight(1f).fillMaxHeight()) {
-            when {
-                !granted -> Hint("Allow contacts and calls so your phone's contacts show here.")
-                tab == 0 -> {
-                    val list = contacts
-                    when {
-                        list == null -> Hint("Loading…")
-                        list.isEmpty() -> Hint("No contacts yet. Connect your phone and allow it to share contacts when it asks.")
-                        else -> ContactList(list) { context.placeCall(it) }
-                    }
+    // Telephone · Contacts / Call list, as list pages (tab chosen by the tile that opened it).
+    Box(Modifier.fillMaxSize().padding(top = 8.dp)) {
+        when {
+            !granted -> Column {
+                Hint("Allow contacts and calls so your phone's contacts show here.")
+                ChromePill("Allow access", { ask.launch(needed) }, MmiLine.OPEN)
+            }
+            tab == 0 -> {
+                val list = contacts
+                when {
+                    list == null -> Hint("Loading…")
+                    list.isEmpty() -> Hint("No contacts yet. Connect your phone and allow it to share contacts when it asks.")
+                    else -> ContactList(list) { context.placeCall(it) }
                 }
-                recents.isEmpty() -> Hint("No recent calls.")
-                else -> LazyColumn(Modifier.fillMaxSize()) {
-                    items(recents) { r ->
-                        PersonRow(
-                            r.name,
-                            when (r.type) {
-                                CallLog.Calls.MISSED_TYPE -> "Missed"
-                                CallLog.Calls.OUTGOING_TYPE -> "Outgoing"
-                                else -> "Incoming"
-                            } + " · " + DateUtils.getRelativeTimeSpanString(r.at),
-                            missed = r.type == CallLog.Calls.MISSED_TYPE,
-                        ) { context.placeCall(r.number) }
-                    }
+            }
+            recents.isEmpty() -> Hint("No recent calls.")
+            else -> LazyColumn(Modifier.fillMaxSize()) {
+                items(recents) { r ->
+                    MibCallRow(
+                        r.name,
+                        r.type,
+                        when (r.type) {
+                            CallLog.Calls.MISSED_TYPE -> "Missed"
+                            CallLog.Calls.OUTGOING_TYPE -> "Outgoing"
+                            else -> "Incoming"
+                        },
+                        DateUtils.getRelativeTimeSpanString(r.at, System.currentTimeMillis(), DateUtils.DAY_IN_MILLIS).toString(),
+                    ) { context.placeCall(r.number) }
                 }
             }
         }
@@ -169,24 +166,22 @@ private fun ContactList(list: List<Contact>, onCall: (String) -> Unit) {
 
 @Composable
 private fun PersonRow(name: String, detail: String, missed: Boolean, onCall: () -> Unit) {
+    // MIB list row: initial in a thin circle, name, number in grey, divider below.
     Row(
-        Modifier.fillMaxWidth().height(62.dp).pressable(onCall).padding(horizontal = 8.dp),
+        Modifier.fillMaxWidth().height(84.dp).pressable(onCall).padding(horizontal = 24.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier.size(38.dp).clip(CircleShape).background(Color(0xFF1B2028)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(name.firstOrNull()?.uppercase() ?: "?", color = MmiInk, fontFamily = MmiFont, fontSize = 17.sp)
+        Box(Modifier.size(44.dp).border(1.5.dp, Color(0x99FFFFFF), CircleShape), contentAlignment = Alignment.Center) {
+            Text(name.firstOrNull()?.uppercase() ?: "?", color = Color.White, fontFamily = MmiFont, fontSize = 20.sp)
         }
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(40.dp))
         Column(Modifier.weight(1f)) {
-            Text(name, color = if (missed) Color(0xFFFF6B6B) else MmiInk, fontFamily = MmiFont, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(detail, color = MmiDim, fontFamily = MmiFont, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(name, color = if (missed) Color(0xFFE53935) else Color.White, fontFamily = MmiFont, fontSize = 28.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(detail, color = MmiDim, fontFamily = MmiFont, fontSize = 19.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        MmiLineIcon(MmiLine.CALL, MmiCyan, Modifier.size(24.dp))
+        MmiLineIcon(MmiLine.CALL, Color.White, Modifier.size(32.dp))
     }
-    Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF1E2125)))
+    Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x38FFFFFF)))
 }
 
 @Composable

@@ -94,7 +94,7 @@ import kotlin.math.sin
 private enum class MmiPage(val title: String?, val inSettings: Boolean = false) {
     HOME(null), DASHBOARD("Dashboard"), SETTINGS("Settings"),
     MUSIC("Music"), RADIO("Radio"), BT_HUB("Bluetooth"), PHONE("Telephone"), CONTACTS("Contacts"), APPS("Apps"),
-    NAV("Navigation"), SOURCE("Source"),
+    NAV("Navigation"), SOURCE("Source"), DIAGNOSTICS("Diagnostics"),
     PERMISSIONS("Permissions", true), CLEANUP("Unit cleanup & speed", true), STORAGE("Storage & about", true), DISPLAY("Display", true), SOUND("Sound", true), EQ("Equaliser", true), BLUETOOTH("Bluetooth devices", true), NAV_SETTINGS("Navigation settings", true),
 }
 
@@ -139,6 +139,7 @@ fun MmiHomeScreen(
             page == MmiPage.BLUETOOTH -> bluetoothFrom
             page == MmiPage.PHONE || page == MmiPage.CONTACTS -> MmiPage.BT_HUB
             page == MmiPage.SOURCE -> MmiPage.MUSIC
+            page == MmiPage.DIAGNOSTICS -> MmiPage.DASHBOARD
             page.inSettings -> MmiPage.SETTINGS
             else -> MmiPage.HOME
         }
@@ -382,7 +383,8 @@ fun MmiHomeScreen(
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (target) {
                     MmiPage.HOME -> HomeGrid(selected, k, onOpen = { openRing(it); selected = "" })
-                    MmiPage.DASHBOARD -> LiveDashboard(location, bearing, voltage, metric)
+                    MmiPage.DASHBOARD -> MibCarInfo()
+                    MmiPage.DIAGNOSTICS -> MibDiagnostics()
                     MmiPage.SETTINGS -> SettingsPanel(metric, onSetMetric) {
                         if (it == MmiPage.BLUETOOTH) {
                             bluetoothFrom = MmiPage.SETTINGS
@@ -455,8 +457,16 @@ fun MmiHomeScreen(
         // Speed cameras warn on every page (the map shows its own banner).
         if (page != MmiPage.NAV) CameraBanner(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
         VolumePopup(Modifier.align(Alignment.BottomCenter).padding(bottom = 40.dp))
-        CallBar(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
-        ClimatePopup(Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp))
+        // Calls: the full in-call screen over the page (rail stays); the slim bar on the map.
+        val call by com.openlauncher.app.util.TwBridge.call.collectAsStateWithLifecycle()
+        val showCall = call.state != com.openlauncher.app.util.TwBridge.CallState.NONE &&
+            runCatching { com.openlauncher.app.util.TwBridge.mmiCallBar() }.getOrDefault(true)
+        if (showCall && page != MmiPage.NAV) {
+            Box(Modifier.padding(start = refRailWidth(k), top = refTopBarHeight(k)).fillMaxSize()) { MibInCall(call) }
+        } else {
+            CallBar(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
+        }
+        ClimatePopup(Modifier.align(Alignment.BottomStart).padding(start = refRailWidth(k) + 3.dp, end = 14.dp, bottom = 43.dp))
         DoorBanner(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
         HomeAppPrompt()
     }
@@ -725,36 +735,7 @@ private fun ClimatePopup(modifier: Modifier) {
         enter = fadeIn(tween(180)) + androidx.compose.animation.slideInVertically { it / 2 },
         exit = fadeOut(tween(300)),
     ) {
-        Row(
-            Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xF0101215))
-                .border(1.dp, Color(0xFF3A3F46), RoundedCornerShape(6.dp)).padding(horizontal = 28.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(temp(climate.left, climate.leftLo, climate.leftHi), color = MmiInk, fontFamily = MmiFont, fontSize = 40.sp)
-            Spacer(Modifier.width(32.dp))
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                // Fan level as bars.
-                Row(verticalAlignment = Alignment.Bottom) {
-                    repeat(7) { i ->
-                        Box(
-                            Modifier.padding(horizontal = 2.dp).size(width = 7.dp, height = (8 + i * 3).dp)
-                                .background(if (i < climate.fan) MmiCyan else Color(0xFF2A2E34)),
-                        )
-                    }
-                }
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    listOfNotNull(
-                        airflow.ifEmpty { null },
-                        "A/C".takeIf { climate.ac }, "AUTO".takeIf { climate.auto }, "Recirc".takeIf { climate.recirculation },
-                        "Defrost".takeIf { climate.frontDefrost },
-                    ).joinToString("  ·  ").ifEmpty { if (climate.on) "Climate" else "Climate off" },
-                    color = MmiDim, fontFamily = MmiFont, fontSize = 14.sp,
-                )
-            }
-            Spacer(Modifier.width(32.dp))
-            Text(temp(climate.right, climate.rightLo, climate.rightHi), color = MmiInk, fontFamily = MmiFont, fontSize = 40.sp)
-        }
+        MibClimateBar(climate, Modifier)
     }
 }
 
@@ -941,6 +922,7 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
             uiSounds = !uiSounds
             com.openlauncher.app.util.UiSound.setEnabled(uiSounds)
         },
+        "Car diagnostics" to { onOpen(MmiPage.DIAGNOSTICS) },
         "Display" to { onOpen(MmiPage.DISPLAY) },
         "Sound" to { onOpen(MmiPage.SOUND) },
         "Bluetooth" to { onOpen(MmiPage.BLUETOOTH) },
@@ -1079,6 +1061,7 @@ private fun headerFor(p: MmiPage, pairing: Boolean): Pair<String?, String>? = wh
     MmiPage.HOME, MmiPage.NAV, MmiPage.MUSIC, MmiPage.BT_HUB -> null
     MmiPage.SETTINGS -> null to "Settings"
     MmiPage.DASHBOARD -> "Car" to "Info"
+    MmiPage.DIAGNOSTICS -> "Car" to "Diagnostics"
     MmiPage.RADIO -> "Radio" to "Stations"
     MmiPage.APPS -> "Media" to "Apps"
     MmiPage.PHONE -> "Telephone" to "Dial number"

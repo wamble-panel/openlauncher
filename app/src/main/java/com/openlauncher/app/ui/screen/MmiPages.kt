@@ -636,75 +636,7 @@ private fun TuningScale(isAm: Boolean, freq: Float?, modifier: Modifier, follow:
 @Composable
 internal fun MmiPhonePage(apps: List<AppInfo>, onOpenContacts: () -> Unit, onOpenBluetooth: () -> Unit) {
     val context = LocalContext.current
-    var number by remember { mutableStateOf("") }
-    val phoneApp = remember(apps) { apps.findByLabel("bluetooth", "bt phone", "phone", "dial", "call") }
-    val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#")
-    BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 8.dp)) {
-        val key = minOf(maxHeight / 6.2f, 64.dp)
-        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Row(
-                    Modifier.width(key * 3 + 40.dp).height(key * 0.9f).mmiPanel().padding(horizontal = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        number.ifEmpty { "Enter number" }, color = if (number.isEmpty()) MmiDim else MmiInk,
-                        fontFamily = MmiFont, fontSize = 22.sp, maxLines = 1, modifier = Modifier.weight(1f),
-                    )
-                    Box(Modifier.size(32.dp).pressable { number = number.dropLast(1) }, contentAlignment = Alignment.Center) {
-                        MmiLineIcon(MmiLine.BACKSPACE, MmiDim, Modifier.size(26.dp))
-                    }
-                }
-                Spacer(Modifier.height(10.dp))
-                keys.chunked(3).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                        row.forEach { k ->
-                            Box(
-                                Modifier.size(key).pressable { number += k }.drawBehind {
-                                    val r = size.minDimension / 2f
-                                    drawCircle(Brush.linearGradient(ChromeRim, Offset.Zero, Offset(size.width, size.height)), r, style = Stroke(1.5.dp.toPx()))
-                                    drawCircle(Brush.radialGradient(listOf(Color(0xFF24282E), Color(0xFF0B0C0E)), center, r), r - 2.dp.toPx())
-                                },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(k, color = MmiInk, fontFamily = MmiFont, fontSize = 24.sp)
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-            }
-            Spacer(Modifier.width(56.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                val phone = rememberConnectedPhone()
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    MmiLineIcon(MmiLine.BLUETOOTH, if (phone != null) MmiCyan else MmiDim, Modifier.size(24.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        phone?.let { "Connected: $it" } ?: "No phone connected",
-                        color = if (phone != null) MmiInk else MmiDim, fontFamily = MmiFont, fontSize = 18.sp,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                ChromePill(
-                    "Call", {
-                        if (number.isNotEmpty()) context.placeCall(number)
-                        else phoneApp?.let { context.launchPackage(it.packageName) }
-                    },
-                    MmiLine.CALL, Modifier.fillMaxWidth(),
-                )
-                ChromePill(
-                    phoneApp?.appName ?: "Phone app", {
-                        val opened = phoneApp?.let { context.launchPackage(it.packageName) } ?: false
-                        if (!opened) context.launchFirst(Intent(Intent.ACTION_DIAL), Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
-                    },
-                    MmiLine.OPEN, Modifier.fillMaxWidth(),
-                )
-                ChromePill("Contacts & recents", onOpenContacts, MmiLine.CONTACTS, Modifier.fillMaxWidth())
-                ChromePill("Phones & pairing", onOpenBluetooth, MmiLine.BLUETOOTH, Modifier.fillMaxWidth())
-            }
-        }
-    }
+    MibDialPad(onCall = { context.placeCall(it) }, onRecents = onOpenContacts)
 }
 
 // ── Apps ─────────────────────────────────────────────────────────────────────
