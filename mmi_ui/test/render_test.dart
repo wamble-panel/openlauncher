@@ -29,7 +29,7 @@ final _demo = <String, Object?>{
   'eqGet': {'levels': [200, 200, 200, 200, 200], 'min': -1500, 'max': 1500, 'preset': 'Custom', 'speedVolume': 2},
   'settingsGet': {'brightness': 0.55, 'dayNight': 0, 'touchSounds': true, 'screenOff': false, 'clock24': true, 'canWrite': true, 'metric': true, 'cameraAlerts': true, 'version': '2.0.0'},
   'radioGet': {
-    'am': false, 'freq': 104.2, 'name': 'Nile FM', 'genre': 'Pop',
+    'am': false, 'freq': 104.2, 'name': 'Nile FM', 'genre': 'Pop', 'stereo': true, 'text': 'Now: Morning Show with Ahmed',
     'presets': [
       {'freq': 104.2, 'name': 'Nile FM'}, {'freq': 95.0, 'name': 'Mega FM'}, {'freq': 92.7, 'name': 'Radio Hits'},
       {'freq': 98.8, 'name': 'Nogoum'}, {'freq': 100.6, 'name': 'Shaabi FM'},

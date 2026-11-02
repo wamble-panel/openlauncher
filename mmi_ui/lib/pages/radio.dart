@@ -23,6 +23,13 @@ class _RadioPageState extends State<RadioPage> with Live<RadioPage> {
   @override
   Duration get liveEvery => const Duration(seconds: 5);
 
+  @override
+  void initState() {
+    super.initState();
+    // Like an OEM radio: opening Radio plays the radio (last station).
+    Bridge.call('radioResume');
+  }
+
   bool get am => live?['am'] == true;
   double get freq => ((live?['freq'] ?? 98.5) as num).toDouble();
   List<Map<Object?, Object?>> get presets =>
@@ -66,7 +73,22 @@ class _RadioPageState extends State<RadioPage> with Live<RadioPage> {
               child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(name?.isNotEmpty == true ? name! : fmt(freq), style: Mib.text(42), maxLines: 1, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 4),
-                Text([if (name?.isNotEmpty == true) fmt(freq) else (am ? 'AM' : 'FM'), if (genre != null && genre.isNotEmpty) genre].join('   ·   '), style: Mib.text(26, color: Mib.grey)),
+                Row(children: [
+                  Text([if (name?.isNotEmpty == true) fmt(freq) else (am ? 'AM' : 'FM'), if (genre != null && genre.isNotEmpty) genre].join('   ·   '), style: Mib.text(26, color: Mib.grey)),
+                  if (live?['stereo'] == true) ...[
+                    const SizedBox(width: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(border: Border.all(color: Mib.grey)),
+                      child: Text('ST', style: Mib.text(16, color: Mib.grey)),
+                    ),
+                  ],
+                  if (live?['seeking'] == true) ...[const SizedBox(width: 16), Text('Searching…', style: Mib.text(22, color: Mib.white))],
+                ]),
+                if ((live?['text'] as String?)?.isNotEmpty == true) ...[
+                  const SizedBox(height: 4),
+                  Text('${live!['text']}', style: Mib.text(21, color: const Color(0xFFBDBDBD)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                ],
               ]),
             ),
             Pressable(
@@ -90,7 +112,7 @@ class _RadioPageState extends State<RadioPage> with Live<RadioPage> {
         SizedBox(
           height: 82,
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _Seek(up: false, onTap: () => _do('radioSeek', {'up': false})),
+            _Seek(up: false, onTap: () => _do('radioSeek', {'up': false}), onLong: () => _do('radioScan')),
             Expanded(
               child: LayoutBuilder(builder: (context, c) {
                 final lo = am ? 531.0 : 87.5, hi = am ? 1602.0 : 108.0;
@@ -109,7 +131,7 @@ class _RadioPageState extends State<RadioPage> with Live<RadioPage> {
                 );
               }),
             ),
-            _Seek(up: true, onTap: () => _do('radioSeek', {'up': true})),
+            _Seek(up: true, onTap: () => _do('radioSeek', {'up': true}), onLong: () => _do('radioScan')),
           ]),
         ),
         Padding(padding: const EdgeInsets.only(top: 8, bottom: 8), child: Text('Favourites', style: Mib.text(26))),
@@ -165,12 +187,14 @@ class _RadioPageState extends State<RadioPage> with Live<RadioPage> {
 
 /// Seek button: a bar and two chevrons (|<< and >>|).
 class _Seek extends StatelessWidget {
-  const _Seek({required this.up, required this.onTap});
+  const _Seek({required this.up, required this.onTap, this.onLong});
   final bool up;
   final VoidCallback onTap;
+  final VoidCallback? onLong;
   @override
   Widget build(BuildContext context) => Pressable(
         onTap: onTap,
+        onLongPress: onLong,
         child: SizedBox(width: 60, height: 60, child: CustomPaint(painter: _SeekPainter(up))),
       );
 }

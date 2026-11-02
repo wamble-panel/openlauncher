@@ -97,6 +97,16 @@ class MmiFlutterActivity : FlutterActivity() {
                     }
                     "radioSeek" -> { TwBridge.radioSeek(arg<Boolean>("up") != false); result.success(null) }
                     "radioStep" -> { TwBridge.radioStep(arg<Boolean>("up") != false); result.success(null) }
+                    "radioResume" -> { TwBridge.radioResume(); result.success(null) }
+                    "radioScan" -> { result.success(com.openlauncher.app.util.CarCore.radioScan()) }
+                    "radioStop" -> { result.success(com.openlauncher.app.util.CarCore.radioStop()) }
+                    "radioBand" -> {
+                        val am = arg<Boolean>("am") == true
+                        com.openlauncher.app.util.CarCore.radioSetBand(am)
+                        TwBridge.radioBand(am)
+                        result.success(null)
+                    }
+                    "radioLocal" -> { result.success(com.openlauncher.app.util.CarCore.radioToggleLocal()) }
                     "radioSave" -> { car.radioSave(arg<Int>("slot") ?: 0); result.success(null) }
                     "appsGet" -> scope.launch {
                         result.success(kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { car.apps() })
@@ -186,7 +196,7 @@ class MmiFlutterActivity : FlutterActivity() {
             }
         }
         push("media", kotlinx.coroutines.flow.combine(com.openlauncher.app.service.MediaListenerService.nowPlaying, TwBridge.btTrack) { a, b -> listOf(a?.title, a?.artist, a?.isPlaying, a?.albumArt?.generationId, b?.title, b?.playing) }, 300)
-        push("radio", TwBridge.radio)
+        push("radio", kotlinx.coroutines.flow.combine(TwBridge.radio, com.openlauncher.app.util.CarCore.radio) { a, b -> a to b }, 250)
         push("calls", TwBridge.call.map { it.state })
         push("car", kotlinx.coroutines.flow.combine(com.openlauncher.app.util.CarCore.data, com.openlauncher.app.util.CarInfoLink.info) { a, b -> a to b }, 1000)
         // Speed camera ahead, on every page (also without the map).
@@ -238,6 +248,7 @@ class MmiFlutterActivity : FlutterActivity() {
     override fun onResume() {
         super.onResume()
         resumed = true
+        com.openlauncher.app.util.CarCore.vendorRadioPresent = (application as CarApp).vendorEnabled("com.tw.radio")
     }
 
     override fun onPause() {

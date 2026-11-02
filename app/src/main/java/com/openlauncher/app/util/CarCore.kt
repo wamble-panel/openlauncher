@@ -39,10 +39,32 @@ object CarCore {
     private const val REVERSE = 40732
     private const val FOREGROUND = 40448 // 0x9E00: which vendor screen is in front
     private const val SOURCE = 40465 // 0x9E11: audio source requests
+    private const val RADIO_PRESET = 1026 // 0x0402: preset entries
+    private const val RADIO_RDS = 1028    // 0x0404: RDS flags, PTY
+    private const val RADIO_TEXT = 1029   // 0x0405: radio text
+    private const val RADIO_CMD = 40449   // 0x9E01: next / previous / seek from the car's buttons
     private val IDS = shortArrayOf(
         KEY.toShort(), RADIO.toShort(), CANBOX.toShort(), RADAR.toShort(), RADAR_SIDE.toShort(), REVERSE.toShort(),
         FOREGROUND.toShort(), SOURCE.toShort(), 515.toShort(), 769.toShort(),
     )
+    // The radio's own messages, as the vendor radio app opens them, so MMI is the whole radio.
+    private val RADIO_IDS = shortArrayOf(RADIO_PRESET.toShort(), RADIO_RDS.toShort(), RADIO_TEXT.toShort(), RADIO_CMD.toShort())
+
+    /** What the tuner reports: the real frequency, RDS name and text, seek / stereo state, its presets. */
+    data class RadioState(
+        val am: Boolean = false,
+        val freq: Float = 0f,
+        val ps: String? = null,
+        val text: String? = null,
+        val pty: Int = 0,
+        val seeking: Boolean = false,
+        val stereo: Boolean = false,
+        val local: Boolean = false,
+        /** The tuner's own preset memory: index to (frequency, RDS name). */
+        val presets: Map<Int, Pair<Float, String?>> = emptyMap(),
+    )
+    private val _radio = MutableStateFlow(RadioState())
+    val radio: StateFlow<RadioState> = _radio
 
     /** Last button from the car (dash panel, steering wheel, knobs): press type and code. */
     data class CarKey(val code: Int, val press: Int, val at: Long)
@@ -68,7 +90,9 @@ object CarCore {
         runCatching {
             val cls = Class.forName("android.tw.john.TWUtil")
             val util = cls.getConstructor().newInstance()
-            val opened = cls.getMethod("open", ShortArray::class.java).invoke(util, IDS) as Int
+            // With the radio ids first; if the library refuses those, the original set.
+            var opened = cls.getMethod("open", ShortArray::class.java).invoke(util, IDS + RADIO_IDS) as Int
+            if (opened != 0) opened = cls.getMethod("open", ShortArray::class.java).invoke(util, IDS) as Int
             if (opened != 0) { status = "Car library refused (open $opened)"; return }
             val handler = object : Handler(Looper.getMainLooper()) {
                 override fun handleMessage(m: Message) = runCatching { onMessage(m) }.let { }
@@ -142,6 +166,17 @@ object CarCore {
                 update { it.copy(rearCm = rear, frontCm = front) }
             }
             RADIO -> radio(m)
+            RADIO_PRESET -> {
+                val idx = m.arg1 and 0xFF
+                val f = m.arg2
+                if (f > 0 && idx < 30) {
+                    val freq = freqOf(f)
+                    _radio.value = _radio.value.let { it.copy(presets = it.presets + (idx to (freq to (m.obj as? String)?.trim()?.takeIf { s -> s.isNotEmpty() }))) }
+                }
+            }
+            RADIO_TEXT -> (m.obj as? String)?.trim()?.let { t -> _radio.value = _radio.value.copy(text = t.takeIf { it.isNotEmpty() }) }
+            RADIO_RDS -> _radio.value = _radio.value.copy(pty = m.arg2)
+            RADIO_CMD -> radioCommand(m.arg1)
             REVERSE -> TwBridge.onReverseFromCore(m.arg1 != 0)
         }
     }
@@ -179,17 +214,55 @@ object CarCore {
 
     /** Radio status (0x0401): arg1 1 = band, 2 = frequency (+ station name in obj). */
     private var am = false
+    private fun freqOf(f: Int): Float = if (am) f.toFloat() else if (f > 2000) f / 100f else f / 10f
+
     private fun radio(m: Message) {
         when (m.arg1) {
-            1 -> am = m.arg2 == 2
+            0 -> {
+                // Status bits (as the vendor radio reads them): 7 seeking, 2 stereo, 3 local.
+                val b = m.arg2
+                _radio.value = _radio.value.copy(seeking = b and 0x80 != 0, stereo = b and 0x04 != 0, local = b and 0x08 != 0)
+            }
+            1 -> {
+                am = m.arg2 == 2
+                _radio.value = _radio.value.copy(am = am)
+            }
             2 -> {
                 val f = m.arg2
                 if (f <= 0) return
-                val freq = if (am) f.toFloat() else if (f > 2000) f / 100f else f / 10f
-                TwBridge.onRadioFromCore(am, freq, (m.obj as? String)?.trim()?.takeIf { it.isNotEmpty() })
+                val freq = freqOf(f)
+                val ps = (m.obj as? String)?.trim()?.takeIf { it.isNotEmpty() }
+                // A new station: its old radio text no longer applies.
+                val changed = kotlin.math.abs(freq - _radio.value.freq) > 0.01f
+                _radio.value = _radio.value.copy(am = am, freq = freq, ps = ps, text = if (changed) null else _radio.value.text)
+                TwBridge.onRadioFromCore(am, freq, ps)
             }
+            3 -> _radio.value = _radio.value.copy(pty = m.arg2)
         }
     }
+
+    /**
+     * The car's own radio buttons (sent by the car service to whoever is the radio):
+     * 3 next favourite, 4 previous favourite, 9 seek down, 10 seek up. Only answered
+     * when the vendor radio app is gone, so the two never both act.
+     */
+    private fun radioCommand(cmd: Int) {
+        if (vendorRadioPresent) return
+        when (cmd) {
+            3, 4 -> TwBridge.radioNextFavourite(cmd == 3)
+            9 -> TwBridge.radioSeek(false)
+            10 -> TwBridge.radioSeek(true)
+        }
+    }
+
+    /** True while the vendor radio app is installed and enabled. */
+    @Volatile var vendorRadioPresent = true
+
+    // More of the tuner, as the vendor radio app sends it.
+    fun radioScan(): Boolean = write(RADIO, 2, 1)     // scan the band and store the strong stations
+    fun radioStop(): Boolean = write(RADIO, 0, 0)
+    fun radioSetBand(am: Boolean): Boolean = write(RADIO, 5, if (am) 2 else 0)
+    fun radioToggleLocal(): Boolean = write(RADIO, 4, 0)
 
     fun doorsText(doors: Int): String? {
         if (doors == 0) return null

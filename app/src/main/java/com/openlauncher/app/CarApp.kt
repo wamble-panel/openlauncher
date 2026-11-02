@@ -27,6 +27,7 @@ class CarApp : Application() {
             com.openlauncher.app.util.Climate.init(this)
             // MMI's own link to the car library (switches itself off if not allowed).
             com.openlauncher.app.util.CarCore.start()
+            com.openlauncher.app.util.CarCore.vendorRadioPresent = vendorEnabled("com.tw.radio")
             // Car Info Service (speed, rpm, lights…), the vendor command relay (amplifier)
             // and the CarPlay / Android Auto engine, so a phone can connect at once.
             com.openlauncher.app.util.CarInfoLink.start(this)
@@ -41,4 +42,8 @@ class CarApp : Application() {
             false
         }
     }
+
+    /** Whether a vendor app is still installed and switched on (MMI takes over its job when not). */
+    fun vendorEnabled(pkg: String): Boolean =
+        runCatching { packageManager.getApplicationInfo(pkg, 0).enabled }.getOrDefault(false)
 }

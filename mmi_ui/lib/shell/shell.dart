@@ -308,6 +308,14 @@ class _MmiShellState extends State<MmiShell> {
 
   List<Widget> _headerButtons() => switch (_page) {
         MmiPage.radio => [
+            Padding(
+              padding: const EdgeInsets.only(right: 14),
+              child: MibButton(label: 'FM / AM', width: 150, height: 63, onTap: () async {
+                final r = await Bridge.call<Map<Object?, Object?>>('radioGet');
+                await Bridge.call('radioBand', {'am': r?['am'] != true});
+                Bridge.changes.add('radio');
+              }),
+            ),
             Padding(padding: const EdgeInsets.only(right: 18), child: MibButton(label: 'Source', icon: MibIcons.radio, width: 174, height: 63, onTap: () => _open(MmiPage.source))),
           ],
         MmiPage.calls => [

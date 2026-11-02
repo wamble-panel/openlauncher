@@ -123,13 +123,19 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
     fun radio(): Map<String, Any?> {
         val (am, freq) = TwBridge.radioLast()
         val state = TwBridge.radio.value
+        val tuner = com.openlauncher.app.util.CarCore.radio.value
         val name = state?.stationName?.takeUnless { it.endsWith("…") }
             ?: TwBridge.radioPresets().indexOfFirst { kotlin.math.abs(it - freq) < 0.05f }.takeIf { it >= 0 }?.let { presetName(it) }
         return mapOf(
             "am" to am,
             "freq" to freq.toDouble(),
             "name" to name,
-            "genre" to null,
+            "genre" to ptyName(tuner.pty),
+            "text" to tuner.text,
+            "seeking" to tuner.seeking,
+            "stereo" to tuner.stereo,
+            "local" to tuner.local,
+            "live" to com.openlauncher.app.util.CarCore.active.value,
             "logo" to RadioLogos.file(ctx, name, freq)?.absolutePath,
             "presets" to TwBridge.radioPresets().take(6).mapIndexed { i, f ->
                 mapOf("freq" to f.toDouble(), "name" to presetName(i))
@@ -137,11 +143,19 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
         )
     }
 
+    /** RDS programme type (Europe) as a word, for the line under the station. */
+    private fun ptyName(pty: Int): String? = listOf(
+        null, "News", "Current affairs", "Information", "Sport", "Education", "Drama", "Culture", "Science", "Varied",
+        "Pop", "Rock", "Easy listening", "Light classical", "Classical", "Other music", "Weather", "Finance",
+        "Children", "Social affairs", "Religion", "Phone-in", "Travel", "Leisure", "Jazz", "Country", "National music",
+        "Oldies", "Folk", "Documentary",
+    ).getOrNull(pty)
+
     fun radioSave(slot: Int) {
         val (_, freq) = TwBridge.radioLast()
         TwBridge.radioSavePreset(slot, freq)
         // The station name as it is now (RDS), so the favourite keeps it.
-        val name = TwBridge.radio.value?.stationName?.takeUnless { it.endsWith("…") }
+        val name = (com.openlauncher.app.util.CarCore.radio.value.ps ?: TwBridge.radio.value?.stationName)?.takeUnless { it.endsWith("…") }
         radioPrefs.edit().putString("preset_name_$slot", name).apply()
         UiSound.open()
     }

@@ -213,6 +213,16 @@ object TwBridge {
         radioLast().let { (am, f) -> publishRadio(am, f, if (up) "Seeking up…" else "Seeking down…") }
     }
 
+    /** Next / previous favourite (car buttons, knob press-and-turn): MMI's favourites, else the tuner's. */
+    fun radioNextFavourite(next: Boolean) {
+        val (am, f) = radioLast()
+        val list = radioPresets().filter { it > 0f }.ifEmpty { CarCore.radio.value.presets.toSortedMap().values.map { it.first } }
+        if (list.isEmpty()) { radioSeek(next); return }
+        val i = list.indexOfFirst { kotlin.math.abs(it - f) < 0.05f }
+        val target = list[if (i < 0) 0 else (i + if (next) 1 else -1 + list.size) % list.size]
+        radioTune(target > 200f, target)
+    }
+
     fun radioPresets(): List<Float> = radioPrefs().getString("presets", "")!!.split(',').mapNotNull { it.toFloatOrNull() }
     fun radioSavePreset(slot: Int, freq: Float) {
         val list = radioPresets().toMutableList()
