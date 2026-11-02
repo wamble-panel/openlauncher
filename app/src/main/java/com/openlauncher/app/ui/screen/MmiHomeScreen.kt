@@ -1,14 +1,6 @@
 package com.openlauncher.app.ui.screen
 
 import android.content.Context
-import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material.icons.outlined.LightMode
-import androidx.compose.material.icons.outlined.VolumeUp
-import androidx.compose.material.icons.outlined.Bluetooth
-import androidx.compose.material.icons.outlined.NearMe
-import androidx.compose.material.icons.outlined.DirectionsCar
-import androidx.compose.material.icons.outlined.Language
-import androidx.compose.material.icons.outlined.SettingsSuggest
 import android.content.Intent
 import android.media.AudioManager
 import android.media.audiofx.AudioEffect
@@ -135,6 +127,7 @@ fun MmiHomeScreen(
     voltage: StateFlow<Float?>,
     onLaunchPackage: (String) -> Unit,
     homeSignal: Int,
+    requestPage: String? = null,
 ) {
     var page by rememberSaveable { mutableStateOf(MmiPage.HOME) }
     // Knob selection on Home; empty = nothing outlined (touch use).
@@ -162,6 +155,10 @@ fun MmiHomeScreen(
             prefs.edit().putBoolean("permissions_shown", true).apply()
             page = MmiPage.PERMISSIONS
         }
+    }
+    // Screenshot runs open a page directly by name.
+    LaunchedEffect(requestPage) {
+        requestPage?.let { name -> MmiPage.entries.firstOrNull { it.name == name }?.let { page = it } }
     }
     // Pressing the unit's Home key returns to the ring menu.
     LaunchedEffect(homeSignal) { if (homeSignal > 0) page = MmiPage.HOME }
@@ -994,14 +991,14 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, categ
     }
     // Settings home: 4 × 2 category tiles (outline icon above the label).
     val tiles = listOf(
-        Triple("General", androidx.compose.material.icons.Icons.Outlined.Tune) { onOpen(MmiPage.GENERAL_SET) },
-        Triple("Display &\nbrightness", androidx.compose.material.icons.Icons.Outlined.LightMode) { onOpen(MmiPage.DISPLAY) },
-        Triple("Sound", androidx.compose.material.icons.Icons.Outlined.VolumeUp) { onOpen(MmiPage.SOUND) },
-        Triple("Bluetooth &\nconnections", androidx.compose.material.icons.Icons.Outlined.Bluetooth) { onOpen(MmiPage.CONN_SET) },
-        Triple("Navigation", androidx.compose.material.icons.Icons.Outlined.NearMe) { onOpen(MmiPage.NAV_SETTINGS) },
-        Triple("Car", androidx.compose.material.icons.Icons.Outlined.DirectionsCar) { onOpen(MmiPage.CAR_SET) },
-        Triple("Language &\nkeyboard", androidx.compose.material.icons.Icons.Outlined.Language) { context.launchFirst(Intent(Settings.ACTION_LOCALE_SETTINGS)); Unit },
-        Triple("System &\nupdates", androidx.compose.material.icons.Icons.Outlined.SettingsSuggest) { onOpen(MmiPage.SYSTEM_SET) },
+        Triple("General", MibSymbols.get("tune")) { onOpen(MmiPage.GENERAL_SET) },
+        Triple("Display &\nbrightness", MibSymbols.get("light_mode")) { onOpen(MmiPage.DISPLAY) },
+        Triple("Sound", MibSymbols.get("volume_up")) { onOpen(MmiPage.SOUND) },
+        Triple("Bluetooth &\nconnections", MibSymbols.get("bluetooth")) { onOpen(MmiPage.CONN_SET) },
+        Triple("Navigation", MibSymbols.get("near_me")) { onOpen(MmiPage.NAV_SETTINGS) },
+        Triple("Car", MibSymbols.get("directions_car")) { onOpen(MmiPage.CAR_SET) },
+        Triple("Language &\nkeyboard", MibSymbols.get("language")) { context.launchFirst(Intent(Settings.ACTION_LOCALE_SETTINGS)); Unit },
+        Triple("System &\nupdates", MibSymbols.get("settings_suggest")) { onOpen(MmiPage.SYSTEM_SET) },
     )
     Column(Modifier.fillMaxSize().padding(top = 42.dp, start = 8.dp), verticalArrangement = Arrangement.spacedBy(32.dp)) {
         tiles.chunked(4).forEach { row ->

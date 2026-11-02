@@ -1,9 +1,6 @@
 package com.openlauncher.app.ui.screen
 
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
@@ -239,61 +236,60 @@ fun MmiLineIcon(kind: MmiLine, color: Color, modifier: Modifier) {
     androidx.compose.material3.Icon(outlineIcon(kind), contentDescription = null, modifier = modifier, tint = color)
 }
 
-@Suppress("DEPRECATION")
-private fun outlineIcon(kind: MmiLine): androidx.compose.ui.graphics.vector.ImageVector {
-    val o = Icons.Outlined
-    return when (kind) {
-        MmiLine.CHEVRON_LEFT -> o.ChevronLeft
-        MmiLine.ARROW -> o.ChevronRight
-        MmiLine.MENU -> o.Menu
-        MmiLine.PREV -> o.SkipPrevious
-        MmiLine.NEXT -> o.SkipNext
-        MmiLine.PLAY -> o.PlayArrow
-        MmiLine.PAUSE -> o.Pause
-        MmiLine.CALL -> o.Call
-        MmiLine.BACKSPACE -> o.Backspace
-        MmiLine.OPEN -> o.OpenInNew
-        MmiLine.BLUETOOTH -> o.Bluetooth
-        MmiLine.CONTACTS -> o.Contacts
-        MmiLine.NOTE -> o.MusicNote
-        MmiLine.PLUS -> o.Add
-        MmiLine.MINUS -> o.Remove
-        MmiLine.LOCATE -> o.MyLocation
-        MmiLine.SEARCH -> o.Search
-        MmiLine.STAR -> o.StarOutline
-        MmiLine.STAR_FILLED -> Icons.Filled.Star
-        MmiLine.HISTORY -> o.History
-        MmiLine.PIN -> o.Place
-        MmiLine.FUEL -> o.LocalGasStation
-        MmiLine.CLOSE -> o.Close
-        MmiLine.HOME -> o.Home
-        MmiLine.FLAG -> o.Flag
-        MmiLine.CARD -> o.CreditCard
-        MmiLine.GLOBE -> o.Public
-        MmiLine.SPEAKER -> o.VolumeUp
-        MmiLine.MUTE -> o.VolumeOff
-        MmiLine.CAMERA -> o.PhotoCamera
-        MmiLine.MOUNTAIN -> o.Terrain
-        MmiLine.BATTERY -> o.BatteryFull
-        MmiLine.GRID -> o.Apps
-        MmiLine.ANTENNA -> o.SettingsInputAntenna
-        MmiLine.NAV_ARROW -> o.Navigation
-        MmiLine.GEAR -> o.Settings
-        MmiLine.BUMP -> o.WarningAmber
-        MmiLine.CAR -> o.DirectionsCar
-        MmiLine.CLOUD -> o.Cloud
-        MmiLine.FILM -> o.Movie
-        MmiLine.LINK -> o.Devices
-        MmiLine.RETURN -> o.KeyboardReturn
-        MmiLine.DOTS -> o.MoreHoriz
-        MmiLine.CHEVRON_UP -> o.ExpandLess
-        MmiLine.PHONE -> o.Smartphone
-        MmiLine.SDCARD -> o.SdCard
-        MmiLine.USB -> o.Usb
-        MmiLine.VOICEMAIL -> o.Voicemail
-        MmiLine.DIALPAD -> o.Dialpad
+/** Thin outline icon for each kind (Material Symbols, weight 300). */
+private fun outlineIcon(kind: MmiLine): androidx.compose.ui.graphics.vector.ImageVector = MibSymbols.get(
+    when (kind) {
+        MmiLine.CHEVRON_LEFT -> "chevron_left"
+        MmiLine.ARROW -> "chevron_right"
+        MmiLine.MENU -> "menu"
+        MmiLine.PREV -> "skip_previous"
+        MmiLine.NEXT -> "skip_next"
+        MmiLine.PLAY -> "play_arrow"
+        MmiLine.PAUSE -> "pause"
+        MmiLine.CALL -> "call"
+        MmiLine.BACKSPACE -> "backspace"
+        MmiLine.OPEN -> "open_in_new"
+        MmiLine.BLUETOOTH -> "bluetooth"
+        MmiLine.CONTACTS -> "contacts"
+        MmiLine.NOTE -> "music_note"
+        MmiLine.PLUS -> "add"
+        MmiLine.MINUS -> "remove"
+        MmiLine.LOCATE -> "my_location"
+        MmiLine.SEARCH -> "search"
+        MmiLine.STAR -> "star"
+        MmiLine.STAR_FILLED -> "star.fill"
+        MmiLine.HISTORY -> "history"
+        MmiLine.PIN -> "place"
+        MmiLine.FUEL -> "local_gas_station"
+        MmiLine.CLOSE -> "close"
+        MmiLine.HOME -> "home"
+        MmiLine.FLAG -> "flag"
+        MmiLine.CARD -> "info"
+        MmiLine.GLOBE -> "public"
+        MmiLine.SPEAKER -> "volume_up"
+        MmiLine.MUTE -> "volume_off"
+        MmiLine.CAMERA -> "photo_camera"
+        MmiLine.MOUNTAIN -> "landscape"
+        MmiLine.BATTERY -> "battery_full"
+        MmiLine.GRID -> "apps"
+        MmiLine.ANTENNA -> "cell_tower"
+        MmiLine.NAV_ARROW -> "near_me"
+        MmiLine.GEAR -> "settings"
+        MmiLine.BUMP -> "warning"
+        MmiLine.CAR -> "directions_car"
+        MmiLine.CLOUD -> "partly_cloudy_day"
+        MmiLine.FILM -> "movie"
+        MmiLine.LINK -> "mobile_share"
+        MmiLine.RETURN -> "arrow_back"
+        MmiLine.DOTS -> "more_horiz"
+        MmiLine.CHEVRON_UP -> "expand_less"
+        MmiLine.PHONE -> "mobile"
+        MmiLine.SDCARD -> "sd_card"
+        MmiLine.USB -> "usb"
+        MmiLine.VOICEMAIL -> "voicemail"
+        MmiLine.DIALPAD -> "dialpad"
     }
-}
+)
 
 private fun path(s: Float, block: Path.(Float) -> Unit) = Path().apply { block(s) }
 

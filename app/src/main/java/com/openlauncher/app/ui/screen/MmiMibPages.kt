@@ -17,26 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AcUnit
-import androidx.compose.material.icons.outlined.Air
-import androidx.compose.material.icons.outlined.Battery5Bar
-import androidx.compose.material.icons.outlined.CallEnd
-import androidx.compose.material.icons.outlined.CallMade
-import androidx.compose.material.icons.outlined.CallMissed
-import androidx.compose.material.icons.outlined.CallReceived
-import androidx.compose.material.icons.outlined.DeviceThermostat
-import androidx.compose.material.icons.outlined.ExpandLess
-import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material.icons.outlined.LocalGasStation
-import androidx.compose.material.icons.outlined.MicOff
-import androidx.compose.material.icons.outlined.Opacity
-import androidx.compose.material.icons.outlined.Pause
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.SignalCellularAlt
-import androidx.compose.material.icons.outlined.Sync
-import androidx.compose.material.icons.outlined.Thermostat
-import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -167,17 +147,17 @@ internal fun MibInCall(call: TwBridge.Call) {
         Box(
             Modifier.size(152.dp).clip(CircleShape).background(Color(0xFF1C1C1C)).border(2.dp, Color(0xFFBDBDBD), CircleShape),
             contentAlignment = Alignment.BottomCenter,
-        ) { Ico(Icons.Outlined.Person, 130.dp, Color(0xFFB0B0B0)) }
+        ) { Ico(MibSymbols.get("person"), 130.dp, Color(0xFFB0B0B0)) }
         Spacer(Modifier.height(18.dp))
         Text(call.name ?: call.number ?: "Unknown", color = Color.White, fontFamily = MmiFont, fontSize = 46.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (call.name != null && call.number != null) Text(call.number, color = GREY, fontFamily = MmiFont, fontSize = 30.sp)
         Text(status, color = Color.White, fontFamily = MmiFont, fontSize = 32.sp)
         Spacer(Modifier.height(36.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(48.dp)) {
-            CallRound(Icons.Outlined.MicOff, "Mute")
+            CallRound(MibSymbols.get("mic_off"), "Mute")
             CallRound(null, "Keypad")
-            CallRound(Icons.Outlined.VolumeUp, "Speaker")
-            CallRound(Icons.Outlined.Pause, "Hold")
+            CallRound(MibSymbols.get("volume_up"), "Speaker")
+            CallRound(MibSymbols.get("pause"), "Hold")
         }
         Spacer(Modifier.height(46.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -195,7 +175,7 @@ internal fun MibInCall(call: TwBridge.Call) {
                 Modifier.size(width = 371.dp, height = 86.dp).background(END_RED).pressable { TwBridge.hangUp() },
                 horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
             ) {
-                Ico(Icons.Outlined.CallEnd, 52.dp)
+                Ico(MibSymbols.get("call_end"), 52.dp)
                 Spacer(Modifier.width(24.dp))
                 Text(if (ringing) "Decline" else "End Call", color = Color.White, fontFamily = MmiFont, fontSize = 30.sp)
             }
@@ -230,7 +210,7 @@ internal fun MibCallRow(name: String, type: Int, detail: String, time: String, o
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Ico(
-            when { missed -> Icons.Outlined.CallMissed; outgoing -> Icons.Outlined.CallMade; else -> Icons.Outlined.CallReceived },
+            when { missed -> MibSymbols.get("call_missed"); outgoing -> MibSymbols.get("call_made"); else -> MibSymbols.get("call_received") },
             36.dp, if (missed) Color(0xFFE53935) else Color.White,
         )
         Spacer(Modifier.width(48.dp))
@@ -252,17 +232,17 @@ internal fun MibCarInfo() {
     Column(Modifier.fillMaxSize().padding(top = 50.dp)) {
         Row(Modifier.fillMaxWidth().weight(1f)) {
             Column(Modifier.width(236.dp), verticalArrangement = Arrangement.spacedBy(26.dp)) {
-                InfoTile(Icons.Outlined.Battery5Bar, "Battery", car.voltage?.let { "%.1f V".format(it) })
-                InfoTile(Icons.Outlined.Thermostat, "Coolant", car.coolantC?.let { "$it °C" })
-                InfoTile(Icons.Outlined.Opacity, "Oil life", car.oilLifePct?.let { "$it %" })
+                InfoTile(MibSymbols.get("battery_5_bar"), "Battery", car.voltage?.let { "%.1f V".format(it) })
+                InfoTile(MibSymbols.get("thermostat"), "Coolant", car.coolantC?.let { "$it °C" })
+                InfoTile(MibSymbols.get("oil_barrel"), "Oil life", car.oilLifePct?.let { "$it %" })
             }
             Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                 Image(painterResource(R.drawable.home_art_car), null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp))
             }
             Column(Modifier.width(242.dp), verticalArrangement = Arrangement.spacedBy(26.dp)) {
-                InfoTile(Icons.Outlined.LocalGasStation, "Range", car.rangeKm?.let { "$it km" })
-                InfoTile(Icons.Outlined.SignalCellularAlt, "Avg consumption", car.avgConsumption?.let { "%.1f L/100km".format(it) })
-                InfoTile(Icons.Outlined.DeviceThermostat, "Outside", outdoor?.let { "%.0f °C".format(it) })
+                InfoTile(MibSymbols.get("local_gas_station"), "Range", car.rangeKm?.let { "$it km" })
+                InfoTile(MibSymbols.get("signal_cellular_alt"), "Avg consumption", car.avgConsumption?.let { "%.1f L/100km".format(it) })
+                InfoTile(MibSymbols.get("device_thermostat"), "Outside", outdoor?.let { "%.0f °C".format(it) })
             }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(Brush.horizontalGradient(listOf(Color.Transparent, Color(0x55FFFFFF), Color.Transparent))))
@@ -399,13 +379,13 @@ internal fun MibClimateBar(state: Climate.State, modifier: Modifier) {
     ) {
         TempBlock(temp(state.left, state.leftLo, state.leftHi))
         Spacer(Modifier.width(48.dp))
-        ClimateButton(state.ac) { Ico(Icons.Outlined.AcUnit, 34.dp); Text("A/C", color = Color.White, fontFamily = MmiFont, fontSize = 18.sp) }
+        ClimateButton(state.ac) { Ico(MibSymbols.get("ac_unit"), 34.dp); Text("A/C", color = Color.White, fontFamily = MmiFont, fontSize = 18.sp) }
         Spacer(Modifier.width(12.dp))
         ClimateButton(state.auto) { Text("AUTO", color = Color.White, fontFamily = MmiFont, fontSize = 24.sp) }
         Spacer(Modifier.width(12.dp))
-        ClimateButton(state.recirculation) { Ico(Icons.Outlined.Sync, 40.dp) }
+        ClimateButton(state.recirculation) { Ico(MibSymbols.get("sync"), 40.dp) }
         Spacer(Modifier.width(40.dp))
-        Ico(Icons.Outlined.Air, 40.dp)
+        Ico(MibSymbols.get("mode_fan"), 40.dp)
         Spacer(Modifier.width(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             repeat(7) { i ->
@@ -422,9 +402,9 @@ internal fun MibClimateBar(state: Climate.State, modifier: Modifier) {
 @Composable
 private fun TempBlock(text: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Ico(Icons.Outlined.ExpandLess, 34.dp)
+        Ico(MibSymbols.get("expand_less"), 34.dp)
         Text(text, color = Color.White, fontFamily = MmiFont, fontSize = 42.sp)
-        Ico(Icons.Outlined.ExpandMore, 34.dp)
+        Ico(MibSymbols.get("expand_more"), 34.dp)
     }
 }
 

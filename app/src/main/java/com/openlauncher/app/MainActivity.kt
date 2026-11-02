@@ -39,6 +39,8 @@ class MainActivity : ComponentActivity() {
 
     /** Bumped when the Home button is pressed, so the shell returns to the ring menu. */
     private val homeSignal = MutableStateFlow(0)
+    // Page asked for by the build machine's screenshot run (adb: --es mmi_page RADIO).
+    private val pageRequest = MutableStateFlow<String?>(null)
 
     private val permissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         CarLocation.acquire(this, HOLDER)
@@ -107,10 +109,12 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME)) homeSignal.value++
+        intent.getStringExtra("mmi_page")?.let { pageRequest.value = it }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        intent?.getStringExtra("mmi_page")?.let { pageRequest.value = it; splashShown = true }
         hideSystemBars()
         requestMissingPermissions()
 
@@ -120,6 +124,7 @@ class MainActivity : ComponentActivity() {
             val hardwareRadio by vm.hardwareRadio.collectAsStateWithLifecycle()
             val metric by vm.prefs.metric.collectAsStateWithLifecycle()
             val home by homeSignal.collectAsStateWithLifecycle()
+            val requested by pageRequest.collectAsStateWithLifecycle()
             // Startup video once per boot (cold start of the app), then the MMI shell.
             var intro by remember { mutableStateOf(!introPlayed && IntroVideo.isSet(this)) }
             if (intro) {
@@ -160,6 +165,7 @@ class MainActivity : ComponentActivity() {
                     voltage = vm.voltage,
                     onLaunchPackage = vm::launchApp,
                     homeSignal = home,
+                    requestPage = requested,
                 )
             }
             if (splash) com.openlauncher.app.ui.screen.MmiSplash { splashShown = true; splash = false }
