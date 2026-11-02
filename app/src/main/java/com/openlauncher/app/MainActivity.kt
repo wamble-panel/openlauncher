@@ -108,12 +108,23 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME)) homeSignal.value++
+        if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME)) {
+            // Home with the new MMI switched on: back to the Flutter home.
+            if (MmiFlutterActivity.isOn(this)) { MmiFlutterActivity.start(this); return }
+            homeSignal.value++
+        }
+        intent.getStringExtra("flutter_page")?.let { MmiFlutterActivity.start(this, it); return }
         intent.getStringExtra("mmi_page")?.let { pageRequest.value = it }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // New MMI (Flutter): open it on top; the classic shell stays underneath for the
+        // pages not rebuilt yet. adb: --es flutter_page sound opens a Flutter page directly.
+        val flutterPage = intent?.getStringExtra("flutter_page")
+        if (flutterPage != null || (MmiFlutterActivity.isOn(this) && intent?.hasExtra("mmi_page") != true)) {
+            MmiFlutterActivity.start(this, flutterPage ?: "home")
+        }
         intent?.getStringExtra("mmi_page")?.let { pageRequest.value = it; splashShown = true }
         hideSystemBars()
         requestMissingPermissions()

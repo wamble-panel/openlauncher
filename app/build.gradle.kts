@@ -90,6 +90,9 @@ dependencies {
     // Offline vector maps (MMI navigation)
 
 
+    // New MMI screens, drawn by Flutter (mmi_ui module, AOT-compiled release build).
+    implementation("com.openlauncher.mmi_ui:flutter_release:1.0")
+
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
 

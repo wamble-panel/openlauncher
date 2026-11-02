@@ -26,6 +26,33 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # New MMI screens (Flutter module mmi_ui): page renders at 1280 x 800, then the
+      # release AAR the APK is built with.
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.9
+          channel: stable
+          cache: true
+
+      - name: Flutter page renders and AAR
+        working-directory: mmi_ui
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test --update-goldens
+          flutter build aar --no-debug --no-profile --build-number 1.0 --target-platform android-arm,android-arm64
+
+      - name: Attach Flutter renders to the mmi-screens release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/mbux'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release view mmi-screens > /dev/null 2>&1 || gh release create mmi-screens --title "MMI screenshots" --notes "Latest page screenshots (1280x800)."
+          mkdir -p fshots
+          for f in mmi_ui/goldens/*.png; do cp "$f" "fshots/flutter_$(basename "$f")"; done
+          gh release upload mmi-screens fshots/* --clobber
+
       # Optional: a stable signing key so each new debug APK installs over the
       # previous one on the head unit. Without it every runner generates a fresh
       # debug key and Android refuses the update (signature mismatch).

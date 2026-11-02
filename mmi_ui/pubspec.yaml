@@ -1,0 +1,37 @@
+name: mmi_ui
+description: "A new Flutter module project."
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+
+flutter:
+  uses-material-design: false
+  assets:
+    - assets/images/
+  fonts:
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-400.ttf
+        - asset: assets/fonts/Roboto-500.ttf
+          weight: 500
+    - family: MibSymbols
+      fonts:
+        - asset: assets/fonts/MibSymbols.ttf
+
+  module:
+    androidX: true
+    androidPackage: com.openlauncher.mmi_ui
+    iosBundleIdentifier: com.openlauncher.mmiUi

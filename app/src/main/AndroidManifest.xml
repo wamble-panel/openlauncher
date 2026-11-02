@@ -102,6 +102,16 @@
         android:exported="true">
 
         <!-- Single launcher activity -->
+        <!-- New MMI screens (Flutter). Opened from MainActivity when Settings · Display · New MMI is on. -->
+        <activity
+            android:name=".MmiFlutterActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustNothing" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
