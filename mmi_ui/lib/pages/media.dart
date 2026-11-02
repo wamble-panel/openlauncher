@@ -304,6 +304,11 @@ class _SourcePageState extends State<SourcePage> with Live<SourcePage> {
           sub: s['playing'] == true ? 'Playing' : null,
           icon: icon('${s['kind']}'),
           onTap: () async {
+            // USB opens its library; every other source starts and shows Now playing.
+            if (s['key'] == 'usb') {
+              widget.onOpen('usb');
+              return;
+            }
             await Bridge.call('source', {'key': s['key']});
             widget.onOpen('music');
           },

@@ -17,6 +17,14 @@ Future<void> _fonts() async {
 }
 
 final _demo = <String, Object?>{
+  'usbGet': {
+    'scanning': false, 'count': 214,
+    'items': [
+      {'key': '1', 'title': 'Track One', 'sub': 'Artist A · Album X', 'song': true},
+      {'key': '2', 'title': 'Track Two', 'sub': 'Artist B · Album Y', 'song': true},
+      {'key': '3', 'title': 'Track Three', 'sub': 'Artist A · Album X', 'song': true},
+    ],
+  },
   'healthGet': {
     'temps': [{'name': 'cpu_thermal_zone', 'c': 62.0}, {'name': 'gpu_thermal_zone', 'c': 58.0}, {'name': 'ddr_thermal_zone', 'c': 55.0}],
     'cores': [{'cur': 1416, 'max': 1608}, {'cur': 1416, 'max': 1608}, {'cur': 1008, 'max': 1608}, {'cur': 1008, 'max': 1608}],

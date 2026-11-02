@@ -187,6 +187,7 @@ object TwBridge {
 
     /** Tunes [freq] (MHz on FM, kHz on AM) and makes radio the car's source. */
     fun radioTune(am: Boolean, freq: Float) {
+        UsbMusic.pause() // radio takes over the speakers
         val f = if (am) freq.coerceIn(531f, 1602f) else freq.coerceIn(87.5f, 108f)
         radioPrefs().edit().putBoolean("am", am).putFloat(if (am) "am_freq" else "fm_freq", f).apply()
         publishRadio(am, f)

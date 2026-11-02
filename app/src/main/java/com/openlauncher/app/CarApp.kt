@@ -31,6 +31,7 @@ class CarApp : Application() {
             // Car Info Service (speed, rpm, lights…), the vendor command relay (amplifier)
             // and the CarPlay / Android Auto engine, so a phone can connect at once.
             com.openlauncher.app.util.CarInfoLink.start(this)
+            com.openlauncher.app.util.UsbMusic.init(this)
             com.openlauncher.app.util.VendorCommand.start(this)
             com.openlauncher.app.util.PhoneLink.startEngine(this)
             // New MMI: start its screens in the background so they open instantly.

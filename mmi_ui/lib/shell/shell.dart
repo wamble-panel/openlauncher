@@ -17,6 +17,7 @@ import '../pages/media.dart';
 import '../pages/phone.dart';
 import '../pages/radio.dart';
 import '../pages/settings.dart';
+import '../pages/usb.dart';
 import '../pages/sound.dart';
 
 /// Every MMI page: header section and title, and the rail cell it lights.
@@ -43,7 +44,8 @@ enum MmiPage {
   help(null, 'Help', null),
   vendor('Settings', 'Vendor apps', null),
   equaliser('Sound', 'Equaliser', null),
-  health('Settings', 'Unit health', null);
+  health('Settings', 'Unit health', null),
+  usb('Media', 'USB music', 'music');
 
   const MmiPage(this.section, this.title, this.rail);
   final String? section;
@@ -306,6 +308,7 @@ class _MmiShellState extends State<MmiShell> {
       MmiPage.help => HelpPage(onOpen: _openKey),
       MmiPage.vendor => const VendorAppsPage(),
       MmiPage.health => const HealthPage(),
+      MmiPage.usb => UsbPage(onPlaying: () => _open(MmiPage.music)),
       _ => CategoryPage(category: _page.name, onOpen: _openKey),
     };
     return Padding(

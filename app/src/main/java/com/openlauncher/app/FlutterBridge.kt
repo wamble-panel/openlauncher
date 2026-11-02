@@ -296,6 +296,16 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
     private var artKey: String? = null
 
     fun media(): Map<String, Any?> {
+        // MMI's own USB player first, when it is the chosen source.
+        val usb = com.openlauncher.app.util.UsbMusic
+        usb.state.value.song?.let { s ->
+            artKey = "usb:${s.id}"
+            return mapOf(
+                "title" to s.title, "artist" to s.artist, "album" to s.album,
+                "playing" to usb.state.value.playing, "pos" to usb.positionMs.toInt(), "dur" to s.durationMs.toInt(),
+                "source" to "USB music", "artId" to artKey,
+            )
+        }
         val np = MediaListenerService.nowPlaying.value
         val bt = TwBridge.btTrack.value
         if (np == null && bt != null) {
@@ -328,12 +338,22 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
     }
 
     fun mediaArt(): ByteArray? {
-        val bmp = MediaListenerService.nowPlaying.value?.albumArt ?: return null
+        val bmp = (if (com.openlauncher.app.util.UsbMusic.active) com.openlauncher.app.util.UsbMusic.cover() else MediaListenerService.nowPlaying.value?.albumArt) ?: return null
         val scaled = if (bmp.width > 400) Bitmap.createScaledBitmap(bmp, 400, (400f * bmp.height / bmp.width).toInt(), true) else bmp
         return ByteArrayOutputStream().also { scaled.compress(Bitmap.CompressFormat.JPEG, 88, it) }.toByteArray()
     }
 
     fun mediaCommand(cmd: String, ms: Long) {
+        val usb = com.openlauncher.app.util.UsbMusic
+        if (usb.active) {
+            when (cmd) {
+                "toggle" -> usb.toggle()
+                "next" -> usb.skip(1)
+                "prev" -> usb.skip(-1)
+                "seek" -> usb.seek(ms)
+            }
+            return
+        }
         val controls = MediaListenerService.nowPlaying.value?.controller?.transportControls
         if (controls == null && TwBridge.btTrack.value != null) {
             when (cmd) {
@@ -354,6 +374,9 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
 
     fun sources(): Map<String, Any?> {
         val list = ArrayList<Map<String, Any?>>()
+        val usbSongs = com.openlauncher.app.util.UsbMusic.library.value.size
+        list += mapOf("key" to "usb", "label" to "USB music" + if (usbSongs > 0) " · $usbSongs songs" else " · no songs found",
+            "kind" to "usb", "playing" to com.openlauncher.app.util.UsbMusic.state.value.playing)
         if (TwBridge.available || BtConnect.anyConnected()) {
             list += mapOf("key" to "bt", "label" to "Bluetooth audio", "kind" to "bt", "playing" to (TwBridge.btTrack.value?.playing == true))
         }
@@ -371,6 +394,7 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
     }
 
     fun source(key: String) {
+        if (key != "usb") com.openlauncher.app.util.UsbMusic.stop()
         when {
             key == "bt" -> TwBridge.btPlay()
             key.startsWith("pkg:") -> launch(key)
@@ -558,7 +582,7 @@ internal object VendorApps {
         Row("com.tw.radio", "Radio", "test", "MMI is the whole radio; check tuning, names and car buttons first"),
         Row("com.tw.radio.theme", "Radio theme", "test", "Pictures for the vendor radio; goes with it"),
         Row("com.tw.eq", "EQ", "test", "MMI equaliser and balance / fader; check the sound first"),
-        Row("com.tw.music", "Music (USB)", "keep", "Plays USB / SD music; MMI has no USB player yet"),
+        Row("com.tw.music", "Music (USB)", "test", "MMI USB music replaces it; play a stick first"),
         Row("com.tw.bt", "Bluetooth", "keep", "Calls, phonebook and Bluetooth music"),
         Row("com.zjinnova.zlink", "Tlink5 (ZLink)", "keep", "CarPlay and Android Auto engine"),
         Row("com.tw.service", "TW service", "keep", "Car link; part of the system"),
@@ -567,11 +591,11 @@ internal object VendorApps {
         Row("com.tw.coreservice", "TD service", "keep", "Car link; part of the system"),
         Row("com.tw.carinfoservice", "Car Info Service", "keep", "Speed, rpm, lights for MMI"),
         Row("com.tw.car", "Car settings (CAN)", "keep", "Decodes the Astra's CAN box"),
-        Row("com.tw.carchoose", "Car choose", "keep", "Which car / CAN box is fitted"),
-        Row("com.tw.keypad", "Steering wheel", "keep", "Steering-wheel key learning"),
+        Row("com.tw.carchoose", "Car choose", "test", "Setup tool: the car choice stays saved; check car data after disabling"),
+        Row("com.tw.keypad", "Steering wheel", "test", "Setup tool for learning keys; check the steering keys after disabling"),
         Row("com.tw.reverse", "Reverse camera", "keep", "Camera picture when reversing"),
         Row("com.tw.ac", "Air conditioning", "keep", "Climate pop-up and outside temperature"),
-        Row("com.dofun.carsetting", "Car settings", "keep", "Factory and car-type settings"),
+        Row("com.dofun.carsetting", "Car settings", "test", "Setup tool; settings stay saved. Disable last, after everything else works"),
         Row("com.tw.auxin", "AUX", "keep", "Needed only if you use the AUX input"),
         Row("com.tw.dvr", "Dash cam", "keep", "Needed only with a dash cam"),
         Row("com.tw.tv", "TV", "keep", "Needed only with a TV tuner"),
@@ -629,5 +653,42 @@ internal object UnitHealth {
             "mmiMb" to android.os.Debug.getPss() / 1024,
             "uptimeMin" to android.os.SystemClock.elapsedRealtime() / 60000,
         )
+    }
+}
+
+
+/** The USB library for the Flutter page: songs, albums, artists or folders, and playing them. */
+internal object UsbLibrary {
+    private val music get() = com.openlauncher.app.util.UsbMusic
+
+    fun get(mode: String, filter: String?): Map<String, Any?> {
+        val all = music.library.value
+        val items: List<Map<String, Any?>> = when {
+            filter != null -> songsFor(mode, filter).map { song(it) }
+            mode == "albums" -> all.groupBy { it.album }.map { (k, v) -> mapOf("key" to k, "title" to k.ifEmpty { "Unknown album" }, "sub" to "${v.first().artist} · ${v.size} songs") }.sortedBy { (it["title"] as String).lowercase() }
+            mode == "artists" -> all.groupBy { it.artist }.map { (k, v) -> mapOf("key" to k, "title" to k, "sub" to "${v.size} songs") }.sortedBy { (it["title"] as String).lowercase() }
+            mode == "folders" -> all.groupBy { it.folder }.map { (k, v) -> mapOf("key" to k, "title" to k.substringAfterLast('/').ifEmpty { "Top folder" }, "sub" to "$k · ${v.size} songs") }.sortedBy { (it["title"] as String).lowercase() }
+            else -> all.map { song(it) }
+        }
+        return mapOf("scanning" to music.scanning, "count" to all.size, "items" to items.take(2000))
+    }
+
+    private fun songsFor(mode: String, filter: String) = music.library.value.filter {
+        when (mode) {
+            "albums" -> it.album == filter
+            "artists" -> it.artist == filter
+            "folders" -> it.folder == filter
+            else -> true
+        }
+    }
+
+    private fun song(s: com.openlauncher.app.util.UsbMusic.Song) =
+        mapOf("key" to s.id.toString(), "title" to s.title, "sub" to "${s.artist} · ${s.album}", "song" to true)
+
+    /** Plays the list being shown (all songs, or one album / artist / folder) from [id]. */
+    fun play(mode: String, filter: String?, id: Long) {
+        val queue = if (filter != null) songsFor(mode, filter) else music.library.value
+        com.openlauncher.app.util.TwBridge.btPause()
+        music.play(queue, queue.indexOfFirst { it.id == id }.coerceAtLeast(0))
     }
 }

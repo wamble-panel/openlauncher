@@ -149,6 +149,12 @@ class MmiFlutterActivity : FlutterActivity() {
                     "source" -> { car.source(arg<String>("key") ?: ""); result.success(null) }
                     "btGet" -> result.success(car.bt())
                     "carGet" -> result.success(carInfo())
+                    "usbGet" -> result.success(UsbLibrary.get(arg<String>("mode") ?: "songs", arg<String>("filter")))
+                    "usbPlay" -> {
+                        UsbLibrary.play(arg<String>("mode") ?: "songs", arg<String>("filter"), (arg<String>("id") ?: "0").toLong())
+                        result.success(null)
+                    }
+                    "usbRescan" -> { com.openlauncher.app.util.UsbMusic.rescan(); result.success(null) }
                     "carStream" -> { com.openlauncher.app.util.CarInfoLink.stream(arg<Boolean>("on") == true); result.success(null) }
                     "vendorGet" -> result.success(VendorApps.list(this))
                     "healthGet" -> scope.launch {
@@ -221,7 +227,7 @@ class MmiFlutterActivity : FlutterActivity() {
                 if (gapMs > 0) kotlinx.coroutines.delay(gapMs)
             }
         }
-        push("media", kotlinx.coroutines.flow.combine(com.openlauncher.app.service.MediaListenerService.nowPlaying, TwBridge.btTrack) { a, b -> listOf(a?.title, a?.artist, a?.isPlaying, a?.albumArt?.generationId, b?.title, b?.playing) }, 300)
+        push("media", kotlinx.coroutines.flow.combine(com.openlauncher.app.service.MediaListenerService.nowPlaying, TwBridge.btTrack, com.openlauncher.app.util.UsbMusic.state) { a, b, u -> listOf(a?.title, a?.artist, a?.isPlaying, a?.albumArt?.generationId, b?.title, b?.playing, u.song?.id, u.playing) }, 300)
         push("radio", kotlinx.coroutines.flow.combine(TwBridge.radio, com.openlauncher.app.util.CarCore.radio) { a, b -> a to b }, 250)
         push("calls", TwBridge.call.map { it.state })
         push("car", kotlinx.coroutines.flow.combine(com.openlauncher.app.util.CarCore.data, com.openlauncher.app.util.CarInfoLink.info) { a, b -> a to b }, 1000)
