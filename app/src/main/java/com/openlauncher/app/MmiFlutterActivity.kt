@@ -220,7 +220,8 @@ class MmiFlutterActivity : FlutterActivity() {
             "browser" -> car.launch("browser")
             "weather" -> car.launch("weather")
             "video" -> car.launch("video")
-            "phonelink" -> car.launch("pkg:" + (packageManager.getInstalledApplications(0)
+            // Phone Link: CarPlay / Android Auto (the unit's ZLink engine, no vendor screens first).
+            "phonelink" -> car.launch("pkg:com.zjinnova.zlink") || car.launch("pkg:" + (packageManager.getInstalledApplications(0)
                 .firstOrNull { a -> listOf("zlink", "carlink", "autokit", "easyconnect", "phonelink").any { a.packageName.contains(it, true) } }?.packageName ?: ""))
             else -> false
         }

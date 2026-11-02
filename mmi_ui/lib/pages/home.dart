@@ -21,7 +21,7 @@ const homeTiles = [
   HomeTile('music', 'MEDIA', MibIcons.music_note, 'media', _amber),
   HomeTile('phone', 'TELEPHONE', MibIcons.call, 'telephone', _silver),
   HomeTile('nav', 'NAVIGATION', MibIcons.near_me, 'navigation', _blue),
-  HomeTile('phonelink', 'PHONE APPS', MibIcons.mobile_share, 'phoneapps', _lime),
+  HomeTile('phonelink', 'PHONE LINK', MibIcons.mobile_share, 'phoneapps', _lime),
   HomeTile('car', 'CAR', MibIcons.directions_car, 'car', _red),
   HomeTile('settings', 'SETTINGS', MibIcons.settings, 'settings', _silver),
   HomeTile('help', 'HELP', MibIcons.info, 'help', _silver),

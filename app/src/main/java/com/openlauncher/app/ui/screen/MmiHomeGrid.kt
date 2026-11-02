@@ -58,7 +58,7 @@ internal val HOME_TILES = listOf(
     HomeTile("music", "MEDIA", MmiLine.NOTE, R.drawable.home_art_media, AMBER),
     HomeTile("phone", "TELEPHONE", MmiLine.CALL, R.drawable.home_art_telephone, SILVER),
     HomeTile("nav", "NAVIGATION", MmiLine.NAV_ARROW, R.drawable.home_art_navigation, BLUE),
-    HomeTile("phonelink", "PHONE APPS", MmiLine.LINK, R.drawable.home_art_phoneapps, LIME),
+    HomeTile("phonelink", "PHONE LINK", MmiLine.LINK, R.drawable.home_art_phoneapps, LIME),
     HomeTile("carinfo", "CAR", MmiLine.CAR, R.drawable.home_art_car, RED),
     HomeTile("settings", "SETTINGS", MmiLine.GEAR, R.drawable.home_art_settings, SILVER),
     HomeTile("help", "HELP", MmiLine.CARD, R.drawable.home_art_help, SILVER),

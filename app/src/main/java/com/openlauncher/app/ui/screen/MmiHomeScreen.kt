@@ -225,7 +225,7 @@ fun MmiHomeScreen(
             "apps" -> page = MmiPage.APPS
             "eq" -> page = MmiPage.EQ
             // The unit's phone-mirroring and weather apps, when installed; else the app list.
-            "phonelink" -> apps.findByLabel("phonelink", "phone link", "carlink", "zlink", "easyconnect", "easy connect", "carplay", "autokit")
+            "phonelink" -> (apps.firstOrNull { it.packageName == "com.zjinnova.zlink" } ?: apps.findByLabel("tlink", "phonelink", "phone link", "carlink", "zlink", "easyconnect", "easy connect", "carplay", "autokit"))
                 ?.let { onLaunchPackage(it.packageName) } ?: run { page = MmiPage.APPS }
             "weather" -> apps.findByLabel("weather")?.let { onLaunchPackage(it.packageName) } ?: run { page = MmiPage.APPS }
             "help" -> page = MmiPage.STORAGE
