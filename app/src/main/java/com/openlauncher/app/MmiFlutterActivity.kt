@@ -182,6 +182,21 @@ class MmiFlutterActivity : FlutterActivity() {
                     "usbRescan" -> { com.openlauncher.app.util.UsbMusic.rescan(); result.success(null) }
                     "carStream" -> { com.openlauncher.app.util.CarInfoLink.stream(arg<Boolean>("on") == true); result.success(null) }
                     "vendorGet" -> result.success(VendorApps.list(this))
+                    "optimizeStatus" -> {
+                        val st = com.openlauncher.app.util.RootOptimize.status(this)
+                        result.success(mapOf("rooted" to st.rooted, "wifiAdb" to st.wifiAdbOn, "optimized" to st.optimized))
+                    }
+                    "optimizeRun" -> scope.launch {
+                        result.success(com.openlauncher.app.util.RootOptimize.optimize(this@MmiFlutterActivity, arg<Boolean>("wifiAdb") == true))
+                    }
+                    "optimizeUndo" -> scope.launch {
+                        result.success(com.openlauncher.app.util.RootOptimize.undo(this@MmiFlutterActivity))
+                    }
+                    "backupPartitions" -> scope.launch {
+                        val dir = usbBackupDir()
+                        if (dir == null) result.success(listOf("Insert a USB stick or SD card first."))
+                        else result.success(com.openlauncher.app.util.RootOptimize.backupPartitions("$dir/mmi-firmware-backup"))
+                    }
                     "healthGet" -> scope.launch {
                         result.success(kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { UnitHealth.get(this@MmiFlutterActivity) })
                     }
@@ -336,6 +351,11 @@ class MmiFlutterActivity : FlutterActivity() {
     private var volumeReceiver: android.content.BroadcastReceiver? = null
 
     // Android is short of memory: the screens drop their decoded pictures.
+    /** First writable USB stick / SD card, for the partition backup. */
+    private fun usbBackupDir(): String? =
+        java.io.File("/mnt/media_rw").listFiles()?.firstOrNull { it.canWrite() }?.path
+            ?: java.io.File("/storage").listFiles()?.firstOrNull { it.name != "emulated" && it.name != "self" && it.canWrite() }?.path
+
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
         if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) channel?.invokeMethod("trim", null)

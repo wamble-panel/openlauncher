@@ -174,6 +174,7 @@ class _CategoryPageState extends State<CategoryPage> with Live<CategoryPage>, Se
           toggle('OpenGL ES graphics', 'gles', sub: 'try if pages stutter; used from the next start'),
           MibRow(label: 'Classic MMI', sub: 'switch back to the previous screens', trailing: MibToggle(value: false, onChanged: (_) => Bridge.call('classic'))),
           MibRow(label: 'Version', value: '${v('version', '')}'),
+          open('System tuning', 'tuning', icon: MibIcons.build, sub: 'root speed-up, disable vendor apps, firmware backup'),
           open('Unit health', 'health', icon: MibIcons.device_thermostat, sub: 'chip temperatures, speed and memory'),
           open('Vendor apps', 'vendor', icon: MibIcons.apps, sub: 'which ones MMI replaces; disable them one by one'),
           const _DevSend(),
@@ -367,4 +368,111 @@ class _Smoothness extends StatelessWidget {
       sub: 'average ${(s['avgMs'] ?? 0).toStringAsFixed(1)} ms per frame, worst ${(s['worstMs'] ?? 0).toStringAsFixed(0)} ms (16.7 ms = 60 fps)',
     );
   }
+}
+
+/// Settings · System tuning: on a rooted unit, does the whole speed job from here
+/// (compile MMI to native, kill vendor pop-ups, disable vendor apps, faster
+/// animations), can turn on Wi-Fi adb, and backs up the partitions to a USB stick
+/// for the firmware. All reversible. On a unit without root it says so.
+class TuningPage extends StatefulWidget {
+  const TuningPage({super.key});
+  @override
+  State<TuningPage> createState() => _TuningPageState();
+}
+
+class _TuningPageState extends State<TuningPage> {
+  Map<Object?, Object?>? st;
+  List<String> output = const [];
+  bool busy = false;
+  bool wifiAdb = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _status();
+  }
+
+  Future<void> _status() async {
+    final m = await Bridge.call<Map<Object?, Object?>>('optimizeStatus');
+    if (mounted) setState(() => st = m);
+  }
+
+  Future<void> _run(String method, [Map<String, Object?>? args]) async {
+    setState(() { busy = true; output = const ['Working…']; });
+    final r = await Bridge.call<List<Object?>>(method, args);
+    if (!mounted) return;
+    setState(() { busy = false; output = (r ?? const []).cast<String>(); });
+    _status();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rooted = st?['rooted'] == true;
+    final optimized = st?['optimized'] == true;
+    final wifiOn = st?['wifiAdb'] == true;
+    return ListView(padding: const EdgeInsets.only(top: 14, bottom: 24, left: 8), children: [
+      Container(
+        padding: const EdgeInsets.all(18),
+        decoration: Mib.glass(),
+        child: Row(children: [
+          Icon(rooted ? MibIcons.verified_user : MibIcons.info, size: 40, color: rooted ? const Color(0xFF5BD35B) : const Color(0xFFF0A030)),
+          const SizedBox(width: 18),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(st == null ? 'Checking…' : rooted ? 'Root available' : 'No root on this unit', style: Mib.text(27)),
+            Text(
+              st == null ? '' : rooted
+                  ? 'MMI can do the full tune-up itself — no laptop needed.'
+                  : 'MMI can\'t add root (no app can). Root needs the stock image, same as the firmware.',
+              style: Mib.text(20, color: Mib.grey),
+            ),
+          ])),
+        ]),
+      ),
+      if (rooted) ...[
+        const MibCaption('Speed tune-up'),
+        MibRow(label: 'Turn on Wi-Fi adb too', sub: 'lets a laptop connect over Wi-Fi, no cable', trailing: MibToggle(value: wifiAdb, onChanged: (v) => setState(() => wifiAdb = v))),
+        const SizedBox(height: 10),
+        _Button(optimized ? 'Re-run optimize' : 'Optimize now', MibIcons.speed, busy ? null : () => _run('optimizeRun', {'wifiAdb': wifiAdb})),
+        if (optimized) _Button('Undo optimize', MibIcons.restart_alt, busy ? null : () => _run('optimizeUndo')),
+        const MibCaption('Firmware backup'),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 10), child: Text('Insert a USB stick, then back up the partitions for building the firmware.', style: Mib.text(20, color: Mib.grey))),
+        const SizedBox(height: 10),
+        _Button('Back up partitions to USB', MibIcons.storage, busy ? null : () => _run('backupPartitions')),
+        if (wifiOn) Padding(padding: const EdgeInsets.only(left: 10, top: 14), child: Text('Wi-Fi adb is ON. On a laptop on the same network: adb connect <unit-ip>:5555', style: Mib.text(19, color: const Color(0xFF5BD35B)))),
+      ],
+      if (output.isNotEmpty) ...[
+        const SizedBox(height: 18),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: Mib.glass(),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            for (final line in output) Text(line, style: Mib.text(20, color: line.startsWith('✗') ? const Color(0xFFE5484D) : Mib.white)),
+          ]),
+        ),
+      ],
+    ]);
+  }
+}
+
+class _Button extends StatelessWidget {
+  const _Button(this.label, this.icon, this.onTap);
+  final String label;
+  final IconData icon;
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+        child: Pressable(
+          onTap: onTap ?? () {},
+          child: Opacity(
+            opacity: onTap == null ? 0.5 : 1,
+            child: Container(
+              height: 72,
+              padding: const EdgeInsets.symmetric(horizontal: 22),
+              decoration: BoxDecoration(border: Border.all(color: const Color(0xAAFFFFFF))),
+              child: Row(children: [Icon(icon, size: 32, color: Mib.white), const SizedBox(width: 18), Text(label, style: Mib.text(25))]),
+            ),
+          ),
+        ),
+      );
 }

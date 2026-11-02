@@ -47,7 +47,8 @@ enum MmiPage {
   equaliser('Sound', 'Equaliser', null),
   health('Settings', 'Unit health', null),
   usb('Media', 'USB music', 'music'),
-  phonelink('Telephone', 'Phone Link', 'phone');
+  phonelink('Telephone', 'Phone Link', 'phone'),
+  tuning('Settings', 'System tuning', null);
 
   const MmiPage(this.section, this.title, this.rail);
   final String? section;
@@ -332,6 +333,7 @@ class _MmiShellState extends State<MmiShell> {
       MmiPage.help => HelpPage(onOpen: _openKey),
       MmiPage.vendor => const VendorAppsPage(),
       MmiPage.health => const HealthPage(),
+      MmiPage.tuning => const TuningPage(),
       MmiPage.usb => UsbPage(onPlaying: () => _open(MmiPage.music)),
       MmiPage.phonelink => PhoneLinkPage(onOpen: _openKey),
       _ => CategoryPage(category: _page.name, onOpen: _openKey),
