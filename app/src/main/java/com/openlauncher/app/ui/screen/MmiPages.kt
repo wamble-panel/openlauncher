@@ -290,14 +290,14 @@ internal fun MmiMusicPage(
                             Column(Modifier.fillMaxSize()) {
                                 Text(
                                     title.ifBlank { if (state == null) "Bluetooth audio" else "Unknown title" }, color = Color.White, fontFamily = MmiFont,
-                                    fontSize = 36.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 18.dp),
+                                    fontSize = 44.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 30.dp),
                                 )
                                 Spacer(Modifier.weight(1f))
                                 if (state == null) {
                                     Text("Play music on your phone; the buttons below control it.", color = Color.White.copy(alpha = 0.75f), fontFamily = MmiFont, fontSize = 18.sp)
                                 } else {
-                                    if (artist.isNotBlank()) Text(artist, color = Color.White, fontFamily = MmiFont, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    if (album.isNotBlank()) Text(album, color = Color.White, fontFamily = MmiFont, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    if (artist.isNotBlank()) Text(artist, color = MmiDim, fontFamily = MmiFont, fontSize = 30.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    if (album.isNotBlank()) Text(album, color = MmiDim, fontFamily = MmiFont, fontSize = 30.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }
