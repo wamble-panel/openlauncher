@@ -300,63 +300,6 @@ private fun PhoneRow(
     }
 }
 
-@Composable
-private fun ColumnScope.PairingPanel(bt: BluetoothState, onClose: () -> Unit) {
-    // Discovery stops on its own after ~12 s; keep searching while this panel is open.
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(15_000)
-            if (!bt.scanning) bt.startScan()
-        }
-    }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Pairing", color = MmiInk, fontFamily = MmiFont, fontSize = 26.sp, modifier = Modifier.weight(1f))
-        Box(Modifier.size(40.dp).pressable(onClose), contentAlignment = Alignment.Center) {
-            MmiLineIcon(MmiLine.CLOSE, MmiInk, Modifier.size(18.dp))
-        }
-    }
-    Text(
-        "On your phone open Bluetooth and choose \"${bt.name.ifEmpty { "this car" }}\" — or pick your phone below. Confirm the same code on both screens.",
-        color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp,
-    )
-    Spacer(Modifier.height(10.dp))
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("NEARBY", color = MmiCyan, fontFamily = MmiFont, fontSize = 13.sp, letterSpacing = 2.sp)
-        Spacer(Modifier.width(10.dp))
-        if (bt.scanning) SearchingDots()
-    }
-    LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
-        val list = bt.nearby.sortedByDescending { it.isPhone }
-        if (list.isEmpty()) {
-            item { Text(if (bt.scanning) "Searching…" else "Nothing found yet.", color = MmiDim, fontFamily = MmiFont, fontSize = 16.sp, modifier = Modifier.padding(vertical = 10.dp)) }
-        }
-        items(list, key = { it.address }) { d ->
-            DeviceRow(d, selected = false, onClick = { bt.pair(d.address) }) {
-                if (d.bonding) Text("Pairing…", color = MmiCyan, fontFamily = MmiFont, fontSize = 15.sp)
-            }
-        }
-    }
-}
-
-@Composable
-private fun DeviceRow(d: BtDevice, selected: Boolean, onClick: () -> Unit, trailing: @Composable () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().height(58.dp).pressable(onClick)
-            .background(if (selected) Color(0x2232C6F0) else Color.Transparent)
-            .padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        MmiLineIcon(if (d.isPhone) MmiLine.CALL else MmiLine.BLUETOOTH, if (d.connected) MmiCyan else MmiDim, Modifier.size(22.dp))
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Text(d.name, color = MmiInk, fontFamily = MmiFont, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (d.connected) Text("Connected", color = MmiCyan, fontFamily = MmiFont, fontSize = 13.sp)
-        }
-        trailing()
-    }
-    Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF1E2125)))
-}
-
 /** Searching: a thin ring with a bright arc turning smoothly, as in the design. */
 @Composable
 private fun SearchingDots() {
@@ -497,35 +440,3 @@ internal fun MmiBluetoothHub(
     }
 }
 
-@Composable
-private fun HubRow(label: String, highlighted: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(3.dp)
-    Row(
-        Modifier.fillMaxWidth().height(56.dp).padding(vertical = 3.dp).pressable(onClick)
-            .clip(shape)
-            .background(Color(0xFF111316))
-            .border(if (highlighted) 2.dp else 1.dp, if (highlighted) MmiCyan else Color(0xFF2A2E34), shape)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, color = MmiInk, fontFamily = MmiFont, fontSize = 20.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        MmiLineIcon(MmiLine.ARROW, MmiDim, Modifier.size(18.dp))
-    }
-}
-
-@Composable
-private fun HubTile(label: String, icon: MmiLine, modifier: Modifier, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(3.dp)
-    Column(
-        modifier.height(150.dp).pressable(onClick).clip(shape)
-            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF111316), Color(0xFF16191D))))
-            .border(1.dp, androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF2A2E34), Color(0xFFB8BEC6))), shape)
-            .padding(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        MmiLineIcon(icon, MmiInk, Modifier.size(44.dp))
-        Spacer(Modifier.height(12.dp))
-        Text(label, color = MmiInk, fontFamily = MmiFont, fontSize = 18.sp, textAlign = TextAlign.Center)
-    }
-}

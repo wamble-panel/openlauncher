@@ -1,3 +1,0 @@
-name=Audi MMI chrome
-# ring centre line in the background image, as fractions of its width/height: cx,cy,rx,ry
-ring=0.246,0.528,0.344,0.325

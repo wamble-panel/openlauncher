@@ -522,34 +522,6 @@ private val RAIL = listOf(
     "nav" to MmiLine.NAV_ARROW,
 )
 
-@Composable
-private fun NavRail(modifier: Modifier, onOpen: (String) -> Unit) {
-    Row(modifier.fillMaxHeight()) {
-        Column(
-            Modifier.fillMaxHeight().width(64.dp)
-                .background(Brush.horizontalGradient(listOf(Color(0xFA03050A), Color(0xEE070A10))))
-                .padding(vertical = 8.dp),
-            verticalArrangement = Arrangement.SpaceEvenly,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            RAIL.forEach { (key, icon) ->
-                val active = key == "nav"
-                Box(
-                    Modifier.fillMaxWidth().height(52.dp).pressable { if (!active) onOpen(key) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (active) {
-                        // Audi-style marker: a lit bar on the edge of the active entry.
-                        Box(Modifier.align(Alignment.CenterStart).width(3.dp).height(30.dp).background(MmiCyan))
-                    }
-                    MmiLineIcon(icon, if (active) MmiCyan else MmiInk, Modifier.size(if (active) 28.dp else 24.dp))
-                }
-            }
-        }
-        Box(Modifier.fillMaxHeight().width(1.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xFF3A4250), Color.Transparent))))
-    }
-}
-
 /** Round map button from the design: black disc, thin white ring, white glyph. */
 @Composable
 private fun RoundMapButton(kind: MmiLine, highlighted: Boolean = false, onClick: () -> Unit) {
@@ -559,17 +531,6 @@ private fun RoundMapButton(kind: MmiLine, highlighted: Boolean = false, onClick:
             .pressable(onClick),
         contentAlignment = Alignment.Center,
     ) { MmiLineIcon(kind, Color.White, Modifier.size(40.dp)) }
-}
-
-@Composable
-private fun CompassButton(rotation: Float, northUp: Boolean) {
-    val turn by animateFloatAsState(rotation, tween(400), label = "compass_btn")
-    Box(Modifier.size(34.dp).graphicsLayer { rotationZ = turn }, contentAlignment = Alignment.TopCenter) {
-        Canvas(Modifier.fillMaxSize()) {
-            drawCircle(if (northUp) MmiCyan else MmiInk, size.minDimension / 2f, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
-        }
-        Text("N", color = if (northUp) MmiCyan else MmiInk, fontFamily = MmiFont, fontSize = 13.sp, modifier = Modifier.padding(top = 3.dp))
-    }
 }
 
 @Composable
@@ -586,97 +547,6 @@ private fun NavClock() {
     Text(
         fmt.format(java.util.Date(now)), color = Color.White, fontFamily = MmiFont, fontSize = 28.sp,
     )
-}
-
-@Composable
-private fun ManeuverPanel(nav: NavState, metric: Boolean) {
-    val next = nav.next
-    Column(Modifier.width(380.dp).mmiPanel().padding(14.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            val type = when {
-                nav.arrived -> ManeuverType.ARRIVE
-                next != null -> next.type
-                else -> ManeuverType.STRAIGHT
-            }
-            ManeuverGlyph(type, next?.exit ?: 0, MmiInk, Modifier.size(72.dp))
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                when {
-                    nav.arrived -> {
-                        Text("Arrived", color = MmiInk, fontFamily = MmiFont, fontSize = 32.sp)
-                        Text(nav.destination?.title ?: "", color = MmiDim, fontFamily = MmiFont, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    }
-                    next != null -> {
-                        Text(formatDistance(nav.distanceToNextM, metric), color = MmiInk, fontFamily = MmiFont, fontSize = 32.sp)
-                        Text(next.text, color = MmiInk, fontFamily = MmiFont, fontSize = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    }
-                    else -> Text("Calculating…", color = MmiDim, fontFamily = MmiFont, fontSize = 20.sp)
-                }
-            }
-        }
-        val following = nav.following
-        if (!nav.arrived && next != null && following != null && following.alongM - next.alongM < 300.0) {
-            Box(Modifier.fillMaxWidth().padding(vertical = 8.dp).height(1.dp).background(Color(0xFF2A2E34)))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Then", color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp)
-                Spacer(Modifier.width(10.dp))
-                ManeuverGlyph(following.type, following.exit, MmiDim, Modifier.size(30.dp))
-                Spacer(Modifier.width(10.dp))
-                Text(following.road.display, color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-    }
-}
-
-@Composable
-private fun TripPanel(nav: NavState, here: LatLng?, metric: Boolean, modifier: Modifier, onEnd: () -> Unit) {
-    val dest = nav.destination ?: return
-    val remaining = if (nav.route != null) nav.remainingM
-    else here?.let { distanceMeters(it.latitude, it.longitude, dest.lat, dest.lon) }
-    val seconds = if (nav.route != null) nav.remainingS else null
-    Row(modifier.height(56.dp).mmiPanel().padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        MmiLineIcon(MmiLine.FLAG, MmiInk, Modifier.size(20.dp))
-        Spacer(Modifier.width(10.dp))
-        Text(remaining?.let { formatDistance(it, metric) } ?: "--", color = MmiInk, fontFamily = MmiFont, fontSize = 18.sp)
-        if (seconds != null && !nav.arrived) {
-            Text("  ·  ${formatDuration(seconds)}  ·  ${formatEta(seconds)}", color = MmiInk, fontFamily = MmiFont, fontSize = 18.sp)
-        }
-        Spacer(Modifier.width(12.dp))
-        Box(Modifier.size(44.dp).pressable(onEnd), contentAlignment = Alignment.Center) {
-            MmiLineIcon(MmiLine.CLOSE, MmiInk, Modifier.size(18.dp))
-        }
-    }
-}
-
-@Composable
-private fun GuidanceBanner(target: Place, here: LatLng?, course: Float, metric: Boolean) {
-    val distance = here?.let { distanceMeters(it.latitude, it.longitude, target.lat, target.lon) }
-    val relative = here?.let { (bearingDegrees(it, LatLng(target.lat, target.lon)) - course + 360f) % 360f }
-    Row(
-        Modifier.width(380.dp).mmiPanel().padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
-            MmiLineIcon(
-                MmiLine.ARROW, RouteGreen,
-                Modifier.size(40.dp).graphicsLayer { rotationZ = (relative ?: 0f) - 90f },
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(distance?.let { formatDistance(it, metric) } ?: "--", color = MmiInk, fontFamily = MmiFont, fontSize = 28.sp)
-            Text(target.title, color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
-private fun bearingDegrees(from: LatLng, to: LatLng): Float {
-    val lat1 = Math.toRadians(from.latitude)
-    val lat2 = Math.toRadians(to.latitude)
-    val dLon = Math.toRadians(to.longitude - from.longitude)
-    val y = sin(dLon) * cos(lat2)
-    val x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
-    return ((Math.toDegrees(atan2(y, x)) + 360.0) % 360.0).toFloat()
 }
 
 // ── Panels ───────────────────────────────────────────────────────────────────

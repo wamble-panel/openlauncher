@@ -532,7 +532,6 @@ private fun HomeAppPrompt() {
     }
 }
 
-
 /** Pothole / speed bump warning from road memory, shown over every page. */
 @Composable
 private fun HazardBanner(modifier: Modifier) {
@@ -766,108 +765,6 @@ private fun Modifier.mmiBackdrop() = background(Color.Black)
 
 // ── Top bar and date bar ─────────────────────────────────────────────────────
 
-@Composable
-private fun TopBar(
-    height: Dp,
-    title: String?,
-    nowPlaying: NowPlayingState?,
-    onBack: () -> Unit,
-    onTapNowPlaying: () -> Unit,
-    clock: Boolean = true,
-) {
-    val context = LocalContext.current
-    val now by produceState(System.currentTimeMillis()) {
-        while (true) {
-            value = System.currentTimeMillis()
-            delay(60_000 - value % 60_000)
-        }
-    }
-    val clock24 by CarPrefs.get(context).clock24.collectAsStateWithLifecycle()
-    val timeFmt = remember(clock24) { SimpleDateFormat(if (clock24) "HH:mm" else "h:mm", Locale.getDefault()) }
-    Box(Modifier.fillMaxWidth().height(height)) {
-        // Status strip, as on the MIB: the clock top right.
-        if (clock) Text(
-            timeFmt.format(Date(now)), color = Color.White, fontFamily = MmiFont, fontSize = 20.sp,
-            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 28.dp),
-        )
-        if (nowPlaying != null && nowPlaying.title.isNotBlank()) {
-            Row(
-                Modifier.align(Alignment.CenterStart).padding(start = 28.dp).widthIn(max = 520.dp).pressable(onTapNowPlaying),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                MmiLineIcon(if (nowPlaying.isPlaying) MmiLine.NOTE else MmiLine.PAUSE, MmiCyan, Modifier.size(height * 0.3f))
-                Spacer(Modifier.width(10.dp))
-                AnimatedContent(
-                    targetState = listOf(nowPlaying.title, nowPlaying.artist).filter { it.isNotBlank() }.joinToString(" – "),
-                    transitionSpec = {
-                        (slideInVertically(tween(320)) { it } + fadeIn(tween(260))) togetherWith
-                            (slideOutVertically(tween(220)) { -it } + fadeOut(tween(180)))
-                    },
-                    label = "now_playing",
-                ) { text ->
-                    Text(text, color = MmiDim, fontFamily = MmiFont, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DateBar(height: Dp) {
-    val context = LocalContext.current
-    val now by produceState(System.currentTimeMillis()) {
-        while (true) {
-            value = System.currentTimeMillis()
-            delay(60_000 - value % 60_000)
-        }
-    }
-    val dateFmt = remember { SimpleDateFormat("MMMM d, yyyy", Locale.getDefault()) }
-    val clock24 by CarPrefs.get(context).clock24.collectAsStateWithLifecycle()
-    val timeFmt = remember(clock24) {
-        SimpleDateFormat(if (clock24) "HH:mm" else "h:mm a", Locale.getDefault())
-    }
-    val density = LocalDensity.current
-    val dateSize = with(density) { (height * 0.42f).toSp() }
-    val timeSize = with(density) { (height * 0.32f).toSp() }
-    Box(
-        Modifier.fillMaxWidth().height(height).drawWithCache {
-            val w = size.width
-            val bh = size.height
-            val trap = Path().apply {
-                moveTo(w * 0.25f, 0f)
-                lineTo(w * 0.27f, bh * 0.9f)
-                lineTo(w * 0.73f, bh * 0.9f)
-                lineTo(w * 0.75f, 0f)
-                close()
-            }
-            val edge = Color(0xFF41464E)
-            val stroke = 1.5.dp.toPx()
-            onDrawBehind {
-                drawRect(Color(0xFF07080A))
-                drawPath(trap, Brush.verticalGradient(listOf(Color(0xFF17191C), Color(0xFF0B0C0E))))
-                drawPath(trap, edge, style = Stroke(stroke))
-                drawLine(edge, Offset(0f, 0f), Offset(w * 0.25f, 0f), stroke)
-                drawLine(edge, Offset(w * 0.75f, 0f), Offset(w, 0f), stroke)
-            }
-        },
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(dateFmt.format(Date(now)), color = MmiInk, fontFamily = MmiFont, fontSize = dateSize)
-        Text(
-            timeFmt.format(Date(now)), color = MmiDim, fontFamily = MmiFont, fontSize = timeSize,
-            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 28.dp),
-        )
-    }
-}
-
-@Composable
-private fun LiveDashboard(location: StateFlow<LocationData?>, bearing: StateFlow<Float>, voltage: StateFlow<Float?>, metric: Boolean) {
-    val loc by location.collectAsStateWithLifecycle()
-    val heading by bearing.collectAsStateWithLifecycle()
-    val volts by voltage.collectAsStateWithLifecycle()
-    MmiDashboardPage(loc, heading, volts, metric)
-}
-
 // ── Settings page ────────────────────────────────────────────────────────────
 
 @Composable
@@ -1022,46 +919,10 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, categ
     }
 }
 
-@Composable
-private fun RotaryDial(modifier: Modifier) {
-    Canvas(modifier) {
-        val r = size.minDimension / 2f
-        val c = Offset(size.width * 0.35f, size.height / 2f)
-        drawCircle(
-            Brush.radialGradient(listOf(Color(0xFF1A1C20), Color(0xFF070809)), center = c, radius = r),
-            radius = r, center = c,
-        )
-        drawArc(
-            Brush.verticalGradient(listOf(Color(0x33FFFFFF), Color(0xFFDDE1E6), Color(0x33FFFFFF))),
-            startAngle = -70f, sweepAngle = 140f, useCenter = false,
-            topLeft = Offset(c.x - r, c.y - r), size = Size(r * 2, r * 2),
-            style = Stroke(3.dp.toPx()),
-        )
-        var a = -60f
-        while (a <= 60f) {
-            val rad = Math.toRadians(a.toDouble())
-            val outer = Offset(c.x + (r * 0.93f) * cos(rad).toFloat(), c.y + (r * 0.93f) * sin(rad).toFloat())
-            val inner = Offset(c.x + (r * 0.83f) * cos(rad).toFloat(), c.y + (r * 0.83f) * sin(rad).toFloat())
-            drawLine(Color(0xAAB8BEC6), inner, outer, 1.5.dp.toPx())
-            a += 4f
-        }
-        drawCircle(
-            Brush.radialGradient(listOf(Color.White, Color.Transparent), center = c, radius = r * 0.08f),
-            radius = r * 0.08f, center = c,
-        )
-    }
-}
-
 // ── Intents ──────────────────────────────────────────────────────────────────
 
 private val NAV_PACKAGES = listOf("com.google.android.apps.maps", "com.waze", "com.here.app.maps")
 private val VIDEO_PACKAGES = listOf("org.videolan.vlc", "com.mxtech.videoplayer.ad", "com.google.android.youtube")
-
-private fun Context.openNavigation(guidance: NavGuidance?) {
-    if (guidance != null && launchPackage(guidance.sourcePackage)) return
-    if (NAV_PACKAGES.any { launchPackage(it) }) return
-    launchFirst(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0")))
-}
 
 private fun Context.openVideo(apps: List<AppInfo>, onLaunchPackage: (String) -> Unit) {
     if (VIDEO_PACKAGES.any { launchPackage(it) }) return

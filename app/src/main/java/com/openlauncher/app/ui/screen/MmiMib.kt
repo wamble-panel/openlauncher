@@ -47,29 +47,6 @@ private val MibRailBg = Color(0xFF14171B)
 /** Left rail of the inner pages: Home, Radio, Media, Telephone, Navigation. */
 internal val MIB_RAIL = listOf("home" to MmiLine.HOME, "radio" to MmiLine.ANTENNA, "music" to MmiLine.NOTE, "phone" to MmiLine.CALL, "nav" to MmiLine.NAV_ARROW)
 
-@Composable
-internal fun MibRail(active: String?, onOpen: (String) -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.width(76.dp).fillMaxHeight().padding(top = 6.dp, bottom = 10.dp)) {
-        MIB_RAIL.forEach { (key, icon) ->
-            val on = key == active
-            Box(
-                Modifier.fillMaxWidth().weight(1f)
-                    .background(
-                        if (on) Brush.horizontalGradient(listOf(MibAccent.copy(alpha = 0.10f), MibAccent.copy(alpha = 0.32f)))
-                        else Brush.horizontalGradient(listOf(MibRailBg, Color(0xFF1C2025)))
-                    )
-                    .drawBehind {
-                        // Hairline between entries, and the accent edge on the active one.
-                        drawLine(MibLine.copy(alpha = 0.18f), Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx())
-                        drawLine(if (on) MibAccent else MibLine.copy(alpha = 0.25f), Offset(size.width, 0f), Offset(size.width, size.height), (if (on) 2.dp else 1.dp).toPx())
-                    }
-                    .pressable { onOpen(key) },
-                contentAlignment = Alignment.Center,
-            ) { MmiLineIcon(icon, if (on) MibAccent else Color.White, Modifier.size(30.dp)) }
-        }
-    }
-}
-
 /**
  * MIB page header: a small grey section name above a large white title, optional boxes
  * on the left (grid, source) and right, the back box at the far right, a thin line below.
