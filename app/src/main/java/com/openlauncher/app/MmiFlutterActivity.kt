@@ -129,6 +129,8 @@ class MmiFlutterActivity : FlutterActivity() {
                     "source" -> { car.source(arg<String>("key") ?: ""); result.success(null) }
                     "btGet" -> result.success(car.bt())
                     "carGet" -> result.success(carInfo())
+                    "vendorGet" -> result.success(VendorApps.list(this))
+                    "vendorOpen" -> { VendorApps.open(this, arg<String>("pkg") ?: ""); result.success(null) }
                     "ampGet" -> result.success(mapOf(
                         "balance" to com.openlauncher.app.util.Amplifier.balance(this),
                         "fader" to com.openlauncher.app.util.Amplifier.fader(this),

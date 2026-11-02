@@ -172,6 +172,7 @@ class _CategoryPageState extends State<CategoryPage> with Live<CategoryPage>, Se
           toggle('OpenGL ES graphics', 'gles', sub: 'try if pages stutter; used from the next start'),
           MibRow(label: 'Classic MMI', sub: 'switch back to the previous screens', trailing: MibToggle(value: false, onChanged: (_) => Bridge.call('classic'))),
           MibRow(label: 'Version', value: '${v('version', '')}'),
+          open('Vendor apps', 'vendor', icon: MibIcons.apps, sub: 'which ones MMI replaces; disable them one by one'),
           const _DevSend(),
         ],
       _ => <Widget>[],
@@ -207,5 +208,55 @@ class _DevSendState extends State<_DevSend> with Live<_DevSend> {
         refresh();
       },
     );
+  }
+}
+
+/// Settings · Vendor apps: every vendor app on the unit, whether MMI does its job
+/// yet, and a tap to Android's page for it (Disable there; it can be switched back).
+class VendorAppsPage extends StatefulWidget {
+  const VendorAppsPage({super.key});
+  @override
+  State<VendorAppsPage> createState() => _VendorAppsPageState();
+}
+
+class _VendorAppsPageState extends State<VendorAppsPage> with Live<VendorAppsPage> {
+  @override
+  String get liveMethod => 'vendorGet';
+  @override
+  Duration get liveEvery => const Duration(seconds: 3);
+
+  static const _label = {'safe': 'MMI replaces it', 'test': 'Test in the car first', 'keep': 'Keep for now'};
+  static const _color = {'safe': Color(0xFF5BD35B), 'test': Color(0xFFF0A030), 'keep': Color(0xFFA6A6A6)};
+
+  @override
+  Widget build(BuildContext context) {
+    final apps = ((live?['apps'] as List?) ?? const []).cast<Map<Object?, Object?>>();
+    return ListView(padding: const EdgeInsets.only(top: 8, bottom: 24), children: [
+      for (final a in apps)
+        Pressable(
+          onTap: () => Bridge.call('vendorOpen', {'pkg': a['pkg']}),
+          child: Container(
+            height: 84,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0x40FFFFFF)))),
+            child: Row(children: [
+              Container(width: 12, height: 12, decoration: BoxDecoration(shape: BoxShape.circle, color: _color[a['status']])),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('${a['name']}', style: Mib.text(26, color: a['enabled'] == true ? Mib.white : Mib.grey)),
+                  Text('${a['note']}', style: Mib.text(19, color: Mib.grey), maxLines: 1, overflow: TextOverflow.ellipsis),
+                ]),
+              ),
+              Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text(_label[a['status']] ?? '', style: Mib.text(20, color: _color[a['status']] ?? Mib.grey)),
+                Text(a['enabled'] == true ? 'On' : 'Disabled', style: Mib.text(19, color: Mib.grey)),
+              ]),
+              const SizedBox(width: 12),
+              const Icon(MibIcons.chevron_right, size: 32, color: Mib.white),
+            ]),
+          ),
+        ),
+    ]);
   }
 }

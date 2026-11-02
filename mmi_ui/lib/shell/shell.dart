@@ -39,7 +39,8 @@ enum MmiPage {
   system('Settings', 'System & updates', null),
   carinfo('Car', 'Car information', null),
   weather(null, 'Weather', null),
-  help(null, 'Help', null);
+  help(null, 'Help', null),
+  vendor('Settings', 'Vendor apps', null);
 
   const MmiPage(this.section, this.title, this.rail);
   final String? section;
@@ -293,6 +294,7 @@ class _MmiShellState extends State<MmiShell> {
       MmiPage.carinfo => const CarInfoPage(),
       MmiPage.weather => const WeatherPage(),
       MmiPage.help => HelpPage(onOpen: _openKey),
+      MmiPage.vendor => const VendorAppsPage(),
       _ => CategoryPage(category: _page.name, onOpen: _openKey),
     };
     return Padding(

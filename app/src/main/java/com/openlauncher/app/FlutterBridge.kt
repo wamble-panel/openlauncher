@@ -540,3 +540,53 @@ internal object Weather {
         )
     }
 }
+
+/**
+ * The vendor apps and whether MMI does their job yet, for removing them one by one.
+ * Status: "safe" (MMI replaces it), "test" (MMI replaces it; check in the car first),
+ * "keep" (MMI still needs it). Each row also says what is lost without it.
+ */
+internal object VendorApps {
+    private data class Row(val pkg: String, val name: String, val status: String, val note: String)
+
+    private val ROWS = listOf(
+        Row("com.dofun.variety", "Vendor home screen", "safe", "MMI is the home screen"),
+        Row("com.dofun.carassistant.car", "CarMate", "safe", "MMI Car information reads the same service"),
+        Row("com.dofun.dofunweather.main", "Weather", "safe", "MMI Weather"),
+        Row("com.tw.video", "Video", "safe", "Use any video app from Apps"),
+        Row("com.dofun.market", "DoFun store", "safe", "Only after ZLink is installed and sent to the developer"),
+        Row("com.tw.radio", "Radio", "test", "MMI is the whole radio; check tuning, names and car buttons first"),
+        Row("com.tw.radio.theme", "Radio theme", "test", "Pictures for the vendor radio; goes with it"),
+        Row("com.tw.eq", "EQ", "test", "MMI equaliser and balance / fader; check the sound first"),
+        Row("com.tw.music", "Music (USB)", "keep", "Plays USB / SD music; MMI has no USB player yet"),
+        Row("com.tw.bt", "Bluetooth", "keep", "Calls, phonebook and Bluetooth music"),
+        Row("com.zjinnova.zlink", "Tlink5 (ZLink)", "keep", "CarPlay and Android Auto engine"),
+        Row("com.tw.service", "TW service", "keep", "Car link; part of the system"),
+        Row("com.tw.service.xt", "XT service", "keep", "Command relay MMI uses (amplifier)"),
+        Row("com.tw.core", "TW core", "keep", "Car link; part of the system"),
+        Row("com.tw.coreservice", "TD service", "keep", "Car link; part of the system"),
+        Row("com.tw.carinfoservice", "Car Info Service", "keep", "Speed, rpm, lights for MMI"),
+        Row("com.tw.car", "Car settings (CAN)", "keep", "Decodes the Astra's CAN box"),
+        Row("com.tw.carchoose", "Car choose", "keep", "Which car / CAN box is fitted"),
+        Row("com.tw.keypad", "Steering wheel", "keep", "Steering-wheel key learning"),
+        Row("com.tw.reverse", "Reverse camera", "keep", "Camera picture when reversing"),
+        Row("com.tw.ac", "Air conditioning", "keep", "Climate pop-up and outside temperature"),
+        Row("com.dofun.carsetting", "Car settings", "keep", "Factory and car-type settings"),
+        Row("com.tw.auxin", "AUX", "keep", "Needed only if you use the AUX input"),
+        Row("com.tw.dvr", "Dash cam", "keep", "Needed only with a dash cam"),
+        Row("com.tw.tv", "TV", "keep", "Needed only with a TV tuner"),
+        Row("com.tw.rightview", "Right-side camera", "keep", "Needed only with a side camera"),
+    )
+
+    fun list(c: Context): Map<String, Any?> = mapOf("apps" to ROWS.mapNotNull { r ->
+        val info = runCatching { c.packageManager.getApplicationInfo(r.pkg, 0) }.getOrNull() ?: return@mapNotNull null
+        mapOf("pkg" to r.pkg, "name" to r.name, "status" to r.status, "note" to r.note, "enabled" to info.enabled)
+    })
+
+    /** Android's own page for the app, where it can be disabled (and enabled again). */
+    fun open(c: Context, pkg: String) = runCatching {
+        c.startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$pkg")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }
+}

@@ -17,6 +17,14 @@ Future<void> _fonts() async {
 }
 
 final _demo = <String, Object?>{
+  'vendorGet': {
+    'apps': [
+      {'pkg': 'com.dofun.variety', 'name': 'Vendor home screen', 'status': 'safe', 'note': 'MMI is the home screen', 'enabled': true},
+      {'pkg': 'com.tw.radio', 'name': 'Radio', 'status': 'test', 'note': 'MMI is the whole radio; check tuning, names and car buttons first', 'enabled': true},
+      {'pkg': 'com.tw.bt', 'name': 'Bluetooth', 'status': 'keep', 'note': 'Calls, phonebook and Bluetooth music', 'enabled': true},
+      {'pkg': 'com.tw.video', 'name': 'Video', 'status': 'safe', 'note': 'Use any video app from Apps', 'enabled': false},
+    ],
+  },
   'ampGet': {'balance': 9, 'fader': 9, 'chip': 'other'},
   'carGet': {'speed': 0, 'rpm': 820, 'voltage': 14.1, 'coolant': 88, 'oilLife': 72, 'range': 412, 'consumption': 7.4, 'outside': 27, 'tyres': [230, 230, 220, 220]},
   'weatherGet': {
