@@ -27,6 +27,11 @@ class CarApp : Application() {
             com.openlauncher.app.util.Climate.init(this)
             // MMI's own link to the car library (switches itself off if not allowed).
             com.openlauncher.app.util.CarCore.start()
+            // Car Info Service (speed, rpm, lights…), the vendor command relay (amplifier)
+            // and the CarPlay / Android Auto engine, so a phone can connect at once.
+            com.openlauncher.app.util.CarInfoLink.start(this)
+            com.openlauncher.app.util.VendorCommand.start(this)
+            com.openlauncher.app.util.PhoneLink.startEngine(this)
             // Only restarts MMI for an update while the car stands still.
             com.openlauncher.app.util.AppUpdater.startBackground(this) {
                 (com.openlauncher.app.util.CarLocation.get(this).location.value?.speedMps ?: 0f) < 0.5f

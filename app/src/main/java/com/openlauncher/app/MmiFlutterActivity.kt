@@ -105,6 +105,23 @@ class MmiFlutterActivity : FlutterActivity() {
                     "source" -> { car.source(arg<String>("key") ?: ""); result.success(null) }
                     "btGet" -> result.success(car.bt())
                     "carGet" -> result.success(carInfo())
+                    "ampGet" -> result.success(mapOf(
+                        "balance" to com.openlauncher.app.util.Amplifier.balance(this),
+                        "fader" to com.openlauncher.app.util.Amplifier.fader(this),
+                        "chip" to com.openlauncher.app.util.Amplifier.chip(this),
+                    ))
+                    "ampSet" -> {
+                        arg<String>("chip")?.let { com.openlauncher.app.util.Amplifier.setChip(this, it) }
+                        val ok = com.openlauncher.app.util.Amplifier.setBalanceFader(
+                            this, arg<Int>("balance") ?: 9, arg<Int>("fader") ?: 9,
+                        )
+                        result.success(ok)
+                    }
+                    "aux" -> {
+                        result.success(car.launch("pkg:com.tw.auxin") || runCatching {
+                            startActivity(Intent().setClassName("com.tw.auxin", "com.tw.auxin.AuxInActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true
+                        }.getOrDefault(false))
+                    }
                     "devSend" -> {
                         val app = applicationContext
                         com.openlauncher.app.util.DevUpload.start(app) {
@@ -221,7 +238,7 @@ class MmiFlutterActivity : FlutterActivity() {
             "weather" -> car.launch("weather")
             "video" -> car.launch("video")
             // Phone Link: CarPlay / Android Auto (the unit's ZLink engine, no vendor screens first).
-            "phonelink" -> car.launch("pkg:com.zjinnova.zlink") || car.launch("pkg:" + (packageManager.getInstalledApplications(0)
+            "phonelink" -> com.openlauncher.app.util.PhoneLink.open(this) || car.launch("pkg:" + (packageManager.getInstalledApplications(0)
                 .firstOrNull { a -> listOf("zlink", "carlink", "autokit", "easyconnect", "phonelink").any { a.packageName.contains(it, true) } }?.packageName ?: ""))
             else -> false
         }

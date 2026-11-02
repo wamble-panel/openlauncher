@@ -29,7 +29,38 @@ class _SoundPageState extends State<SoundPage> {
     _load();
   }
 
+  // Balance (0 left … 18 right) and fader (0 front … 18 rear), 9 = centre.
+  int _bal = 9, _fad = 9;
+
+  void _place(Offset p, Size size) => setState(() {
+        _bal = (p.dx / size.width * 18).round().clamp(0, 18);
+        _fad = (p.dy / size.height * 18).round().clamp(0, 18);
+      });
+
+  void _step(int dx, int dy) {
+    setState(() {
+      _bal = (_bal + dx).clamp(0, 18);
+      _fad = (_fad + dy).clamp(0, 18);
+    });
+    _sendAmp();
+  }
+
+  void _sendAmp() => Bridge.call('ampSet', {'balance': _bal, 'fader': _fad});
+
+  Widget _arrow(double left, double top, IconData icon, VoidCallback onTap) => Positioned(
+        left: left - 8,
+        top: top - 8,
+        child: Pressable(onTap: onTap, child: Padding(padding: const EdgeInsets.all(8), child: Icon(icon, size: 32, color: const Color(0xCCFFFFFF)))),
+      );
+
   Future<void> _load() async {
+    final amp = await Bridge.call<Map<Object?, Object?>>('ampGet');
+    if (amp != null && mounted) {
+      setState(() {
+        _bal = (amp['balance'] as num).toInt();
+        _fad = (amp['fader'] as num).toInt();
+      });
+    }
     final m = await Bridge.call<Map<Object?, Object?>>('eqGet');
     if (m == null || !mounted) return;
     setState(() {
@@ -122,10 +153,36 @@ class _SoundPageState extends State<SoundPage> {
                 blendMode: BlendMode.dstIn,
                 child: Image.asset('assets/images/sound_seats.webp', fit: BoxFit.contain),
               )),
-            const Positioned(left: 100, top: 100, child: Icon(MibIcons.chevron_left, size: 32, color: Color(0x88FFFFFF))),
-            const Positioned(left: 296, top: 100, child: Icon(MibIcons.chevron_right, size: 32, color: Color(0x88FFFFFF))),
-            const Positioned(left: 197, top: 34, child: Icon(MibIcons.expand_less, size: 32, color: Color(0x88FFFFFF))),
-            const Positioned(left: 197, top: 168, child: Icon(MibIcons.expand_more, size: 32, color: Color(0x88FFFFFF))),
+            // Where the sound is centred: drag the dot over the seats, or tap the arrows.
+            Positioned(
+              left: 147, top: 60, width: 133, height: 112,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onPanUpdate: (d) => _place(d.localPosition, const Size(133, 112)),
+                onTapDown: (d) => _place(d.localPosition, const Size(133, 112)),
+                onPanEnd: (_) => _sendAmp(),
+                onTapUp: (_) => _sendAmp(),
+                child: Stack(children: [
+                  Positioned(
+                    left: 133 * _bal / 18 - 9,
+                    top: 112 * _fad / 18 - 9,
+                    child: Container(
+                      width: 18,
+                      height: 18,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Mib.white,
+                        boxShadow: [BoxShadow(color: Color(0x88000000), blurRadius: 4)],
+                      ),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+            _arrow(100, 100, MibIcons.chevron_left, () => _step(-1, 0)),
+            _arrow(296, 100, MibIcons.chevron_right, () => _step(1, 0)),
+            _arrow(197, 34, MibIcons.expand_less, () => _step(0, -1)),
+            _arrow(197, 168, MibIcons.expand_more, () => _step(0, 1)),
           ]),
         ),
       ),

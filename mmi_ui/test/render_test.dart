@@ -17,7 +17,8 @@ Future<void> _fonts() async {
 }
 
 final _demo = <String, Object?>{
-  'carGet': {'voltage': 14.1, 'coolant': 88, 'oilLife': 72, 'range': 412, 'consumption': 7.4, 'outside': 27, 'tyres': [230, 230, 220, 220]},
+  'ampGet': {'balance': 9, 'fader': 9, 'chip': 'other'},
+  'carGet': {'speed': 0, 'rpm': 820, 'voltage': 14.1, 'coolant': 88, 'oilLife': 72, 'range': 412, 'consumption': 7.4, 'outside': 27, 'tyres': [230, 230, 220, 220]},
   'weatherGet': {
     'place': 'Nasr City', 'temp': 27, 'code': 1, 'wind': 14, 'hi': 31, 'lo': 19, 'updated': '12:30',
     'days': [

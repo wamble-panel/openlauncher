@@ -37,7 +37,17 @@ class _CarInfoPageState extends State<CarInfoPage> with Live<CarInfoPage> {
               _Info(MibIcons.oil_barrel, 'Oil life', f('oilLife', (v) => '${v.round()} %')),
             ]),
           ),
-          Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Image.asset('assets/images/boot_car.webp', fit: BoxFit.contain))),
+          Expanded(
+            child: Column(children: [
+              Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Image.asset('assets/images/boot_car.webp', fit: BoxFit.contain))),
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                _Big(f('speed', (v) => '${v.round()}') ?? '--', 'km/h'),
+                const SizedBox(width: 60),
+                _Big(f('rpm', (v) => '${v.round()}') ?? '--', 'rpm'),
+              ]),
+              if (live?['handbrake'] == true) Text('Handbrake on', style: Mib.text(21, color: const Color(0xFFE5484D))),
+            ]),
+          ),
           SizedBox(
             width: 250,
             child: Column(children: [
@@ -87,4 +97,14 @@ class _Info extends StatelessWidget {
           ),
         ]),
       );
+}
+
+class _Big extends StatelessWidget {
+  const _Big(this.value, this.unit);
+  final String value, unit;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Text(value, style: Mib.text(44, height: 1.0)),
+        Text(unit, style: Mib.text(19, color: Mib.grey)),
+      ]);
 }

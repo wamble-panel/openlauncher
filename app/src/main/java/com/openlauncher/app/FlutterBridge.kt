@@ -438,13 +438,18 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
 /** Car information for the Flutter Car page (CAN box values; null when not sent). */
 internal fun carInfo(): Map<String, Any?> {
     val car = com.openlauncher.app.util.CarCore.data.value
+    val info = com.openlauncher.app.util.CarInfoLink.info.value
     return mapOf(
-        "voltage" to car.voltage?.toDouble(),
+        "speed" to (info.speedKmh ?: car.speedKmh),
+        "rpm" to info.rpm,
+        "handbrake" to info.handbrake,
+        "headlights" to info.headlights,
+        "voltage" to (car.voltage ?: info.voltage)?.toDouble(),
         "coolant" to car.coolantC,
         "oilLife" to car.oilLifePct,
         "range" to car.rangeKm,
         "consumption" to car.avgConsumption?.toDouble(),
-        "outside" to com.openlauncher.app.util.Climate.state.value.outdoor?.toDouble(),
+        "outside" to (com.openlauncher.app.util.Climate.state.value.outdoor ?: info.outsideC)?.toDouble(),
         "tyres" to car.tyresKpa,
         "doors" to com.openlauncher.app.util.CarCore.doorsText(car.doors)?.lowercase(),
     )

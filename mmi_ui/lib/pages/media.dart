@@ -275,6 +275,7 @@ class _SourcePageState extends State<SourcePage> with Live<SourcePage> {
         };
     return ListView(padding: const EdgeInsets.only(top: 12), children: [
       MibRow(label: 'Radio', icon: MibIcons.cell_tower, onTap: () => widget.onOpen('radio')),
+      MibRow(label: 'AUX input', icon: MibIcons.headphones, onTap: () => Bridge.call('aux')),
       for (final s in list)
         MibRow(
           label: '${s['label']}',
