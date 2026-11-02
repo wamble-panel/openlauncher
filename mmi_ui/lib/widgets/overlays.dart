@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
-import '../perf.dart';
 import '../theme/mib.dart';
 import '../theme/mib_icons.dart';
 
@@ -172,7 +171,7 @@ class Fade extends StatelessWidget {
   @override
   Widget build(BuildContext context) => IgnorePointer(
         ignoring: !visible,
-        child: AnimatedOpacity(opacity: visible ? 1 : 0, duration: Perf.d(visible ? 180 : 300), child: child),
+        child: AnimatedOpacity(opacity: visible ? 1 : 0, duration: Duration(milliseconds: visible ? 180 : 300), child: child),
       );
 }
 

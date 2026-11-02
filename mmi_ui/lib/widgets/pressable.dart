@@ -2,7 +2,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../bridge.dart';
-import '../perf.dart';
 
 /// Touch that feels like glass: a soft press-in, a light sheen from the finger that
 /// fades, and the glass tap sound. Every Pressable is also a knob stop: turning the
@@ -83,9 +82,9 @@ class _PressableState extends State<Pressable>
         builder: (context, child) {
           final g = _press.value;
           return Transform.scale(
-            scale: 1 - 0.035 * g * (Perf.motion > 0 ? 1 : 0),
+            scale: 1 - 0.035 * g,
             child: CustomPaint(
-              foregroundPainter: (g > 0.01 && Perf.effects) || _focused ? _Sheen(_at, Perf.effects ? g : 0, _focused, widget.radius)
+              foregroundPainter: g > 0.01 || _focused ? _Sheen(_at, g, _focused, widget.radius)
                   : null,
               child: child,
             ),

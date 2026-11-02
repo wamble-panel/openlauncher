@@ -9,7 +9,6 @@ void main() {
   // Picture cache sized for a 2 GB unit (Flutter's default is 100 MB).
   PaintingBinding.instance.imageCache.maximumSizeBytes = 32 << 20;
   FrameMonitor.start();
-  Perf.load();
   final uri = Uri.parse(PlatformDispatcher.instance.defaultRouteName);
   final page = uri.path.replaceFirst('/', '');
   runApp(MmiApp(initialPage: page.isEmpty ? 'home' : page, splash: uri.queryParameters['splash'] == '1'));
