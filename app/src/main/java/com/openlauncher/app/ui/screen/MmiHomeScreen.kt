@@ -412,7 +412,7 @@ fun MmiHomeScreen(
                     MmiPage.PERMISSIONS -> MmiPermissionsPage()
                     MmiPage.CLEANUP -> MmiCleanupPage()
                     MmiPage.STORAGE -> MmiStoragePage()
-                    MmiPage.SOUND -> MmiSoundPage(apps, onLaunchPackage)
+                    MmiPage.SOUND -> MibSoundPage()
                     MmiPage.BLUETOOTH -> MmiBluetoothPage(apps, onLaunchPackage, startPairing = pairOnOpen)
                     MmiPage.BT_HUB -> MmiBluetoothHub(
                         onTelephone = { page = MmiPage.PHONE },
@@ -432,7 +432,7 @@ fun MmiHomeScreen(
                             else -> MmiPage.HOME
                         }
                     }
-                    MmiPage.EQ -> MmiEqualiserPage()
+                    MmiPage.EQ -> MibSoundPage()
                     MmiPage.MUSIC -> MmiMusicPage(
                         state = nowPlaying,
                         onPlayPause = playPause, onNext = next, onPrev = prev,

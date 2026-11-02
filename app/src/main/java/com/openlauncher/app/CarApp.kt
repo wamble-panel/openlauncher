@@ -22,6 +22,7 @@ class CarApp : Application() {
         android.os.Looper.myQueue().addIdleHandler {
             NavigationEngine.init(this)
             CarAudio.init(this)
+            com.openlauncher.app.util.SpeedVolume.init(this)
             BtConnect.init(this)
             com.openlauncher.app.util.Climate.init(this)
             // MMI's own link to the car library (switches itself off if not allowed).
