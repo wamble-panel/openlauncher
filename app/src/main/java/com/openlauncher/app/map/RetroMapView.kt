@@ -50,6 +50,10 @@ class RetroMapView(context: Context) : GLSurfaceView(context) {
 
     private val renderer = Renderer()
 
+    /** Live performance figures (fps, draw time, worst frame, last road build), for the readout and logs. */
+    @Volatile var stats: String = ""
+        private set
+
     init {
         setEGLContextClientVersion(2)
         preserveEGLContextOnPause = true
@@ -169,7 +173,34 @@ class RetroMapView(context: Context) : GLSurfaceView(context) {
             GLES20.glViewport(0, 0, width, height)
         }
 
+        private var statFrames = 0
+        private var statDrawNs = 0L
+        private var statWorstMs = 0L
+        private var statStart = 0L
+        private var lastBuildMs = 0L
+        private var vertices = 0
+
         override fun onDrawFrame(gl: GL10?) {
+            val t0 = System.nanoTime()
+            drawFrame()
+            val t1 = System.nanoTime()
+            val nowMs = SystemClock.uptimeMillis()
+            if (statStart == 0L) statStart = nowMs
+            statFrames++
+            statDrawNs += t1 - t0
+            if (lastFrame != 0L) statWorstMs = maxOf(statWorstMs, nowMs - prevFrameAt)
+            prevFrameAt = nowMs
+            if (nowMs - statStart >= 2000) {
+                val secs = (nowMs - statStart) / 1000f
+                stats = "%.0f fps · draw %.1f ms · worst %d ms · roads %d ms · %dk verts".format(
+                    statFrames / secs, statDrawNs / 1e6 / statFrames, statWorstMs, lastBuildMs, vertices / 1000,
+                )
+                statFrames = 0; statDrawNs = 0; statWorstMs = 0; statStart = nowMs
+            }
+        }
+        private var prevFrameAt = 0L
+
+        private fun drawFrame() {
             val now = SystemClock.uptimeMillis()
             val dt = if (lastFrame == 0L) 0.016 else ((now - lastFrame) / 1000.0).coerceIn(0.0, 0.1)
             lastFrame = now
@@ -346,7 +377,9 @@ class RetroMapView(context: Context) : GLSurfaceView(context) {
             val graph = NavigationEngine.roads ?: return
             building = true
             builder.execute {
+                val t = SystemClock.uptimeMillis()
                 val built = runCatching { buildRoads(graph, lat, lon) }.getOrNull()
+                lastBuildMs = SystemClock.uptimeMillis() - t
                 builtRoads = built
                 building = false
                 wake()
@@ -399,6 +432,7 @@ class RetroMapView(context: Context) : GLSurfaceView(context) {
             GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, roadVbo)
             GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, b.data.size * 4, floats(b.data), GLES20.GL_STATIC_DRAW)
             tierStart = b.start; tierCount = b.count
+            vertices = b.data.size / FLOATS
             haveRoads = true
             routeShown = -1 // the route is in the old origin's metres
         }

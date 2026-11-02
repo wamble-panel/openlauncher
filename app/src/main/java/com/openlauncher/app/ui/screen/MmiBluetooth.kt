@@ -357,17 +357,15 @@ private fun DeviceRow(d: BtDevice, selected: Boolean, onClick: () -> Unit, trail
     Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF1E2125)))
 }
 
+/** Searching: a thin ring with a bright arc turning smoothly, as in the design. */
 @Composable
 private fun SearchingDots() {
     val t = rememberInfiniteTransition(label = "search")
-    val phase by t.animateFloat(0f, 3f, infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Restart), label = "dots")
-    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        repeat(3) { i ->
-            Box(
-                Modifier.size(6.dp).graphicsLayer { alpha = if (phase.toInt() == i) 1f else 0.3f }
-                    .clip(CircleShape).background(MmiCyan),
-            )
-        }
+    val turn by t.animateFloat(0f, 360f, infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart), label = "spin")
+    androidx.compose.foundation.Canvas(Modifier.size(40.dp).padding(4.dp)) {
+        val w = 3.dp.toPx()
+        drawArc(Color(0x40FFFFFF), 0f, 360f, false, style = androidx.compose.ui.graphics.drawscope.Stroke(w))
+        drawArc(Color.White, turn, 90f, false, style = androidx.compose.ui.graphics.drawscope.Stroke(w, cap = androidx.compose.ui.graphics.StrokeCap.Round))
     }
 }
 

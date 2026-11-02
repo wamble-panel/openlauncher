@@ -311,11 +311,35 @@ private fun NavMap(
         val panel = Modifier.background(Color(0xF0000000)).border(1.5.dp, Brush.verticalGradient(listOf(Color(0x88FFFFFF), Color(0xCCFFFFFF))), RectangleShape)
         val divider: @Composable () -> Unit = { Box(Modifier.width(1.5.dp).height(36.dp).background(Color(0x99FFFFFF))) }
 
-        // Top left: next turn (arrow | distance and street).
+        // Performance readout (temporary, while the map is being rebuilt): also written to the
+        // car check-up log every 10 s so a drive shows where any lag comes from.
+        var perf by remember { mutableStateOf("") }
+        LaunchedEffect(map) {
+            var n = 0
+            while (true) {
+                delay(1000)
+                perf = map.stats
+                if (++n % 10 == 0 && perf.isNotEmpty()) com.openlauncher.app.util.TwBridge.log("MAP $perf · ${nav.speedKmh.roundToInt()} km/h")
+            }
+        }
+        if (perf.isNotEmpty()) {
+            Text(
+                perf, color = Color(0xFF8A8A8A), fontFamily = MmiFont, fontSize = 13.sp,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp),
+            )
+        }
+
+        // Top left: back to where you came from (home).
+        Box(
+            Modifier.align(Alignment.TopStart).padding(start = 20.dp, top = 24.dp).size(76.dp, 63.dp).then(panel).pressable { onOpenPage("home") },
+            contentAlignment = Alignment.Center,
+        ) { MmiLineIcon(MmiLine.RETURN, Color.White, Modifier.size(38.dp)) }
+
+        // Next turn (arrow | distance and street), under the back box.
         if (destination != null) {
             val next = nav.next
             Row(
-                Modifier.align(Alignment.TopStart).padding(start = 20.dp, top = 24.dp).width(456.dp).height(127.dp).then(panel),
+                Modifier.align(Alignment.TopStart).padding(start = 20.dp, top = 100.dp).width(456.dp).height(127.dp).then(panel),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val type = when { nav.arrived -> ManeuverType.ARRIVE; next != null -> next.type; else -> ManeuverType.STRAIGHT }
@@ -461,10 +485,12 @@ private fun NavMap(
         // Bottom right: speed limit and speed.
         if (here != null) {
             Row(
-                Modifier.align(Alignment.BottomEnd).padding(end = 21.dp, bottom = 36.dp).width(247.dp).height(87.dp).then(panel).padding(horizontal = 12.dp),
+                Modifier.align(Alignment.BottomEnd).padding(end = 21.dp, bottom = 36.dp).width(if (nav.speedLimit > 0) 247.dp else 190.dp).height(87.dp).then(panel).padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (nav.speedLimit > 0) SpeedLimitSign(nav.speedLimit, Modifier.size(68.dp)) else Spacer(Modifier.size(68.dp))
+                if (nav.speedLimit > 0) {
+                    SpeedLimitSign(nav.speedLimit, Modifier.size(68.dp))
+                }
                 Spacer(Modifier.weight(1f))
                 val speed = if (metric) nav.speedKmh else nav.speedKmh / 1.609f
                 Text("${speed.roundToInt()}", color = if (nav.overspeed) Color(0xFFFF5252) else Color.White, fontFamily = MmiFont, fontSize = 42.sp)
