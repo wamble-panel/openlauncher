@@ -110,7 +110,12 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME)) {
             // Home with the new MMI switched on: back to the Flutter home.
-            if (MmiFlutterActivity.isOn(this)) { MmiFlutterActivity.start(this); return }
+            if (MmiFlutterActivity.isOn(this)) {
+                MmiFlutterActivity.start(this)
+                // The classic screens aren't needed behind the new ones: free their memory.
+                finish()
+                return
+            }
             homeSignal.value++
         }
         intent.getStringExtra("flutter_page")?.let { MmiFlutterActivity.start(this, it); return }
@@ -125,6 +130,10 @@ class MainActivity : ComponentActivity() {
         if (flutterPage != null || (MmiFlutterActivity.isOn(this) && intent?.hasExtra("mmi_page") != true)) {
             MmiFlutterActivity.start(this, flutterPage ?: "home")
             splashShown = true // the new screens show their own start-up screen
+            // Only a hand-over: don't build the classic screens at all (saves RAM and start-up
+            // time on the 2 GB unit). They are built only when a classic page is asked for.
+            finish()
+            return
         }
         intent?.getStringExtra("mmi_page")?.let { pageRequest.value = it; splashShown = true }
         hideSystemBars()
