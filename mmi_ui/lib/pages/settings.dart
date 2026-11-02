@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import '../bridge.dart';
 import '../live.dart';
+import '../perf.dart';
 import '../theme/mib.dart';
 import '../theme/mib_icons.dart';
 import '../widgets/mib_widgets.dart';
@@ -172,6 +173,7 @@ class _CategoryPageState extends State<CategoryPage> with Live<CategoryPage>, Se
           toggle('OpenGL ES graphics', 'gles', sub: 'try if pages stutter; used from the next start'),
           MibRow(label: 'Classic MMI', sub: 'switch back to the previous screens', trailing: MibToggle(value: false, onChanged: (_) => Bridge.call('classic'))),
           MibRow(label: 'Version', value: '${v('version', '')}'),
+          open('Performance', 'performance', icon: MibIcons.speed, sub: 'Auto / Smooth / Balanced / Eco, animations, effects, heat protection'),
           open('Unit health', 'health', icon: MibIcons.device_thermostat, sub: 'chip temperatures, speed and memory'),
           open('Vendor apps', 'vendor', icon: MibIcons.apps, sub: 'which ones MMI replaces; disable them one by one'),
           const _DevSend(),
@@ -313,6 +315,7 @@ class _HealthPageState extends State<HealthPage> with Live<HealthPage> {
       if (live?['gpuMhz'] != null) MibRow(label: 'GPU speed', value: '${live!['gpuMhz']} MHz', sub: 'PowerVR GE8300'),
       MibRow(label: 'Memory free', value: '$free of $total MB', sub: 'MMI uses ${live?['mmiMb'] ?? '--'} MB'),
       MibRow(label: 'On for', value: '${live?['uptimeMin'] ?? '--'} min'),
+      _Smoothness(),
     ]);
   }
 }
@@ -343,6 +346,72 @@ class _Gauge extends StatelessWidget {
           ),
         ),
       ]),
+    );
+  }
+}
+
+/// Settings · Performance: how much MMI asks of the A133, and how it adapts to heat.
+class PerformancePage extends StatefulWidget {
+  const PerformancePage({super.key});
+  @override
+  State<PerformancePage> createState() => _PerformancePageState();
+}
+
+class _PerformancePageState extends State<PerformancePage> {
+  static const _modes = ['auto', 'smooth', 'balanced', 'eco'];
+  static const _anims = ['mode', 'full', 'reduced', 'off'];
+
+  void _changed() => setState(() {});
+
+  @override
+  void initState() {
+    super.initState();
+    Perf.changes.addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    Perf.changes.removeListener(_changed);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = Perf.effective;
+    final about = switch (Perf.mode) {
+      'smooth' => 'Full animations and glass effects all the time.',
+      'balanced' => 'Shorter animations; effects on. A good fit for the A133.',
+      'eco' => 'Minimal animations and flat panels: least work for the chip, coolest running.',
+      _ => 'Full when the chip is cool, lighter when warm, minimal when hot. Now: ${now[0].toUpperCase()}${now.substring(1)}.',
+    };
+    return SettingsList(children: [
+      const MibCaption('Mode', top: 6),
+      MibSegmented(options: const ['Auto', 'Smooth', 'Balanced', 'Eco'], selected: _modes.indexOf(Perf.mode).clamp(0, 3), onSelect: (i) => Perf.set('mode', _modes[i])),
+      Padding(padding: const EdgeInsets.fromLTRB(10, 10, 10, 6), child: Text(about, style: Mib.text(21, color: Mib.grey))),
+      const MibCaption('Animations', top: 14),
+      MibSegmented(options: const ['By mode', 'Full', 'Reduced', 'Off'], selected: _anims.indexOf(Perf.animations).clamp(0, 3), onSelect: (i) => Perf.set('animations', _anims[i])),
+      const SizedBox(height: 14),
+      MibRow(label: 'Glass and glow effects', sub: 'off in Eco', trailing: MibToggle(value: Perf.effectsSetting, onChanged: (v) => Perf.set('effects', v))),
+      MibRow(label: 'Heat protection', sub: 'Auto mode gets lighter as the chip heats up', trailing: MibToggle(value: Perf.thermalProtection, onChanged: (v) => Perf.set('thermal', v))),
+    ]);
+  }
+}
+
+/// Smoothness measured on this unit over the last 10 seconds of movement.
+class _Smoothness extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final s = FrameMonitor.stats();
+    final frames = s['frames'] ?? 0;
+    if (frames < 10) {
+      return const MibRow(label: 'Smoothness', value: 'move something', sub: 'swipe Home or drag a slider, then look again');
+    }
+    final slow = (s['slowPct'] ?? 0).toDouble();
+    final verdict = slow < 3 ? 'Smooth' : slow < 12 ? 'Mostly smooth' : 'Stuttering';
+    return MibRow(
+      label: 'Smoothness',
+      value: '$verdict · ${slow.toStringAsFixed(0)} % slow frames',
+      sub: 'average ${(s['avgMs'] ?? 0).toStringAsFixed(1)} ms per frame, worst ${(s['worstMs'] ?? 0).toStringAsFixed(0)} ms (16.7 ms = 60 fps)',
     );
   }
 }

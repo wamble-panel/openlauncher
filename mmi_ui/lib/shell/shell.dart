@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
 import '../bridge.dart';
+import '../perf.dart';
 import '../theme/mib.dart';
 import '../theme/mib_icons.dart';
 import '../widgets/pressable.dart';
@@ -43,7 +44,8 @@ enum MmiPage {
   help(null, 'Help', null),
   vendor('Settings', 'Vendor apps', null),
   equaliser('Sound', 'Equaliser', null),
-  health('Settings', 'Unit health', null);
+  health('Settings', 'Unit health', null),
+  performance('Settings', 'Performance', null);
 
   const MmiPage(this.section, this.title, this.rail);
   final String? section;
@@ -84,6 +86,7 @@ class _MmiShellState extends State<MmiShell> {
   @override
   void initState() {
     super.initState();
+    Perf.changes.addListener(_perfChanged);
     Bridge.listen((call) async {
       switch (call.method) {
         case 'key':
@@ -104,6 +107,12 @@ class _MmiShellState extends State<MmiShell> {
           Bridge.changes.add('${call.arguments}');
         case 'splash':
           setState(() => _splash = true);
+        case 'thermal':
+          Perf.setHeat((call.arguments as num).toInt());
+        case 'trim':
+          // Android is short of memory: drop decoded pictures (they reload when shown).
+          PaintingBinding.instance.imageCache.clear();
+          PaintingBinding.instance.imageCache.clearLiveImages();
         case 'page':
           _openKey('${call.arguments}');
       }
@@ -111,8 +120,11 @@ class _MmiShellState extends State<MmiShell> {
     });
   }
 
+  void _perfChanged() => setState(() {});
+
   @override
   void dispose() {
+    Perf.changes.removeListener(_perfChanged);
     _volumeHide.cancel();
     _scope.dispose();
     super.dispose();
@@ -248,8 +260,8 @@ class _MmiShellState extends State<MmiShell> {
             right: 0,
             bottom: 0,
             child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 260),
-              reverseDuration: const Duration(milliseconds: 160),
+              duration: Perf.d(260),
+              reverseDuration: Perf.d(160),
               switchInCurve: Curves.easeOutCubic,
               child: KeyedSubtree(key: ValueKey(key), child: RepaintBoundary(child: _call != null ? InCallPage(call: _call!) : _pageView())),
             ),
@@ -302,6 +314,7 @@ class _MmiShellState extends State<MmiShell> {
       MmiPage.help => HelpPage(onOpen: _openKey),
       MmiPage.vendor => const VendorAppsPage(),
       MmiPage.health => const HealthPage(),
+      MmiPage.performance => const PerformancePage(),
       _ => CategoryPage(category: _page.name, onOpen: _openKey),
     };
     return Padding(

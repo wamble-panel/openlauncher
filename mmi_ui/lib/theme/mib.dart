@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import '../perf.dart';
 
 /// The MMI look: pure black, white Roboto Regular, grey secondary text, thin
 /// fading lines. Sizes on the 1280 × 800 screen are logical pixels (1 : 1 at mdpi).
@@ -15,7 +16,9 @@ class Mib {
       TextStyle(fontFamily: 'Roboto', fontSize: size, color: color, fontWeight: weight, height: height, decoration: TextDecoration.none);
 
   /// Frosted panel from the designs: faint light gradient, outline brighter at the top.
-  static BoxDecoration glass({double radius = 6}) => BoxDecoration(
+  static BoxDecoration glass({double radius = 6}) => !Perf.effects
+      ? BoxDecoration(borderRadius: BorderRadius.circular(radius), color: const Color(0xFF0E0E0E), border: Border.all(color: const Color(0x3AFFFFFF)))
+      : BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
         gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0x14FFFFFF), Color(0x05FFFFFF)]),
         border: Border.all(color: const Color(0x3AFFFFFF)),

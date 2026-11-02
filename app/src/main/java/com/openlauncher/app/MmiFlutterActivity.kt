@@ -151,6 +151,25 @@ class MmiFlutterActivity : FlutterActivity() {
                     "carGet" -> result.success(carInfo())
                     "carStream" -> { com.openlauncher.app.util.CarInfoLink.stream(arg<Boolean>("on") == true); result.success(null) }
                     "vendorGet" -> result.success(VendorApps.list(this))
+                    "perfGet" -> {
+                        val pp = getSharedPreferences("mmi_perf", Context.MODE_PRIVATE)
+                        result.success(mapOf(
+                            "mode" to pp.getString("mode", "auto"),
+                            "animations" to pp.getString("animations", "mode"),
+                            "effects" to pp.getBoolean("effects", true),
+                            "thermal" to pp.getBoolean("thermal", true),
+                            "heat" to heatLevel,
+                        ))
+                    }
+                    "perfSet" -> {
+                        val e = getSharedPreferences("mmi_perf", Context.MODE_PRIVATE).edit()
+                        when (val v = call.argument<Any>("value")) {
+                            is Boolean -> e.putBoolean(arg<String>("key") ?: "", v)
+                            is String -> e.putString(arg<String>("key") ?: "", v)
+                        }
+                        e.apply()
+                        result.success(null)
+                    }
                     "healthGet" -> scope.launch {
                         result.success(kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { UnitHealth.get(this@MmiFlutterActivity) })
                     }
@@ -225,6 +244,25 @@ class MmiFlutterActivity : FlutterActivity() {
         push("radio", kotlinx.coroutines.flow.combine(TwBridge.radio, com.openlauncher.app.util.CarCore.radio) { a, b -> a to b }, 250)
         push("calls", TwBridge.call.map { it.state })
         push("car", kotlinx.coroutines.flow.combine(com.openlauncher.app.util.CarCore.data, com.openlauncher.app.util.CarInfoLink.info) { a, b -> a to b }, 1000)
+        // The chip's temperature every 30 s (one small file read): Auto performance mode
+        // gets lighter when the A133 is warm (85 C) or hot (100 C, datasheet max 110 C).
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            while (true) {
+                val c = cpuTemperature()
+                val level = when {
+                    c == null -> 0
+                    c >= 100 -> 2
+                    c >= 85 -> if (heatLevel == 2 && c >= 95) 2 else 1   // a little hysteresis
+                    c >= 80 && heatLevel >= 1 -> 1
+                    else -> 0
+                }
+                if (level != heatLevel) {
+                    heatLevel = level
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { ch.invokeMethod("thermal", level) }
+                }
+                kotlinx.coroutines.delay(30_000)
+            }
+        }
         // Speed camera ahead, on every page (also without the map).
         scope.launch {
             com.openlauncher.app.map.NavigationEngine.state
@@ -283,6 +321,20 @@ class MmiFlutterActivity : FlutterActivity() {
     }
 
     private var volumeReceiver: android.content.BroadcastReceiver? = null
+
+    // Android is short of memory: the screens drop their decoded pictures.
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) channel?.invokeMethod("trim", null)
+    }
+
+    /** The hottest CPU sensor in °C, or null when the unit hides it. */
+    private fun cpuTemperature(): Double? = java.io.File("/sys/class/thermal").listFiles { f -> f.name.startsWith("thermal_zone") }
+        ?.mapNotNull { z ->
+            val type = runCatching { java.io.File(z, "type").readText().trim().lowercase() }.getOrDefault("")
+            if (!type.contains("cpu") && !type.contains("soc")) return@mapNotNull null
+            runCatching { java.io.File(z, "temp").readText().trim().toDouble() }.getOrNull()?.let { if (it > 1000) it / 1000 else it }
+        }?.maxOrNull()
 
     override fun onDestroy() {
         volumeReceiver?.let { runCatching { unregisterReceiver(it) } }
@@ -351,6 +403,7 @@ class MmiFlutterActivity : FlutterActivity() {
         /** True while the new screens are in front (the classic shell then ignores the car's keys). */
         @Volatile var resumed = false
             private set
+        @Volatile var heatLevel = 0
         private var splashShown = false
 
         private val CLASSIC_PAGES = mapOf(
