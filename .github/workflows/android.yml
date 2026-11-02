@@ -161,7 +161,7 @@ jobs:
           arch: x86_64
           target: default
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -skin 1280x800
           disable-animations: false
           script: |
             adb shell wm size 1280x800
