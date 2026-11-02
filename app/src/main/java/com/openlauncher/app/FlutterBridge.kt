@@ -60,6 +60,7 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
             "voice" to NavigationEngine.state.value.voiceOn,
             "callBar" to TwBridge.mmiCallBar(),
             "keepMusicReverse" to TwBridge.keepMusicInReverse(),
+            "phonelinkAuto" to com.openlauncher.app.util.PhoneLink.autoOpen(ctx),
             "gles" to prefs.getBoolean("gles", false),
             "version" to runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull(),
         )
@@ -87,6 +88,7 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
             "voice" -> NavigationEngine.setVoice(on)
             "callBar" -> TwBridge.setMmiCallBar(on)
             "keepMusicReverse" -> TwBridge.setKeepMusicInReverse(on)
+            "phonelinkAuto" -> com.openlauncher.app.util.PhoneLink.setAutoOpen(ctx, on)
             "gles" -> prefs.edit().putBoolean("gles", on).apply() // used from the next start
         }
     }
@@ -487,10 +489,14 @@ internal fun carInfo(): Map<String, Any?> {
         "voltage" to (car.voltage ?: info.voltage)?.toDouble(),
         "coolant" to car.coolantC,
         "oilLife" to car.oilLifePct,
-        "range" to car.rangeKm,
-        "consumption" to car.avgConsumption?.toDouble(),
+        "range" to (car.rangeKm ?: info.range?.toInt()),
+        "consumption" to (car.avgConsumption ?: info.avgFuel)?.toDouble(),
+        "odometer" to info.odometer?.toDouble(),
         "outside" to (com.openlauncher.app.util.Climate.state.value.outdoor ?: info.outsideC)?.toDouble(),
+        // Tyres: CAN box (kPa) first, else the car service's TPMS items (with their unit).
         "tyres" to car.tyresKpa,
+        "tyresText" to info.tyres.takeIf { t -> car.tyresKpa == null && t.any { it != null } }
+            ?.map { v -> v?.let { "%.1f".format(Locale.US, it) + " " + (info.tyreUnit ?: "") } ?: "--" },
         "doors" to com.openlauncher.app.util.CarCore.doorsText(car.doors)?.lowercase(),
     )
 }

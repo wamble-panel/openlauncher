@@ -40,6 +40,7 @@ class _CarInfoPageState extends State<CarInfoPage> with Live<CarInfoPage> {
   @override
   Widget build(BuildContext context) {
     final tyres = ((live?['tyres'] as List?) ?? const []).cast<num>();
+    final tyresText = ((live?['tyresText'] as List?) ?? const []).cast<String>();
     final doors = live?['doors'] as String?;
     return Column(children: [
       const SizedBox(height: 34),
@@ -61,6 +62,8 @@ class _CarInfoPageState extends State<CarInfoPage> with Live<CarInfoPage> {
                 const SizedBox(width: 60),
                 _Big(f('rpm', (v) => '${v.round()}') ?? '--', 'rpm'),
               ]),
+              if (live?['odometer'] is num)
+                Padding(padding: const EdgeInsets.only(top: 6), child: Text('Odometer ${(live!['odometer'] as num).round()} km', style: Mib.text(21, color: Mib.grey))),
               if (live?['handbrake'] == true) Text('Handbrake on', style: Mib.text(21, color: const Color(0xFFE5484D))),
             ]),
           ),
@@ -79,7 +82,7 @@ class _CarInfoPageState extends State<CarInfoPage> with Live<CarInfoPage> {
         height: 92,
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           for (var i = 0; i < 4; i++) ...[
-            Text('${const ['FL', 'FR', 'RL', 'RR'][i]} ${tyres.length == 4 ? '${(tyres[i] / 100).toStringAsFixed(1)} bar' : '--'}', style: Mib.text(23, color: const Color(0xFFDADADA))),
+            Text('${const ['FL', 'FR', 'RL', 'RR'][i]} ${tyres.length == 4 ? '${(tyres[i] / 100).toStringAsFixed(1)} bar' : tyresText.length == 4 ? tyresText[i] : '--'}', style: Mib.text(23, color: const Color(0xFFDADADA))),
             Text('   |   ', style: Mib.text(23, color: const Color(0x88FFFFFF))),
           ],
           const Icon(MibIcons.directions_car, size: 32, color: Color(0xFFDADADA)),

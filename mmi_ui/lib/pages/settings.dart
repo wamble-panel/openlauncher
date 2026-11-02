@@ -142,6 +142,7 @@ class _CategoryPageState extends State<CategoryPage> with Live<CategoryPage>, Se
       'general' => [
           MibRow(label: 'Units', value: b('metric') ? 'km, km/h' : 'mi, mph', onTap: () => set('metric', !b('metric'))),
           toggle('Speed camera alerts', 'cameraAlerts', sub: 'on every page, also without the map'),
+          toggle('Open CarPlay / Android Auto when the phone connects', 'phonelinkAuto'),
           toggle('Call bar on the map', 'callBar'),
           toggle('Keep music playing in reverse', 'keepMusicReverse'),
           toggle('Touch sounds', 'touchSounds'),

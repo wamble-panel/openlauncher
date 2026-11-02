@@ -31,6 +31,13 @@ object CarInfoLink {
         val headlights: Boolean? = null,
         /** -1 left, 1 right, 2 hazard, 0 off. */
         val indicator: Int = 0,
+        val odometer: Float? = null,
+        val range: Float? = null,
+        val avgFuel: Float? = null,
+        val instantFuel: Float? = null,
+        /** FL, FR, RL, RR as the car reports them, with [tyreUnit]. */
+        val tyres: List<Float?> = listOf(null, null, null, null),
+        val tyreUnit: String? = null,
     )
 
     private val _info = MutableStateFlow(Info())
@@ -61,6 +68,17 @@ object CarInfoLink {
                     16 -> data.readInt().let { v -> set { it.copy(rpm = v) } }
                     18 -> data.readFloat().let { v -> set { it.copy(outsideC = v) } }
                     60 -> data.readInt().let { v -> set { it.copy(steering = v) } }
+                    // Items for this car (CarServiceTheme): odometer, range, average and
+                    // instant fuel use, tyre pressures. -1 means not reported.
+                    4, 64 -> data.readFloat().takeIf { it >= 0 }.let { v -> set { it.copy(odometer = v) } }
+                    5 -> data.readFloat().takeIf { it >= 0 }.let { v -> set { it.copy(range = v) } }
+                    6 -> data.readFloat().takeIf { it >= 0 }.let { v -> set { it.copy(avgFuel = v) } }
+                    7 -> data.readFloat().takeIf { it >= 0 }.let { v -> set { it.copy(instantFuel = v) } }
+                    37, 38, 39, 40 -> {
+                        val v = data.readFloat().takeIf { it >= 0 }
+                        val unit = runCatching { data.readString() }.getOrNull()
+                        set { it.copy(tyres = it.tyres.toMutableList().also { t -> t[code - 37] = v }, tyreUnit = unit ?: it.tyreUnit) }
+                    }
                 }
             }
             runCatching { reply?.writeNoException() }
@@ -222,31 +240,105 @@ object Amplifier {
 }
 
 /**
- * The unit's CarPlay / Android Auto engine (ZLink / Tlink5), driven the way the
- * vendor's service drives it: started at power-on, told about ignition, and given
- * the voice key. It never shows its own home: MMI's Phone Link opens it.
+ * The unit's CarPlay / Android Auto engine (ZLink / Tlink5), driven the way the vendor
+ * apps drive it (protocol notes, section 29): started at power-on, opened straight on
+ * CarPlay or Android Auto, given the call and voice keys, and listened to for its
+ * connection state. Its own home is never shown. It always runs full screen (its screens
+ * cannot be resized), so Home brings MMI back while it stays connected.
  */
 object PhoneLink {
     const val PKG = "com.zjinnova.zlink"
+    private const val LAUNCHER = "com.zjinnova.android.zlink.features.launcher"
+
+    data class Status(val connected: Boolean = false, val mode: String? = null, val inCall: Boolean = false)
+
+    private val _status = MutableStateFlow(Status())
+    val status: StateFlow<Status> = _status
+    private var app: Context? = null
 
     fun installed(c: Context) = runCatching { c.packageManager.getPackageInfo(PKG, 0); true }.getOrDefault(false)
 
     /** Starts the background engine so a phone can connect before anything is opened. */
     fun startEngine(c: Context) {
         if (!installed(c)) return
+        app = c.applicationContext
+        runCatching {
+            c.sendBroadcast(Intent("zjinnova.intent.action.START_ZLINK_SERVICE").setPackage(PKG).addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES))
+        }
         runCatching {
             c.startForegroundService(Intent().setComponent(ComponentName(PKG, "com.zjinnova.android.zlink.features.service.DaemonService")))
         }
         runCatching { c.sendBroadcast(Intent("com.zjinnova.zlink.action.POWER_ON")) }
+        listen(c.applicationContext)
     }
 
-    /** Opens CarPlay / Android Auto. */
+    // ZLink reports its state on its own action with an extra "status".
+    private var listening = false
+    private fun listen(c: Context) {
+        if (listening) return
+        listening = true
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(ctx: Context, i: Intent) {
+                val st = i.getStringExtra("status") ?: return
+                val mode = i.getStringExtra("phoneMode")
+                val before = _status.value
+                _status.value = when (st) {
+                    "CONNECTED" -> before.copy(connected = true, mode = mode ?: before.mode)
+                    "DISCONNECT" -> Status()
+                    "PHONE_CALL_ON" -> before.copy(inCall = true)
+                    "PHONE_CALL_OFF" -> before.copy(inCall = false)
+                    else -> before.copy(mode = mode ?: before.mode)
+                }
+                TwBridge.log("ZLINK status=$st mode=$mode")
+                if (st == "CONNECTED" && !before.connected && autoOpen(ctx)) open(ctx)
+            }
+        }
+        runCatching {
+            androidx.core.content.ContextCompat.registerReceiver(
+                c, receiver, android.content.IntentFilter().apply { addAction(PKG); addAction("com.suding.speedplay") },
+                androidx.core.content.ContextCompat.RECEIVER_EXPORTED,
+            )
+        }
+    }
+
+    /** Settings › General: open CarPlay / Android Auto by itself when the phone connects. */
+    fun autoOpen(c: Context) = c.getSharedPreferences("mmi_prefs", Context.MODE_PRIVATE).getBoolean("phonelink_auto", true)
+    fun setAutoOpen(c: Context, on: Boolean) = c.getSharedPreferences("mmi_prefs", Context.MODE_PRIVATE).edit().putBoolean("phonelink_auto", on).apply()
+
+    private fun enabled(c: Context, cls: String): Boolean {
+        val cn = ComponentName(PKG, "$LAUNCHER.$cls")
+        return runCatching {
+            when (c.packageManager.getComponentEnabledSetting(cn)) {
+                android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> true
+                android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DEFAULT -> c.packageManager.getActivityInfo(cn, 0).enabled
+                else -> false
+            }
+        }.getOrDefault(false)
+    }
+
+    /** Opens CarPlay or Android Auto directly (by the connected phone), else ZLink's start. */
     fun open(c: Context): Boolean {
+        val mode = _status.value.mode.orEmpty()
+        val order = when {
+            mode.startsWith("carplay") || mode.startsWith("airplay") -> listOf("CarPlayActivity", "CarPlayAutoActivity")
+            mode.startsWith("auto") -> listOf("AutoActivity", "CarPlayAutoActivity")
+            else -> listOf("CarPlayAutoActivity", "CarPlayActivity", "AutoActivity")
+        }
+        if (_status.value.connected) {
+            for (cls in order) {
+                if (!enabled(c, cls)) continue
+                val ok = runCatching {
+                    c.startActivity(Intent().setComponent(ComponentName(PKG, "$LAUNCHER.$cls")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    true
+                }.getOrDefault(false)
+                if (ok) return true
+            }
+        }
         val i = c.packageManager.getLaunchIntentForPackage(PKG) ?: return false
         return runCatching { c.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true }.getOrDefault(false)
     }
 
-    /** A special function for the phone (1500 = voice assistant), as the vendor service sends it. */
+    /** A function for the phone: 5 answer, 6 hang up / reject, 1500 voice assistant. */
     fun function(c: Context, code: Int) {
         val launch = c.packageManager.getLaunchIntentForPackage(PKG)?.component ?: return
         val i = Intent(PKG).setPackage(PKG)
@@ -257,4 +349,7 @@ object PhoneLink {
         }
         runCatching { c.sendBroadcast(i) }
     }
+    const val ANSWER = 5
+    const val HANG_UP = 6
+    const val VOICE = 1500
 }

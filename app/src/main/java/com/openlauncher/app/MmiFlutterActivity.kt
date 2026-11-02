@@ -140,8 +140,16 @@ class MmiFlutterActivity : FlutterActivity() {
                         result.success(kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { car.calls() })
                     }
                     "dial" -> { car.dial(arg<String>("number") ?: ""); result.success(null) }
-                    "answer" -> { TwBridge.answer(); result.success(null) }
-                    "hangUp" -> { TwBridge.hangUp(); result.success(null) }
+                    "answer" -> {
+                        TwBridge.answer()
+                        if (com.openlauncher.app.util.PhoneLink.status.value.inCall) com.openlauncher.app.util.PhoneLink.function(this, com.openlauncher.app.util.PhoneLink.ANSWER)
+                        result.success(null)
+                    }
+                    "hangUp" -> {
+                        TwBridge.hangUp()
+                        if (com.openlauncher.app.util.PhoneLink.status.value.inCall) com.openlauncher.app.util.PhoneLink.function(this, com.openlauncher.app.util.PhoneLink.HANG_UP)
+                        result.success(null)
+                    }
                     "mediaGet" -> result.success(car.media())
                     "mediaArt" -> result.success(car.mediaArt())
                     "media" -> { car.mediaCommand(arg<String>("cmd") ?: "", (arg<Number>("ms") ?: 0).toLong()); result.success(null) }
