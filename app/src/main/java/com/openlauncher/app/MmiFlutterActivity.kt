@@ -166,6 +166,14 @@ class MmiFlutterActivity : FlutterActivity() {
                         ))
                     }
                     "phoneLinkOpen" -> result.success(com.openlauncher.app.util.PhoneLink.open(this))
+                    "phoneGet" -> {
+                        val ph = TwBridge.phone.value
+                        result.success(mapOf(
+                            "connected" to (TwBridge.phoneConnected.value == true || com.openlauncher.app.util.BtConnect.anyConnected()),
+                            "name" to ph.name, "battery" to ph.battery, "signal" to ph.signal,
+                            "music" to (TwBridge.btTrack.value?.title),
+                        ))
+                    }
                     "usbGet" -> result.success(UsbLibrary.get(arg<String>("mode") ?: "songs", arg<String>("filter")))
                     "usbPlay" -> {
                         UsbLibrary.play(arg<String>("mode") ?: "songs", arg<String>("filter"), (arg<String>("id") ?: "0").toLong())
@@ -248,6 +256,7 @@ class MmiFlutterActivity : FlutterActivity() {
         push("radio", kotlinx.coroutines.flow.combine(TwBridge.radio, com.openlauncher.app.util.CarCore.radio) { a, b -> a to b }, 250)
         push("calls", TwBridge.call.map { it.state })
         push("phonelink", com.openlauncher.app.util.PhoneLink.status)
+        push("phone", kotlinx.coroutines.flow.combine(TwBridge.phoneConnected, TwBridge.phone) { a, b -> a to b })
         push("car", kotlinx.coroutines.flow.combine(com.openlauncher.app.util.CarCore.data, com.openlauncher.app.util.CarInfoLink.info) { a, b -> a to b }, 1000)
         // Doors: a banner while any is open.
         scope.launch {
