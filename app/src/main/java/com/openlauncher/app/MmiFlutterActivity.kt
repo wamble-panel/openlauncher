@@ -157,6 +157,15 @@ class MmiFlutterActivity : FlutterActivity() {
                     "source" -> { car.source(arg<String>("key") ?: ""); result.success(null) }
                     "btGet" -> result.success(car.bt())
                     "carGet" -> result.success(carInfo())
+                    "phoneLinkGet" -> {
+                        val st = com.openlauncher.app.util.PhoneLink.status.value
+                        result.success(mapOf(
+                            "installed" to com.openlauncher.app.util.PhoneLink.installed(this),
+                            "connected" to st.connected, "mode" to st.mode,
+                            "auto" to com.openlauncher.app.util.PhoneLink.autoOpen(this),
+                        ))
+                    }
+                    "phoneLinkOpen" -> result.success(com.openlauncher.app.util.PhoneLink.open(this))
                     "usbGet" -> result.success(UsbLibrary.get(arg<String>("mode") ?: "songs", arg<String>("filter")))
                     "usbPlay" -> {
                         UsbLibrary.play(arg<String>("mode") ?: "songs", arg<String>("filter"), (arg<String>("id") ?: "0").toLong())
@@ -238,7 +247,26 @@ class MmiFlutterActivity : FlutterActivity() {
         push("media", kotlinx.coroutines.flow.combine(com.openlauncher.app.service.MediaListenerService.nowPlaying, TwBridge.btTrack, com.openlauncher.app.util.UsbMusic.state) { a, b, u -> listOf(a?.title, a?.artist, a?.isPlaying, a?.albumArt?.generationId, b?.title, b?.playing, u.song?.id, u.playing) }, 300)
         push("radio", kotlinx.coroutines.flow.combine(TwBridge.radio, com.openlauncher.app.util.CarCore.radio) { a, b -> a to b }, 250)
         push("calls", TwBridge.call.map { it.state })
+        push("phonelink", com.openlauncher.app.util.PhoneLink.status)
         push("car", kotlinx.coroutines.flow.combine(com.openlauncher.app.util.CarCore.data, com.openlauncher.app.util.CarInfoLink.info) { a, b -> a to b }, 1000)
+        // Doors: a banner while any is open.
+        scope.launch {
+            com.openlauncher.app.util.CarCore.data.map { it.doors }.distinctUntilChanged().collect { d ->
+                ch.invokeMethod("doors", com.openlauncher.app.util.CarCore.doorsText(d))
+            }
+        }
+        // Climate: MMI's own pop-up when something changes (the vendor one is closed).
+        scope.launch {
+            com.openlauncher.app.util.Climate.state.drop(1).distinctUntilChanged { a, b -> a.changedAt == b.changedAt }.collect { c ->
+                if (c.changedAt == 0L) return@collect
+                ch.invokeMethod("climate", mapOf(
+                    "left" to c.left?.toDouble(), "right" to c.right?.toDouble(),
+                    "leftLo" to c.leftLo, "leftHi" to c.leftHi, "rightLo" to c.rightLo, "rightHi" to c.rightHi,
+                    "fan" to c.fan, "ac" to c.ac, "auto" to c.auto, "recirc" to c.recirculation, "on" to c.on,
+                    "dual" to c.dual, "front" to c.frontDefrost, "rear" to c.rearDefrost,
+                ))
+            }
+        }
         // Speed camera ahead, on every page (also without the map).
         scope.launch {
             com.openlauncher.app.map.NavigationEngine.state

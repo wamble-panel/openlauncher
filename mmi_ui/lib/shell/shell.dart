@@ -15,6 +15,7 @@ import '../pages/help.dart';
 import '../pages/home.dart';
 import '../pages/media.dart';
 import '../pages/phone.dart';
+import '../pages/phonelink.dart';
 import '../pages/radio.dart';
 import '../pages/settings.dart';
 import '../pages/usb.dart';
@@ -45,7 +46,8 @@ enum MmiPage {
   vendor('Settings', 'Vendor apps', null),
   equaliser('Sound', 'Equaliser', null),
   health('Settings', 'Unit health', null),
-  usb('Media', 'USB music', 'music');
+  usb('Media', 'USB music', 'music'),
+  phonelink('Telephone', 'Phone Link', 'phone');
 
   const MmiPage(this.section, this.title, this.rail);
   final String? section;
@@ -81,6 +83,9 @@ class _MmiShellState extends State<MmiShell> {
   late bool _splash = widget.splash;
   Map<Object?, Object?>? _camera;
   Map<Object?, Object?>? _volume;
+  Map<Object?, Object?>? _climate;
+  String? _doors;
+  final _climateHide = Hide();
   final _volumeHide = Hide();
 
   @override
@@ -97,6 +102,13 @@ class _MmiShellState extends State<MmiShell> {
           final m = call.arguments as Map?;
           if (m != null && _camera == null) Bridge.chime();
           setState(() => _camera = m);
+        case 'climate':
+          setState(() => _climate = call.arguments as Map?);
+          _climateHide.after(const Duration(seconds: 4), () {
+            if (mounted) setState(() => _climate = null);
+          });
+        case 'doors':
+          setState(() => _doors = call.arguments as String?);
         case 'volume':
           setState(() => _volume = call.arguments as Map?);
           _volumeHide.after(const Duration(seconds: 2), () {
@@ -120,6 +132,7 @@ class _MmiShellState extends State<MmiShell> {
   @override
   void dispose() {
     _volumeHide.cancel();
+    _climateHide.cancel();
     _scope.dispose();
     super.dispose();
   }
@@ -156,7 +169,6 @@ class _MmiShellState extends State<MmiShell> {
       'phone' => MmiPage.calls,
       'eq' => MmiPage.sound,
       'tone' => MmiPage.sound,
-      'phonelink' => null,
       _ => MmiPage.values.where((p) => p.name == key).firstOrNull,
     };
     if (page != null) {
@@ -278,6 +290,18 @@ class _MmiShellState extends State<MmiShell> {
               ),
             ),
           ),
+          Positioned(
+            left: rail,
+            right: 0,
+            bottom: 40,
+            child: Center(child: Fade(visible: _climate != null, child: _climate == null ? const SizedBox(width: 760, height: 92) : ClimateBanner(c: _climate!))),
+          ),
+          Positioned(
+            left: rail,
+            right: 0,
+            top: top + 14,
+            child: Center(child: Fade(visible: _doors != null && _camera == null, child: _doors == null ? const SizedBox() : DoorBanner(text: _doors!))),
+          ),
           if (_splash) Positioned.fill(child: Splash(onDone: () => setState(() => _splash = false))),
         ]),
       ),
@@ -309,6 +333,7 @@ class _MmiShellState extends State<MmiShell> {
       MmiPage.vendor => const VendorAppsPage(),
       MmiPage.health => const HealthPage(),
       MmiPage.usb => UsbPage(onPlaying: () => _open(MmiPage.music)),
+      MmiPage.phonelink => const PhoneLinkPage(),
       _ => CategoryPage(category: _page.name, onOpen: _openKey),
     };
     return Padding(

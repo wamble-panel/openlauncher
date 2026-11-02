@@ -26,6 +26,9 @@ adb shell settings put global transition_animation_scale 0.5
 adb shell settings put global animator_duration_scale 0.5
 adb shell settings put global wifi_scan_always_enabled 0
 adb shell settings put global ble_scan_always_enabled 0
+echo == 4b. Vendor climate and door pop-ups off (MMI shows its own)
+adb shell settings put system AIR_POPUP_WINDOW 0
+adb shell settings put system SYSTEM_DOOR2 1
 echo == 5. Window mode for CarPlay / Android Auto inside MMI
 adb shell settings put global enable_freeform_support 1
 adb shell settings put global force_resizable_activities 1

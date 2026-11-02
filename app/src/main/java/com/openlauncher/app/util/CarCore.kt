@@ -206,6 +206,18 @@ object CarCore {
                 if (v and 0x04 != 0) doors = doors or 32
                 update { it.copy(doors = doors) }
             }
+            // Doors on this box (Astra J, Raise): frame 0x14 (also 0x38 on other GM boxes),
+            // b0 bit7 FL, bit6 FR, bit5 RL, bit4 RR, bit3 trunk, as the vendor service reads it.
+            0x14, 0x38 -> if (b.isNotEmpty()) {
+                val v = u(b, 0)
+                var doors = 0
+                if (v and 0x80 != 0) doors = doors or 1
+                if (v and 0x40 != 0) doors = doors or 2
+                if (v and 0x20 != 0) doors = doors or 4
+                if (v and 0x10 != 0) doors = doors or 8
+                if (v and 0x08 != 0) doors = doors or 16
+                update { it.copy(doors = doors) }
+            }
             0x68 -> if (b.size >= 3) update {
                 it.copy(speedKmh = u(b, 0).takeIf { s -> s != 255 }, rangeKm = be16(b, 1).takeIf { r -> r != 0xFFFF } ?: it.rangeKm)
             }

@@ -185,3 +185,70 @@ class Hide {
 
   void cancel() => _t?.cancel();
 }
+
+/// MMI's climate pop-up (replaces the vendor's): temperatures left and right, fan,
+/// and what is on. Shows for a few seconds after a change.
+class ClimateBanner extends StatelessWidget {
+  const ClimateBanner({super.key, required this.c});
+  final Map<Object?, Object?> c;
+
+  String _temp(String side) {
+    if (c['${side}Lo'] == true) return 'LO';
+    if (c['${side}Hi'] == true) return 'HI';
+    final v = c[side] as num?;
+    return v == null ? '--' : '${v.toStringAsFixed(v % 1 == 0 ? 0 : 1)}°';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget flag(String label, bool on) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Text(label, style: Mib.text(20, color: on ? Mib.white : const Color(0x55FFFFFF))),
+        );
+    final fan = (c['fan'] as num?)?.toInt() ?? 0;
+    return Container(
+      width: 760,
+      height: 92,
+      padding: const EdgeInsets.symmetric(horizontal: 26),
+      decoration: BoxDecoration(color: const Color(0xF00B0C0E), border: Border.all(color: const Color(0x88FFFFFF))),
+      child: Row(children: [
+        Text(_temp('left'), style: Mib.text(40)),
+        const Spacer(),
+        Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(MibIcons.mode_fan, size: 30, color: Mib.white),
+            const SizedBox(width: 10),
+            for (var i = 1; i <= 7; i++)
+              Container(margin: const EdgeInsets.only(right: 4), width: 14, height: 6 + i * 2.0, color: i <= fan ? Mib.white : const Color(0x33FFFFFF)),
+          ]),
+          const SizedBox(height: 6),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            flag('A/C', c['ac'] == true),
+            flag('AUTO', c['auto'] == true),
+            flag('RECIRC', c['recirc'] == true),
+            flag('FRONT', c['front'] == true),
+            flag('REAR', c['rear'] == true),
+          ]),
+        ]),
+        const Spacer(),
+        Text(c['on'] == false ? 'OFF' : _temp(c['dual'] == true ? 'right' : 'left'), style: Mib.text(40)),
+      ]),
+    );
+  }
+}
+
+/// Door open: which one, until it is closed.
+class DoorBanner extends StatelessWidget {
+  const DoorBanner({super.key, required this.text});
+  final String text;
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+        decoration: BoxDecoration(color: const Color(0xF0101214), border: Border.all(color: const Color(0xFFF0A030))),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(MibIcons.directions_car, size: 34, color: Color(0xFFF0A030)),
+          const SizedBox(width: 14),
+          Text(text, style: Mib.text(24)),
+        ]),
+      );
+}
