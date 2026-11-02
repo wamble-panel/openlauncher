@@ -17,6 +17,19 @@ Future<void> _fonts() async {
 }
 
 final _demo = <String, Object?>{
+  'soundGet': {
+    'gains': [1.0, 1.0, -1.5, -2.0, -0.5, 0.0, 1.5, 1.5, 1.0, 0.5],
+    'effective': [3.4, 3.0, -0.3, -1.6, -0.5, 0.0, 1.5, 1.9, 2.0, 1.7],
+    'centres': [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000],
+    'preset': 'Natural', 'loudness': true, 'enabled': true, 'engine': 'dynamics',
+    'presets': [
+      {'name': 'Flat', 'about': 'Nothing changed: the recording as it is.'},
+      {'name': 'Natural', 'about': 'Made for a car cabin: tames the boom cars add around 125–250 Hz and lifts voice clarity a little.'},
+      {'name': 'Bass', 'about': 'Deeper, fuller low end without muddying voices.'},
+      {'name': 'Rock', 'about': 'Punchy drums and bass, forward guitars, crisp cymbals.'},
+      {'name': 'Voice', 'about': 'News, podcasts and calls: less rumble, clearer speech over road noise.'},
+    ],
+  },
   'vendorGet': {
     'apps': [
       {'pkg': 'com.dofun.variety', 'name': 'Vendor home screen', 'status': 'safe', 'note': 'MMI is the home screen', 'enabled': true},

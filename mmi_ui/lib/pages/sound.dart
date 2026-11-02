@@ -11,7 +11,8 @@ const _bands = ['Bass', 'Low mid', 'Mid', 'High mid', 'Treble'];
 const _presets = ['Flat', 'Rock', 'Pop', 'Jazz', 'Voice', 'Custom'];
 
 class SoundPage extends StatefulWidget {
-  const SoundPage({super.key});
+  const SoundPage({super.key, this.onFineTune});
+  final VoidCallback? onFineTune;
   @override
   State<SoundPage> createState() => _SoundPageState();
 }
@@ -97,6 +98,22 @@ class _SoundPageState extends State<SoundPage> {
           decoration: Mib.glass(),
           child: Stack(children: [
             Positioned(left: 19, top: 14, child: Text('Equaliser', style: Mib.text(24))),
+            // The full ten-band equaliser with every tone explained.
+            if (widget.onFineTune != null)
+              Positioned(
+                right: 8,
+                top: 6,
+                child: Pressable(
+                  onTap: widget.onFineTune!,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    child: Row(children: [
+                      Text('Fine tune', style: Mib.text(21, color: const Color(0xFFDADADA))),
+                      const Icon(MibIcons.chevron_right, size: 28, color: Color(0xFFDADADA)),
+                    ]),
+                  ),
+                ),
+              ),
             for (var i = 0; i < 5; i++)
               Positioned(
                 left: 79.0 + i * 125.6 - 50, top: 44, width: 100, bottom: 10,

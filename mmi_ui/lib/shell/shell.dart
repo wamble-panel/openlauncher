@@ -9,6 +9,7 @@ import '../widgets/overlays.dart';
 import '../pages/apps.dart';
 import '../pages/bluetooth.dart';
 import '../pages/car.dart';
+import '../pages/equaliser.dart';
 import '../pages/weather.dart';
 import '../pages/help.dart';
 import '../pages/home.dart';
@@ -40,7 +41,8 @@ enum MmiPage {
   carinfo('Car', 'Car information', null),
   weather(null, 'Weather', null),
   help(null, 'Help', null),
-  vendor('Settings', 'Vendor apps', null);
+  vendor('Settings', 'Vendor apps', null),
+  equaliser('Sound', 'Equaliser', null);
 
   const MmiPage(this.section, this.title, this.rail);
   final String? section;
@@ -290,7 +292,8 @@ class _MmiShellState extends State<MmiShell> {
       MmiPage.dial => DialPage(onRecent: () => _open(MmiPage.calls)),
       MmiPage.settings => SettingsGrid(onOpen: _openKey),
       MmiPage.display => const DisplayPage(),
-      MmiPage.sound => const SoundPage(),
+      MmiPage.sound => SoundPage(onFineTune: () => _open(MmiPage.equaliser)),
+      MmiPage.equaliser => const EqualiserPage(),
       MmiPage.carinfo => const CarInfoPage(),
       MmiPage.weather => const WeatherPage(),
       MmiPage.help => HelpPage(onOpen: _openKey),

@@ -85,6 +85,26 @@ class MmiFlutterActivity : FlutterActivity() {
                     }
                     "eqGet" -> result.success(Eq.state(prefs))
                     "eqSet" -> { Eq.setSlider(prefs, arg<Int>("band") ?: 0, arg<Int>("level") ?: 0); result.success(null) }
+                    "soundGet" -> {
+                        val se = com.openlauncher.app.util.SoundEngine
+                        result.success(mapOf(
+                            "gains" to List(10) { se.gain(it).toDouble() },
+                            "effective" to se.effective().map { it.toDouble() },
+                            "centres" to se.CENTRES.toList(),
+                            "preset" to se.preset,
+                            "presets" to se.PRESETS.map { mapOf("name" to it.name, "about" to it.about, "gains" to it.gains.map { g -> g.toDouble() }) },
+                            "loudness" to se.loudness,
+                            "enabled" to se.enabled,
+                            "engine" to se.engine,
+                        ))
+                    }
+                    "soundSet" -> {
+                        com.openlauncher.app.util.SoundEngine.setGain(arg<Int>("band") ?: 0, (arg<Number>("db") ?: 0).toFloat())
+                        result.success(null)
+                    }
+                    "soundPreset" -> { com.openlauncher.app.util.SoundEngine.usePreset(arg<String>("name") ?: "Flat"); result.success(null) }
+                    "soundLoudness" -> { com.openlauncher.app.util.SoundEngine.setLoudness(arg<Boolean>("on") == true); result.success(null) }
+                    "soundEnabled" -> { com.openlauncher.app.util.SoundEngine.setEnabled(arg<Boolean>("on") == true); result.success(null) }
                     "eqPreset" -> { Eq.choose(prefs, arg<String>("name") ?: "Flat"); result.success(null) }
                     "speedVolume" -> { SpeedVolume.setLevel(this, arg<Int>("level") ?: 0); result.success(null) }
                     "settingsGet" -> result.success(car.settings())
@@ -302,55 +322,25 @@ class MmiFlutterActivity : FlutterActivity() {
         )
     }
 
-    /** The five equaliser sliders of the design, spread over however many bands the unit has. */
+    /**
+     * The design's five sliders (Bass, Low mid, Mid, High mid, Treble) over the sound
+     * engine's ten bands: each slider moves two bands; levels in millibels.
+     */
     private object Eq {
-        private val VOICE = intArrayOf(-300, 0, 400, 300, -200)
+        fun state(prefs: android.content.SharedPreferences): Map<String, Any> = mapOf(
+            "levels" to List(5) { com.openlauncher.app.util.CarAudio.bandLevel(it) },
+            "min" to -1200,
+            "max" to 1200,
+            "preset" to com.openlauncher.app.util.SoundEngine.preset,
+            "speedVolume" to SpeedVolume.level,
+            "available" to com.openlauncher.app.util.SoundEngine.available,
+        )
 
-        private fun bandOf(i: Int): Int = ((i * (CarAudio.bandCount - 1)) / 4f).roundToInt()
+        fun setSlider(prefs: android.content.SharedPreferences, i: Int, level: Int) =
+            com.openlauncher.app.util.CarAudio.setBandLevel(i.coerceIn(0, 4), level)
 
-        fun state(prefs: android.content.SharedPreferences): Map<String, Any> {
-            val n = CarAudio.bandCount
-            val range = CarAudio.levelRange
-            return mapOf(
-                "levels" to List(5) { if (n == 0) 0 else CarAudio.bandLevel(bandOf(it)) },
-                "min" to range.first,
-                "max" to range.last,
-                "preset" to (prefs.getString("eq_preset", "Custom") ?: "Custom"),
-                "speedVolume" to SpeedVolume.level,
-                "available" to (CarAudio.available && n > 0),
-            )
-        }
-
-        fun setSlider(prefs: android.content.SharedPreferences, i: Int, level: Int) {
-            if (CarAudio.bandCount == 0) return
-            if (!CarAudio.enabled) CarAudio.setEnabled(true)
-            CarAudio.setBandLevel(bandOf(i), level.coerceIn(CarAudio.levelRange))
-            prefs.edit().putInt("eq_custom_$i", level).putString("eq_preset", "Custom").apply()
-        }
-
-        private fun apply(levels: IntArray) {
-            val n = CarAudio.bandCount
-            if (!CarAudio.enabled) CarAudio.setEnabled(true)
-            for (b in 0 until n) {
-                // Bands between two sliders take the nearer slider's level.
-                val nearest = (0 until 5).minBy { abs(bandOf(it) - b) }
-                CarAudio.setBandLevel(b, levels[nearest].coerceIn(CarAudio.levelRange))
-            }
-        }
-
-        fun choose(prefs: android.content.SharedPreferences, name: String) {
-            if (CarAudio.bandCount == 0) return
-            prefs.edit().putString("eq_preset", name).apply()
-            when (name) {
-                "Flat" -> CarAudio.flat()
-                "Voice" -> apply(VOICE)
-                "Custom" -> apply(IntArray(5) { prefs.getInt("eq_custom_$it", 0) })
-                else -> {
-                    val i = CarAudio.presets.indexOfFirst { it.equals(name, ignoreCase = true) }
-                    if (i >= 0) { CarAudio.setEnabled(true); CarAudio.usePreset(i) } else CarAudio.flat()
-                }
-            }
-        }
+        fun choose(prefs: android.content.SharedPreferences, name: String) =
+            com.openlauncher.app.util.SoundEngine.usePreset(name)
     }
 
     companion object {
