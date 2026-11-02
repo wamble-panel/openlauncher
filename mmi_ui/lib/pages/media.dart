@@ -1,0 +1,290 @@
+import 'dart:typed_data';
+import 'package:flutter/widgets.dart';
+import '../bridge.dart';
+import '../live.dart';
+import '../theme/mib.dart';
+import '../theme/mib_icons.dart';
+import '../widgets/mib_widgets.dart';
+import '../widgets/pressable.dart';
+
+/// Media · Now playing (design 32): own header (apps, Source, device over "Now
+/// playing", sound settings), title / artist / album with the cover on the right,
+/// position bar with elapsed | remaining, back / play-pause / next and More.
+class NowPlayingPage extends StatefulWidget {
+  const NowPlayingPage({super.key, required this.onOpen, required this.onBack});
+  final ValueChanged<String> onOpen;
+  final VoidCallback onBack;
+  @override
+  State<NowPlayingPage> createState() => _NowPlayingPageState();
+}
+
+class _NowPlayingPageState extends State<NowPlayingPage> with Live<NowPlayingPage> {
+  @override
+  String get liveMethod => 'mediaGet';
+  @override
+  Duration get liveEvery => const Duration(milliseconds: 500);
+
+  Object? _artId;
+  Uint8List? _art;
+  double? _drag;
+
+  @override
+  Future<void> refresh() async {
+    await super.refresh();
+    final id = live?['artId'];
+    if (id != null && id != _artId) {
+      _artId = id;
+      final bytes = await Bridge.call<Uint8List>('mediaArt');
+      if (mounted) setState(() => _art = bytes);
+    } else if (id == null && _art != null && live != null) {
+      setState(() {
+        _art = null;
+        _artId = null;
+      });
+    }
+  }
+
+  String _t(int ms) {
+    final s = (ms / 1000).round().abs();
+    return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+  }
+
+  void _cmd(String c) async {
+    await Bridge.call('media', {'cmd': c});
+    refresh();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = (live?['title'] as String?) ?? '';
+    final artist = (live?['artist'] as String?) ?? '';
+    final album = (live?['album'] as String?) ?? '';
+    final playing = live?['playing'] == true;
+    final pos = ((live?['pos'] ?? 0) as num).toInt();
+    final dur = ((live?['dur'] ?? 0) as num).toInt();
+    final source = (live?['source'] as String?) ?? 'Media';
+    final v = _drag ?? (dur > 0 ? (pos / dur).clamp(0.0, 1.0) : 0.0);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      // Header.
+      Container(
+        height: 96,
+        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Mib.line))),
+        child: Row(children: [
+          _HeadBox(width: 94, onTap: () => widget.onOpen('apps'), child: const Icon(MibIcons.apps, size: 48, color: Mib.white)),
+          _HeadBox(
+            width: 163,
+            onTap: () => widget.onOpen('source'),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(MibIcons.mobile_share, size: 34, color: Mib.white),
+              const SizedBox(width: 12),
+              Text('Source', style: Mib.text(23)),
+            ]),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 26),
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(source, style: Mib.text(21, color: Mib.grey)),
+                Text('Now playing', style: Mib.text(34)),
+              ]),
+            ),
+          ),
+          Pressable(
+            onTap: () => widget.onOpen('sound'),
+            child: Container(
+              width: 88,
+              height: 96,
+              decoration: const BoxDecoration(border: Border(left: BorderSide(color: Mib.line))),
+              child: const Center(child: Icon(MibIcons.settings, size: 42, color: Mib.white)),
+            ),
+          ),
+        ]),
+      ),
+      if (live != null && title.isEmpty)
+        Expanded(
+          child: Center(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('Nothing is playing', style: Mib.text(32)),
+              const SizedBox(height: 10),
+              Text('Choose a source to start music.', style: Mib.text(24, color: Mib.grey)),
+              const SizedBox(height: 28),
+              MibButton(label: 'Source', icon: MibIcons.mobile_share, onTap: () => widget.onOpen('source'), width: 220),
+            ]),
+          ),
+        )
+      else
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(left: 18, top: 26),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              SizedBox(
+                height: 266,
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 40),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(title, style: Mib.text(48), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 18),
+                        Text(artist, style: Mib.text(33, color: const Color(0xFFBDBDBD)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 10),
+                        Text(album, style: Mib.text(33, color: const Color(0xFFBDBDBD)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ]),
+                    ),
+                  ),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 400),
+                    child: Container(
+                      key: ValueKey(_artId),
+                      width: 263,
+                      height: 266,
+                      decoration: BoxDecoration(border: Border.all(color: const Color(0xCCFFFFFF), width: 1.5), color: const Color(0xFF111111)),
+                      child: _art != null
+                          ? Image.memory(_art!, fit: BoxFit.cover, gaplessPlayback: true)
+                          : const Center(child: Icon(MibIcons.music_note, size: 110, color: Color(0x66FFFFFF))),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ]),
+              ),
+              const SizedBox(height: 18),
+              Row(children: [
+                const Spacer(flex: 63),
+                Text(dur > 0 ? '${_t(pos)}   |   -${_t(dur - pos)}' : (playing ? 'Playing' : 'Paused'), style: Mib.text(24)),
+                const Spacer(flex: 30),
+              ]),
+              const SizedBox(height: 6),
+              LayoutBuilder(builder: (context, c) {
+                double at(Offset p) => (p.dx / c.maxWidth).clamp(0.0, 1.0);
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onHorizontalDragUpdate: dur > 0 ? (d) => setState(() => _drag = at(d.localPosition)) : null,
+                  onHorizontalDragEnd: dur > 0
+                      ? (_) {
+                          Bridge.call('media', {'cmd': 'seek', 'ms': (_drag! * dur).round()});
+                          setState(() => _drag = null);
+                        }
+                      : null,
+                  child: SizedBox(height: 40, child: CustomPaint(painter: _Position(v))),
+                );
+              }),
+              const SizedBox(height: 28),
+              Row(children: [
+                const Spacer(flex: 27),
+                Container(
+                  decoration: BoxDecoration(border: Border.all(color: const Color(0xAAFFFFFF))),
+                  child: Row(children: [
+                    _Ctl(Transport.prev, () => _cmd('prev')),
+                    _Ctl(playing ? Transport.pause : Transport.play, () => _cmd('toggle'), divider: true),
+                    _Ctl(Transport.next, () => _cmd('next'), divider: true),
+                  ]),
+                ),
+                const Spacer(flex: 20),
+                Pressable(
+                  onTap: () => widget.onOpen('source'),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Row(children: [
+                      const Icon(MibIcons.more_horiz, size: 40, color: Mib.white),
+                      const SizedBox(width: 18),
+                      Text('More', style: Mib.text(25)),
+                    ]),
+                  ),
+                ),
+              ]),
+            ]),
+          ),
+        ),
+    ]);
+  }
+}
+
+class _HeadBox extends StatelessWidget {
+  const _HeadBox({required this.width, required this.onTap, required this.child});
+  final double width;
+  final VoidCallback onTap;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => Pressable(
+        onTap: onTap,
+        child: Container(
+          width: width,
+          height: 96,
+          decoration: const BoxDecoration(border: Border(right: BorderSide(color: Mib.line))),
+          child: Center(child: child),
+        ),
+      );
+}
+
+class _Ctl extends StatelessWidget {
+  const _Ctl(this.icon, this.onTap, {this.divider = false});
+  final Transport icon;
+  final VoidCallback onTap;
+  final bool divider;
+  @override
+  Widget build(BuildContext context) => Pressable(
+        onTap: onTap,
+        child: Container(
+          width: 163,
+          height: 73,
+          decoration: divider ? const BoxDecoration(border: Border(left: BorderSide(color: Color(0xAAFFFFFF)))) : null,
+          child: Center(child: TransportIcon(icon, size: 52)),
+        ),
+      );
+}
+
+class _Position extends CustomPainter {
+  _Position(this.v);
+  final double v;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final y = size.height / 2;
+    final x = size.width * v;
+    canvas.drawLine(Offset(0, y), Offset(size.width, y), Paint()..color = const Color(0xFF4A4A4A)..strokeWidth = 4..strokeCap = StrokeCap.round);
+    canvas.drawLine(Offset(0, y), Offset(x, y), Paint()..color = Mib.white..strokeWidth = 4..strokeCap = StrokeCap.round);
+    canvas.drawCircle(Offset(x, y), 11, Paint()..color = Mib.black);
+    canvas.drawCircle(Offset(x, y), 11, Paint()..color = Mib.white..style = PaintingStyle.stroke..strokeWidth = 2.4);
+  }
+
+  @override
+  bool shouldRepaint(_Position old) => old.v != v;
+}
+
+/// Media · Source: where the music comes from (Bluetooth, USB, radio, music apps).
+class SourcePage extends StatefulWidget {
+  const SourcePage({super.key, required this.onOpen});
+  final ValueChanged<String> onOpen;
+  @override
+  State<SourcePage> createState() => _SourcePageState();
+}
+
+class _SourcePageState extends State<SourcePage> with Live<SourcePage> {
+  @override
+  String get liveMethod => 'sourcesGet';
+  @override
+  Duration get liveEvery => const Duration(seconds: 5);
+
+  @override
+  Widget build(BuildContext context) {
+    final list = ((live?['sources'] as List?) ?? const []).cast<Map<Object?, Object?>>();
+    IconData icon(String k) => switch (k) {
+          'bt' => MibIcons.bluetooth,
+          'usb' => MibIcons.usb,
+          'radio' => MibIcons.cell_tower,
+          _ => MibIcons.queue_music,
+        };
+    return ListView(padding: const EdgeInsets.only(top: 12), children: [
+      MibRow(label: 'Radio', icon: MibIcons.cell_tower, onTap: () => widget.onOpen('radio')),
+      for (final s in list)
+        MibRow(
+          label: '${s['label']}',
+          sub: s['playing'] == true ? 'Playing' : null,
+          icon: icon('${s['kind']}'),
+          onTap: () async {
+            await Bridge.call('source', {'key': s['key']});
+            widget.onOpen('music');
+          },
+        ),
+    ]);
+  }
+}

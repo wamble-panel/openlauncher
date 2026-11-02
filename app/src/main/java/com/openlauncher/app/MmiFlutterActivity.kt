@@ -13,6 +13,8 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import kotlin.math.abs
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
@@ -34,52 +36,138 @@ class MmiFlutterActivity : FlutterActivity() {
     // Starting page, e.g. "/sound" (adb: --es flutter_page sound).
     override fun getInitialRoute(): String = "/" + (intent.getStringExtra("flutter_page") ?: "home")
 
+    private var channel: MethodChannel? = null
+    private val scope = kotlinx.coroutines.MainScope()
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         CarAudio.init(this)
         UiSound.init(this)
         SpeedVolume.init(this)
         val prefs = getSharedPreferences("mmi_prefs", Context.MODE_PRIVATE)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "mmi").setMethodCallHandler { call, result ->
-            when (call.method) {
-                "sound" -> {
-                    when (call.argument<String>("kind")) {
-                        "tick" -> UiSound.tick()
-                        "open" -> UiSound.open()
-                        else -> UiSound.tap()
+        val car = FlutterBridge(this)
+        val ch = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "mmi")
+        channel = ch
+        ch.setMethodCallHandler { call, result ->
+            fun <T> arg(name: String): T? = call.argument<T>(name)
+            try {
+                when (call.method) {
+                    "sound" -> {
+                        when (arg<String>("kind")) {
+                            "tick" -> UiSound.tick()
+                            "open" -> UiSound.open()
+                            else -> UiSound.tap()
+                        }
+                        result.success(null)
                     }
-                    result.success(null)
+                    "eqGet" -> result.success(Eq.state(prefs))
+                    "eqSet" -> { Eq.setSlider(prefs, arg<Int>("band") ?: 0, arg<Int>("level") ?: 0); result.success(null) }
+                    "eqPreset" -> { Eq.choose(prefs, arg<String>("name") ?: "Flat"); result.success(null) }
+                    "speedVolume" -> { SpeedVolume.setLevel(this, arg<Int>("level") ?: 0); result.success(null) }
+                    "settingsGet" -> result.success(car.settings())
+                    "settingsSet" -> { car.setSetting(arg<String>("key") ?: "", call.argument<Any>("value")); result.success(null) }
+                    "system" -> { car.system(arg<String>("what") ?: ""); result.success(null) }
+                    "radioGet" -> result.success(car.radio())
+                    "radioTune" -> {
+                        TwBridge.radioTune(arg<Boolean>("am") == true, (arg<Number>("freq") ?: 98.5).toFloat())
+                        result.success(null)
+                    }
+                    "radioSeek" -> { TwBridge.radioSeek(arg<Boolean>("up") != false); result.success(null) }
+                    "radioStep" -> { TwBridge.radioStep(arg<Boolean>("up") != false); result.success(null) }
+                    "radioSave" -> { car.radioSave(arg<Int>("slot") ?: 0); result.success(null) }
+                    "appsGet" -> scope.launch {
+                        result.success(kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { car.apps() })
+                    }
+                    "launch" -> {
+                        val key = arg<String>("key") ?: ""
+                        if (!car.launch(key)) openClassic(if (key == "settings") "settings" else "apps")
+                        result.success(null)
+                    }
+                    "callsGet" -> scope.launch {
+                        result.success(kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { car.calls() })
+                    }
+                    "dial" -> { car.dial(arg<String>("number") ?: ""); result.success(null) }
+                    "answer" -> { TwBridge.answer(); result.success(null) }
+                    "hangUp" -> { TwBridge.hangUp(); result.success(null) }
+                    "mediaGet" -> result.success(car.media())
+                    "mediaArt" -> result.success(car.mediaArt())
+                    "media" -> { car.mediaCommand(arg<String>("cmd") ?: "", (arg<Number>("ms") ?: 0).toLong()); result.success(null) }
+                    "sourcesGet" -> result.success(car.sources())
+                    "source" -> { car.source(arg<String>("key") ?: ""); result.success(null) }
+                    "btGet" -> result.success(car.bt())
+                    "btScan" -> { car.btScan(); result.success(null) }
+                    "btStop" -> { car.btStop(); result.success(null) }
+                    "btConnect" -> { car.btConnect(arg<String>("address") ?: ""); result.success(null) }
+                    "open" -> {
+                        val page = arg<String>("page")
+                        if (page != null) openClassicPage(page) else openKey(arg<String>("key") ?: "home", car)
+                        result.success(null)
+                    }
+                    "classic" -> {
+                        prefs.edit().putBoolean("flutter_ui", false).apply()
+                        openClassic("home")
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
                 }
-                "eqGet" -> result.success(Eq.state(prefs))
-                "eqSet" -> {
-                    Eq.setSlider(prefs, call.argument<Int>("band") ?: 0, call.argument<Int>("level") ?: 0)
-                    result.success(null)
-                }
-                "eqPreset" -> {
-                    Eq.choose(prefs, call.argument<String>("name") ?: "Flat")
-                    result.success(null)
-                }
-                "speedVolume" -> {
-                    SpeedVolume.setLevel(this, call.argument<Int>("level") ?: 0)
-                    result.success(null)
-                }
-                "open" -> {
-                    openClassic(call.argument<String>("key") ?: "home")
-                    result.success(null)
-                }
-                "classic" -> {
-                    prefs.edit().putBoolean("flutter_ui", false).apply()
-                    openClassic("home")
-                    result.success(null)
-                }
-                else -> result.notImplemented()
+            } catch (e: Exception) {
+                result.error("mmi", e.message, null)
+            }
+        }
+        // Calls: the call screen takes over as soon as a call starts and leaves when it ends.
+        scope.launch {
+            TwBridge.call.collect { ch.invokeMethod("call", car.callState()) }
+        }
+        // Car knob and buttons, while the new screens are in front.
+        scope.launch {
+            com.openlauncher.app.util.CarCore.keys.collect { k ->
+                if (resumed && k.press == 1) ch.invokeMethod("key", mapOf("code" to k.code))
             }
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        resumed = true
+    }
+
+    override fun onPause() {
+        resumed = false
+        super.onPause()
+    }
+
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
+    }
+
+    // The car's software turns every knob step into a fake next / previous-track key too:
+    // drop those so turning the knob never skips songs.
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.keyCode == android.view.KeyEvent.KEYCODE_MEDIA_NEXT || event.keyCode == android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS) {
+            val k = com.openlauncher.app.util.CarCore.lastKey.value
+            if (k != null && k.code in setOf(5, 6, 19, 21) && System.currentTimeMillis() - k.at < 600) return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    /** Home tiles not drawn in Flutter: the unit's own apps, or the classic page. */
+    private fun openKey(key: String, car: FlutterBridge) {
+        val launched = when (key) {
+            "browser" -> car.launch("browser")
+            "weather" -> car.launch("weather")
+            "video" -> car.launch("video")
+            "phonelink" -> car.launch("pkg:" + (packageManager.getInstalledApplications(0)
+                .firstOrNull { a -> listOf("zlink", "carlink", "autokit", "easyconnect", "phonelink").any { a.packageName.contains(it, true) } }?.packageName ?: ""))
+            else -> false
+        }
+        if (!launched) openClassic(key)
+    }
+
     /** A page that is not in Flutter yet: show it in the classic MMI. */
-    private fun openClassic(key: String) {
-        val page = CLASSIC_PAGES[key] ?: "HOME"
+    private fun openClassic(key: String) = openClassicPage(CLASSIC_PAGES[key] ?: "HOME")
+
+    private fun openClassicPage(page: String) {
         startActivity(
             Intent(this, MainActivity::class.java)
                 .putExtra("mmi_page", page)
@@ -140,6 +228,10 @@ class MmiFlutterActivity : FlutterActivity() {
     }
 
     companion object {
+        /** True while the new screens are in front (the classic shell then ignores the car's keys). */
+        @Volatile var resumed = false
+            private set
+
         private val CLASSIC_PAGES = mapOf(
             "home" to "HOME", "radio" to "RADIO", "music" to "MUSIC", "phone" to "PHONE",
             "nav" to "NAV", "phonelink" to "BT_HUB", "carinfo" to "DASHBOARD", "settings" to "SETTINGS",

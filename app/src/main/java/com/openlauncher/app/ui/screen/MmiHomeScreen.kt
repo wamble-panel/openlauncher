@@ -310,7 +310,10 @@ fun MmiHomeScreen(
     }
     val carKeyHandler by rememberUpdatedState(::onCarKey)
     LaunchedEffect(Unit) {
-        com.openlauncher.app.util.CarCore.keys.collect { k -> if (k.press == 1) carKeyHandler(k.code) }
+        com.openlauncher.app.util.CarCore.keys.collect { k ->
+            // The new (Flutter) screens handle the keys while they are in front.
+            if (k.press == 1 && !com.openlauncher.app.MmiFlutterActivity.resumed) carKeyHandler(k.code)
+        }
     }
 
     // Idle: with no touch, no music playing and no phone connected for a while,

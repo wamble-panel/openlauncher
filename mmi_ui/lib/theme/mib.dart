@@ -61,3 +61,43 @@ class OutlineIcon extends StatelessWidget {
     );
   }
 }
+
+/// Solid transport symbols (play, pause, previous, next) drawn as shapes, like the
+/// designs; the outline symbol font only has them hollow.
+enum Transport { play, pause, prev, next }
+
+class TransportIcon extends StatelessWidget {
+  const TransportIcon(this.kind, {super.key, this.size = 44, this.color = const Color(0xFFFFFFFF)});
+  final Transport kind;
+  final double size;
+  final Color color;
+  @override
+  Widget build(BuildContext context) => SizedBox.square(dimension: size, child: CustomPaint(painter: _TransportPainter(kind, color)));
+}
+
+class _TransportPainter extends CustomPainter {
+  _TransportPainter(this.kind, this.color);
+  final Transport kind;
+  final Color color;
+  @override
+  void paint(Canvas canvas, Size s) {
+    final p = Paint()..color = color;
+    final w = s.width, h = s.height;
+    switch (kind) {
+      case Transport.pause:
+        canvas.drawRect(Rect.fromLTWH(w * 0.27, h * 0.2, w * 0.15, h * 0.6), p);
+        canvas.drawRect(Rect.fromLTWH(w * 0.58, h * 0.2, w * 0.15, h * 0.6), p);
+      case Transport.play:
+        canvas.drawPath(Path()..moveTo(w * 0.3, h * 0.18)..lineTo(w * 0.8, h * 0.5)..lineTo(w * 0.3, h * 0.82)..close(), p);
+      case Transport.prev:
+        canvas.drawRect(Rect.fromLTWH(w * 0.24, h * 0.24, w * 0.07, h * 0.52), p);
+        canvas.drawPath(Path()..moveTo(w * 0.76, h * 0.24)..lineTo(w * 0.33, h * 0.5)..lineTo(w * 0.76, h * 0.76)..close(), p);
+      case Transport.next:
+        canvas.drawRect(Rect.fromLTWH(w * 0.69, h * 0.24, w * 0.07, h * 0.52), p);
+        canvas.drawPath(Path()..moveTo(w * 0.24, h * 0.24)..lineTo(w * 0.67, h * 0.5)..lineTo(w * 0.24, h * 0.76)..close(), p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TransportPainter old) => old.kind != kind || old.color != color;
+}

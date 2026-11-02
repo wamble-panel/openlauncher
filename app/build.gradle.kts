@@ -30,6 +30,9 @@ android {
                 keyAlias = "androiddebugkey"
                 keyPassword = "android"
             }
+            // Keep the JAR signature too (minSdk 24 would drop it): CI's key check reads it.
+            enableV1Signing = true
+            enableV2Signing = true
         }
     }
 

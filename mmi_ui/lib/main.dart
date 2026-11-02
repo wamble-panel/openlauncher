@@ -10,8 +10,9 @@ void main() {
 
 /// MMI's screens. The host starts it on a page given by name (default: home).
 class MmiApp extends StatelessWidget {
-  const MmiApp({super.key, this.initialPage = 'home'});
+  const MmiApp({super.key, this.initialPage = 'home', this.initialCall});
   final String initialPage;
+  final Map<Object?, Object?>? initialCall;
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +20,7 @@ class MmiApp extends StatelessWidget {
       color: const Color(0xFF000000),
       debugShowCheckedModeBanner: false,
       textStyle: const TextStyle(fontFamily: 'Roboto', color: Color(0xFFFFFFFF)),
-      builder: (context, _) => MmiShell(initialPage: initialPage),
+      builder: (context, _) => MmiShell(initialPage: initialPage, initialCall: initialCall),
     );
   }
 }

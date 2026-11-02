@@ -111,6 +111,7 @@ class _Tile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Pressable(
+      focusable: false,
       onTap: onTap,
       child: LayoutBuilder(builder: (context, c) {
         final stripH = _stripH * k;
