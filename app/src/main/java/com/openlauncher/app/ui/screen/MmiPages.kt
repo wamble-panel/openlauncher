@@ -490,24 +490,21 @@ internal fun MmiRadioPage(
     val freq = radio?.freq?.filter { it.isDigit() || it == '.' }?.toFloatOrNull()
     val tw = com.openlauncher.app.util.TwBridge
     var presets by remember { mutableStateOf(if (onTune != null) tw.radioPresets() else emptyList()) }
-    Column(
-        Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceEvenly,
-    ) {
-        Column(
-            Modifier.fillMaxWidth(0.62f).mmiPanel().padding(vertical = 18.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(radio?.band ?: "FM", color = MmiCyan, fontFamily = MmiFont, fontSize = 16.sp, letterSpacing = 3.sp)
-            Text(
-                radio?.freq ?: "– – –", color = MmiInk, fontFamily = MmiFont,
-                fontSize = 64.sp,
-            )
-            Text(
-                radio?.stationName ?: if (radio == null) "Radio not connected" else (if (isAm) "kHz" else "MHz"),
-                color = MmiDim, fontFamily = MmiFont, fontSize = 18.sp,
-            )
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 10.dp)) {
+        // Current station: big frequency and name, FM / AM switch on the right.
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(radio?.freq ?: "– – –", color = Color.White, fontFamily = MmiFont, fontSize = 56.sp)
+                    Spacer(Modifier.width(10.dp))
+                    Text(if (isAm) "kHz" else "MHz", color = MmiDim, fontFamily = MmiFont, fontSize = 22.sp, modifier = Modifier.padding(bottom = 10.dp))
+                }
+                Text(
+                    radio?.stationName ?: if (radio == null) "Radio not connected" else (radio.band ?: "FM"),
+                    color = MmiDim, fontFamily = MmiFont, fontSize = 22.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            MibSegmented(listOf("FM", "AM"), if (isAm) 1 else 0, { if (it == 0) onFm() else onAm() }, Modifier.width(260.dp))
         }
         // Drag along the scale (or tap it): the needle follows the finger, the station
         // is tuned when the finger lifts, snapped to the band's channel steps.
@@ -518,7 +515,7 @@ internal fun MmiRadioPage(
             else kotlin.math.round(raw.coerceIn(bandMin, bandMax) * 10f) / 10f
         TuningScale(
             isAm, dragFreq ?: freq,
-            Modifier.fillMaxWidth().height(70.dp).then(
+            Modifier.fillMaxWidth().height(70.dp).padding(vertical = 4.dp).then(
                 if (onTune == null) Modifier else Modifier
                     .pointerInput(isAm) {
                         detectTapGestures { pos -> onTune(isAm, snap(bandMin + (pos.x / size.width) * (bandMax - bandMin))) }
@@ -536,44 +533,49 @@ internal fun MmiRadioPage(
             ),
             follow = dragFreq != null,
         )
-        // While dragging, the big readout shows where the finger is.
-        dragFreq?.let {
-            Text(
-                if (isAm) "${it.toInt()} kHz" else "%.1f MHz".format(it),
-                color = MmiCyan, fontFamily = MmiFont, fontSize = 22.sp,
-            )
-        }
-        if (onTune != null && freq != null) {
-            // Fine tuning and six presets (tap: tune, long-press: save the current station).
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                val step = if (isAm) 9f else 0.1f
-                ChromePill("−", { onTune(isAm, freq - step) }, modifier = Modifier.width(64.dp))
-                repeat(6) { slot ->
-                    val p = presets.getOrNull(slot)?.takeIf { it > 0f }
-                    Box(
-                        Modifier.size(width = 92.dp, height = 48.dp).mmiPanel()
-                            .pointerInput(freq, p) {
-                                detectTapGestures(
-                                    onTap = { if (p != null) onTune(p > 200f, p) },
-                                    onLongPress = { tw.radioSavePreset(slot, freq); presets = tw.radioPresets() },
-                                )
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            p?.let { if (it > 200f) it.toInt().toString() else "%.1f".format(it) } ?: "Hold to save",
-                            color = if (p != null) MmiInk else MmiDim, fontFamily = MmiFont, fontSize = if (p != null) 17.sp else 11.sp,
-                        )
+        // Presets as MIB list rows, two columns (tap: tune, hold: save the current station).
+        if (onTune != null) {
+            for (row in 0 until 3) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    for (col in 0 until 2) {
+                        val slot = row * 2 + col
+                        val p = presets.getOrNull(slot)?.takeIf { it > 0f }
+                        val playing = p != null && freq != null && kotlin.math.abs(p - freq) < 0.05f
+                        Row(
+                            Modifier.weight(1f).height(66.dp)
+                                .drawBehind {
+                                    drawLine(MibLine.copy(alpha = 0.22f), Offset(0f, size.height - 1), Offset(size.width, size.height - 1), 1.dp.toPx())
+                                    if (playing) drawRect(Color.White, size = Size(4.dp.toPx(), size.height))
+                                }
+                                .pointerInput(freq, p) {
+                                    detectTapGestures(
+                                        onTap = { if (p != null) { com.openlauncher.app.util.UiSound.tap(); onTune(p > 200f, p) } },
+                                        onLongPress = { if (freq != null) { tw.radioSavePreset(slot, freq); presets = tw.radioPresets() } },
+                                    )
+                                }
+                                .padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("${slot + 1}", color = MmiDim, fontFamily = MmiFont, fontSize = 20.sp, modifier = Modifier.width(30.dp))
+                            Text(
+                                p?.let { if (it > 200f) "${it.toInt()} kHz" else "%.1f MHz".format(it) } ?: "Hold to save",
+                                color = if (p != null) Color.White else MmiDim, fontFamily = MmiFont, fontSize = if (p != null) 24.sp else 18.sp,
+                            )
+                        }
                     }
                 }
-                ChromePill("+", { onTune(isAm, freq + step) }, modifier = Modifier.width(64.dp))
             }
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            ChromeButton(MmiLine.PREV, 64.dp, onSeekDown)
-            ChromeButton(MmiLine.NEXT, 64.dp, onSeekUp)
-            ChromePill("FM", onFm, modifier = Modifier.width(90.dp))
-            ChromePill("AM", onAm, modifier = Modifier.width(90.dp))
+        Spacer(Modifier.weight(1f))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            ChromeButton(MmiLine.PREV, 60.dp, onSeekDown)
+            ChromeButton(MmiLine.NEXT, 60.dp, onSeekUp)
+            if (onTune != null && freq != null) {
+                val step = if (isAm) 9f else 0.1f
+                ChromePill("−", { onTune(isAm, freq - step) }, modifier = Modifier.width(64.dp))
+                ChromePill("+", { onTune(isAm, freq + step) }, modifier = Modifier.width(64.dp))
+            }
+            Spacer(Modifier.weight(1f))
             ChromePill("Open radio", onOpenRadio, MmiLine.OPEN)
         }
     }

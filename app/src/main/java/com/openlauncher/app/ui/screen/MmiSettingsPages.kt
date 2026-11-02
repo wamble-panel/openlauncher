@@ -86,33 +86,17 @@ private fun MmiSwitch(on: Boolean) {
     }
 }
 
+// Settings pages use the MIB list parts (MmiMib.kt).
 @Composable
-private fun SettingRow(label: String, value: String? = null, onClick: (() -> Unit)? = null, trailing: @Composable (() -> Unit)? = null) {
-    Row(
-        Modifier.fillMaxWidth().height(58.dp).let { if (onClick != null) it.pressable(onClick) else it }.padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, color = MmiInk, fontFamily = MmiFont, fontSize = 19.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (value != null) Text(value, color = MmiDim, fontFamily = MmiFont, fontSize = 16.sp, maxLines = 1)
-        if (trailing != null) {
-            Spacer(Modifier.width(12.dp))
-            trailing()
-        } else if (onClick != null) {
-            Spacer(Modifier.width(12.dp))
-            MmiLineIcon(MmiLine.ARROW, MmiDim, Modifier.size(18.dp))
-        }
-    }
-    Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF1E2125)))
-}
+private fun SettingRow(label: String, value: String? = null, onClick: (() -> Unit)? = null, trailing: @Composable (() -> Unit)? = null) =
+    MibListRow(label, value, onClick, trailing)
 
 @Composable
 private fun ToggleRow(label: String, on: Boolean, onToggle: (Boolean) -> Unit) =
-    SettingRow(label, onClick = { onToggle(!on) }) { MmiSwitch(on) }
+    MibListRow(label, onClick = { onToggle(!on) }) { MibSwitch(on) }
 
 @Composable
-private fun SectionTitle(text: String) {
-    Text(text.uppercase(), color = MmiCyan, fontFamily = MmiFont, fontSize = 13.sp, letterSpacing = 2.sp, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
-}
+private fun SectionTitle(text: String) = MibCaption(text)
 
 @Composable
 private fun SettingsColumn(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {

@@ -71,8 +71,8 @@ internal fun MibRail(active: String?, onOpen: (String) -> Unit, modifier: Modifi
 }
 
 /**
- * Page header: optional back box, "Section · Page" breadcrumb (section in the accent),
- * optional extra boxes on the left and an action on the right, over a thin line.
+ * MIB page header: a small grey section name above a large white title, optional boxes
+ * on the left (grid, source) and right, the back box at the far right, a thin line below.
  */
 @Composable
 internal fun MibHeader(
@@ -84,30 +84,91 @@ internal fun MibHeader(
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
-        modifier.fillMaxWidth().height(58.dp).drawBehind {
+        modifier.fillMaxWidth().height(MIB_HEADER_H).drawBehind {
             drawLine(MibLine, Offset(0f, size.height - 1), Offset(size.width, size.height - 1), 1.dp.toPx())
         },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (onBack != null) MibBox(onBack) { MmiLineIcon(MmiLine.RETURN, Color.White, Modifier.size(30.dp)) }
         leading()
-        Row(Modifier.weight(1f).padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (section != null) {
-                Text(section, color = MibSection, fontFamily = MmiFont, fontSize = 24.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                Text("  ·  ", color = Color.White, fontFamily = MmiFont, fontSize = 24.sp)
-            }
-            Text(title, color = Color.White, fontFamily = MmiFont, fontSize = 24.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.weight(1f).padding(horizontal = 16.dp), verticalArrangement = Arrangement.Center) {
+            if (section != null) Text(section, color = MibSection, fontFamily = MmiFont, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, color = Color.White, fontFamily = MmiFont, fontSize = 30.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         trailing()
+        if (onBack != null) MibBox(onBack, leftLine = true) { MmiLineIcon(MmiLine.RETURN, Color.White, Modifier.size(34.dp)) }
     }
+}
+
+/** MIB proportions (from the video): header ≈ 22 % and a list row ≈ 15 % of the content height. */
+internal val MIB_HEADER_H = 96.dp
+internal val MIB_ROW_H = 76.dp
+
+/** List row: white label left, optional grey value / trailing control right, thin divider below. */
+@Composable
+internal fun MibListRow(label: String, value: String? = null, onClick: (() -> Unit)? = null, trailing: (@Composable () -> Unit)? = null) {
+    Row(
+        Modifier.fillMaxWidth().height(MIB_ROW_H)
+            .drawBehind { drawLine(MibLine.copy(alpha = 0.22f), Offset(0f, size.height - 1), Offset(size.width, size.height - 1), 1.dp.toPx()) }
+            .then(if (onClick != null) Modifier.pressable(onClick) else Modifier)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, color = Color.White, fontFamily = MmiFont, fontSize = 24.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (value != null) Text(value, color = MibSection, fontFamily = MmiFont, fontSize = 20.sp, maxLines = 1)
+        if (trailing != null) {
+            Spacer(Modifier.width(16.dp))
+            trailing()
+        } else if (onClick != null) {
+            Spacer(Modifier.width(12.dp))
+            MmiLineIcon(MmiLine.ARROW, Color.White.copy(alpha = 0.8f), Modifier.size(30.dp))
+        }
+    }
+}
+
+/** MIB on/off switch: outlined pill; on = filled white with a dark knob on the right. */
+@Composable
+internal fun MibSwitch(on: Boolean) {
+    val x by androidx.compose.animation.core.animateFloatAsState(if (on) 1f else 0f, androidx.compose.animation.core.tween(160), label = "switch")
+    Canvas(Modifier.size(width = 62.dp, height = 32.dp)) {
+        val r = size.height / 2
+        val stroke = 1.5.dp.toPx()
+        drawRoundRect(Color.White.copy(alpha = 0.9f * x), cornerRadius = androidx.compose.ui.geometry.CornerRadius(r))
+        drawRoundRect(Color.White.copy(alpha = 0.7f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(r), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+        val cx = r + (size.width - 2 * r) * x
+        drawCircle(if (on) Color(0xFF15171A) else Color(0xFFBFC3C8), r - 5.dp.toPx(), Offset(cx, r))
+    }
+}
+
+/** MIB segmented control: equal outlined cells, the chosen one lit with a light gradient. */
+@Composable
+internal fun MibSegmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier.fillMaxWidth().height(58.dp).border(1.dp, Color(0x66FFFFFF), RectangleShape)) {
+        options.forEachIndexed { i, label ->
+            val on = i == selected
+            Box(
+                Modifier.weight(1f).fillMaxHeight()
+                    .background(if (on) Brush.verticalGradient(listOf(Color(0xFF8A8D91), Color(0xFF3A3D41))) else Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent)))
+                    .drawBehind { if (i > 0) drawLine(Color(0x66FFFFFF), Offset(0f, 0f), Offset(0f, size.height), 1.dp.toPx()) }
+                    .pressable { onSelect(i) },
+                contentAlignment = Alignment.Center,
+            ) { Text(label, color = Color.White, fontFamily = MmiFont, fontSize = 22.sp, maxLines = 1) }
+        }
+    }
+}
+
+/** Small grey caption above a group of rows. */
+@Composable
+internal fun MibCaption(text: String) {
+    Text(text, color = MibSection, fontFamily = MmiFont, fontSize = 18.sp, modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 2.dp))
 }
 
 /** Square-ish header box with a hairline on its right, like the MIB back / source boxes. */
 @Composable
-internal fun MibBox(onClick: () -> Unit, width: Dp = 88.dp, content: @Composable RowScope.() -> Unit) {
+internal fun MibBox(onClick: () -> Unit, width: Dp = 88.dp, leftLine: Boolean = false, content: @Composable RowScope.() -> Unit) {
     Row(
         Modifier.width(width).fillMaxHeight().pressable(onClick).drawBehind {
-            drawLine(MibLine, Offset(size.width, size.height * 0.15f), Offset(size.width, size.height), 1.dp.toPx())
+            val x = if (leftLine) 0f else size.width
+            drawLine(MibLine, Offset(x, size.height * 0.15f), Offset(x, size.height), 1.dp.toPx())
         },
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,

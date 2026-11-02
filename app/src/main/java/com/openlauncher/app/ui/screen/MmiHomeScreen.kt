@@ -15,6 +15,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -451,6 +452,9 @@ fun MmiHomeScreen(
             }
         }
         HazardBanner(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
+        // Speed cameras warn on every page (the map shows its own banner).
+        if (page != MmiPage.NAV) CameraBanner(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
+        VolumePopup(Modifier.align(Alignment.BottomCenter).padding(bottom = 40.dp))
         CallBar(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
         ClimatePopup(Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp))
         DoorBanner(Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
@@ -524,6 +528,98 @@ private fun HazardBanner(modifier: Modifier) {
                 (current?.type?.label ?: "") + "  " + (current?.let { com.openlauncher.app.map.formatDistance(it.distanceM, metric) } ?: ""),
                 color = Color.Black, fontFamily = MmiFont, fontWeight = FontWeight.Medium, fontSize = 22.sp,
             )
+        }
+    }
+}
+
+/**
+ * Speed camera ahead, on any page: camera icon, distance counting down and the limit
+ * sign, red when you are faster than the limit. A chime plays when it appears.
+ */
+@Composable
+private fun CameraBanner(modifier: Modifier) {
+    val nav by NavigationEngine.state.collectAsStateWithLifecycle()
+    val metric by CarPrefs.get(LocalContext.current).metric.collectAsStateWithLifecycle()
+    val cam = nav.camera
+    val shown = cam != null
+    LaunchedEffect(shown) { if (shown) com.openlauncher.app.util.UiSound.open() }
+    androidx.compose.animation.AnimatedVisibility(
+        visible = shown, modifier = modifier,
+        enter = fadeIn(tween(200)), exit = fadeOut(tween(300)),
+    ) {
+        val over = cam != null && cam.limit > 0 && nav.speedKmh > cam.limit + 3
+        Row(
+            Modifier.background(if (over) Color(0xF0B71C1C) else Color(0xF0101214))
+                .border(1.dp, Brush.verticalGradient(listOf(Color(0x33FFFFFF), Color(0xAAFFFFFF))), androidx.compose.ui.graphics.RectangleShape)
+                .padding(horizontal = 20.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            MmiLineIcon(MmiLine.CAMERA, Color.White, Modifier.size(34.dp))
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(if (cam?.user == true) "Marked camera" else "Speed camera", color = Color.White, fontFamily = MmiFont, fontSize = 22.sp)
+                Text(cam?.let { com.openlauncher.app.map.formatDistance(it.distanceM, metric) } ?: "", color = Color.White.copy(alpha = 0.8f), fontFamily = MmiFont, fontSize = 18.sp)
+            }
+            if (cam != null && cam.limit > 0) {
+                Spacer(Modifier.width(16.dp))
+                SpeedLimitSign(cam.limit, Modifier.size(52.dp))
+            }
+        }
+    }
+}
+
+/**
+ * MIB volume pop-up: when the media volume changes, a slim panel with a speaker icon,
+ * "Volume", a thin level line and the step number, for two seconds.
+ */
+@Composable
+private fun VolumePopup(modifier: Modifier) {
+    val context = LocalContext.current
+    val audio = remember(context) { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    var level by remember { mutableIntStateOf(audio.getStreamVolume(AudioManager.STREAM_MUSIC)) }
+    var shownAt by remember { mutableLongStateOf(0L) }
+    DisposableEffect(context) {
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: Context, i: Intent) {
+                if (i.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1) != AudioManager.STREAM_MUSIC) return
+                level = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+                shownAt = System.currentTimeMillis()
+            }
+        }
+        androidx.core.content.ContextCompat.registerReceiver(
+            context, receiver, android.content.IntentFilter("android.media.VOLUME_CHANGED_ACTION"),
+            androidx.core.content.ContextCompat.RECEIVER_EXPORTED,
+        )
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(shownAt) {
+        if (shownAt == 0L) return@LaunchedEffect
+        visible = true
+        delay(2000)
+        visible = false
+    }
+    val max = remember(audio) { audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1) }
+    androidx.compose.animation.AnimatedVisibility(visible, modifier, enter = fadeIn(tween(150)), exit = fadeOut(tween(300))) {
+        val fill by animateFloatAsState(level / max.toFloat(), tween(120), label = "volume")
+        Row(
+            Modifier.width(560.dp).height(76.dp).background(Color(0xF00B0C0E))
+                .border(1.dp, Brush.verticalGradient(listOf(Color(0x33FFFFFF), Color(0xAAFFFFFF))), androidx.compose.ui.graphics.RectangleShape)
+                .padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            MmiLineIcon(if (level == 0) MmiLine.MUTE else MmiLine.SPEAKER, Color.White, Modifier.size(34.dp))
+            Spacer(Modifier.width(18.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Volume", color = Color.White, fontFamily = MmiFont, fontSize = 20.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+                Spacer(Modifier.height(8.dp))
+                Canvas(Modifier.fillMaxWidth().height(4.dp)) {
+                    drawLine(Color(0x55FFFFFF), Offset(0f, size.height / 2), Offset(size.width, size.height / 2), 2.dp.toPx())
+                    drawLine(Color.White, Offset(0f, size.height / 2), Offset(size.width * fill, size.height / 2), 3.dp.toPx())
+                }
+            }
+            Spacer(Modifier.width(18.dp))
+            Text("$level", color = Color.White, fontFamily = MmiFont, fontSize = 24.sp)
         }
     }
 }
@@ -889,46 +985,9 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
         "Storage & about" to { onOpen(MmiPage.STORAGE) },
         "Android settings" to openSystem,
     )
-    BoxWithConstraints(Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, bottom = 8.dp)) {
-        val panelHeight = maxHeight
-        val panelWidth = maxWidth
-        val rowHeight = panelHeight / 6
-        val labelSize = with(LocalDensity.current) { (rowHeight * 0.36f).toSp() }
-        val frameShape = RoundedCornerShape(6.dp)
-        Box(
-            Modifier.fillMaxSize().clip(frameShape)
-                .background(Color(0xE60A0B0D))
-                .border(
-                    1.5.dp,
-                    Brush.verticalGradient(listOf(Color(0xFFB8BEC6), Color(0xFF2A2D32), Color(0xFF8E959E))),
-                    frameShape,
-                ),
-        ) {
-            RotaryDial(Modifier.align(Alignment.CenterEnd).padding(end = 24.dp).size(panelHeight * 0.85f))
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                rows.forEach { (label, action) ->
-                    Row(
-                        Modifier.fillMaxWidth().height(rowHeight).pressable(action)
-                            .padding(start = panelWidth * 0.1f, end = panelWidth * 0.28f),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(label, color = MmiInk, fontFamily = MmiFont, fontSize = labelSize)
-                        Spacer(Modifier.weight(1f))
-                        MmiLineIcon(MmiLine.ARROW, Color.White, Modifier.size(rowHeight * 0.42f))
-                    }
-                }
-            }
-        }
-        Box(
-            Modifier.align(Alignment.CenterStart).offset(x = (-14).dp)
-                .size(width = 40.dp, height = maxHeight * 0.24f)
-                .clip(RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp))
-                .background(Brush.horizontalGradient(listOf(Color(0xFF8E959E), Color(0xFFE9ECEF), Color(0xFFB4BAC2))))
-                .pressable(openSystem),
-            contentAlignment = Alignment.Center,
-        ) {
-            MmiLineIcon(MmiLine.MENU, Color(0xFF3A3F46), Modifier.size(24.dp))
-        }
+    // MIB settings list: one row per entry, label left, chevron right, thin dividers.
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        rows.forEach { (label, action) -> MibListRow(label, onClick = action) }
     }
 }
 
