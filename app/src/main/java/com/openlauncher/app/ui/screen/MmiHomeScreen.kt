@@ -1,6 +1,14 @@
 package com.openlauncher.app.ui.screen
 
 import android.content.Context
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.VolumeUp
+import androidx.compose.material.icons.outlined.Bluetooth
+import androidx.compose.material.icons.outlined.NearMe
+import androidx.compose.material.icons.outlined.DirectionsCar
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.SettingsSuggest
 import android.content.Intent
 import android.media.AudioManager
 import android.media.audiofx.AudioEffect
@@ -95,6 +103,7 @@ private enum class MmiPage(val title: String?, val inSettings: Boolean = false) 
     HOME(null), DASHBOARD("Dashboard"), SETTINGS("Settings"),
     MUSIC("Music"), RADIO("Radio"), BT_HUB("Bluetooth"), PHONE("Telephone"), CONTACTS("Contacts"), APPS("Apps"),
     NAV("Navigation"), SOURCE("Source"), DIAGNOSTICS("Diagnostics"),
+    GENERAL_SET("General", true), CONN_SET("Bluetooth & connections", true), CAR_SET("Car", true), SYSTEM_SET("System & updates", true),
     PERMISSIONS("Permissions", true), CLEANUP("Unit cleanup & speed", true), STORAGE("Storage & about", true), DISPLAY("Display", true), SOUND("Sound", true), EQ("Equaliser", true), BLUETOOTH("Bluetooth devices", true), NAV_SETTINGS("Navigation settings", true),
 }
 
@@ -388,6 +397,16 @@ fun MmiHomeScreen(
                     MmiPage.SETTINGS -> SettingsPanel(metric, onSetMetric) {
                         if (it == MmiPage.BLUETOOTH) {
                             bluetoothFrom = MmiPage.SETTINGS
+                            pairOnOpen = false
+                        }
+                        page = it
+                    }
+                    MmiPage.GENERAL_SET, MmiPage.CONN_SET, MmiPage.CAR_SET, MmiPage.SYSTEM_SET -> SettingsPanel(
+                        metric, onSetMetric,
+                        when (target) { MmiPage.GENERAL_SET -> "general"; MmiPage.CONN_SET -> "connections"; MmiPage.CAR_SET -> "car"; else -> "system" },
+                    ) {
+                        if (it == MmiPage.BLUETOOTH) {
+                            bluetoothFrom = MmiPage.CONN_SET
                             pairOnOpen = false
                         }
                         page = it
@@ -852,7 +871,7 @@ private fun LiveDashboard(location: StateFlow<LocationData?>, bearing: StateFlow
 // ── Settings page ────────────────────────────────────────────────────────────
 
 @Composable
-private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpen: (MmiPage) -> Unit) {
+private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, category: String? = null, onOpen: (MmiPage) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var introSet by remember { mutableStateOf(IntroVideo.isSet(context)) }
@@ -904,29 +923,29 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
     var keepReverseMusic by remember { mutableStateOf(com.openlauncher.app.util.TwBridge.keepMusicInReverse()) }
     var uiSounds by remember { mutableStateOf(com.openlauncher.app.util.UiSound.enabled) }
     var popupsHidden by remember { mutableStateOf(com.openlauncher.app.service.MediaListenerService.popupsHidden(context)) }
-    val rows: List<Pair<String, () -> Unit>> = listOfNotNull(
-        updateLabel to runUpdate,
+    // Rows by category: general, connections, car, system.
+    val rows: List<Triple<String, String, () -> Unit>> = listOfNotNull(
+        Triple("system", updateLabel, runUpdate),
         // Device owner (set once over ADB) only exists for silent updates; this undoes it.
-        if (silentUpdates) "Silent updates: on (tap to turn off)" to {
+        if (silentUpdates) Triple("system", "Silent updates: on (tap to turn off)") {
             runCatching {
                 (context.getSystemService(Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager)
                     .clearDeviceOwnerApp(context.packageName)
             }
             silentUpdates = updater.isDeviceOwner(context)
         } else null,
-        "Car: ${carName}" to {
+        Triple("car", "Car: $carName") {
             val next = com.openlauncher.app.map.CarProfile.entries[(RoadMemory.car.ordinal + 1) % com.openlauncher.app.map.CarProfile.entries.size]
             RoadMemory.setCar(next)
         },
-        (if (uiSounds) "Touch sounds: on" else "Touch sounds: off") to {
+        Triple("car", "Car info") { onOpen(MmiPage.DASHBOARD) },
+        Triple("car", "Car diagnostics") { onOpen(MmiPage.DIAGNOSTICS) },
+        Triple("general", if (uiSounds) "Touch sounds: on" else "Touch sounds: off") {
             uiSounds = !uiSounds
             com.openlauncher.app.util.UiSound.setEnabled(uiSounds)
         },
-        "Car diagnostics" to { onOpen(MmiPage.DIAGNOSTICS) },
-        "Display" to { onOpen(MmiPage.DISPLAY) },
-        "Sound" to { onOpen(MmiPage.SOUND) },
-        "Bluetooth" to { onOpen(MmiPage.BLUETOOTH) },
-        "Wi-Fi (for map downloads)" to {
+        Triple("connections", "Bluetooth") { onOpen(MmiPage.BLUETOOTH) },
+        Triple("connections", "Wi-Fi (for map downloads)") {
             // Android 10+ shows Wi-Fi as a panel over MMI instead of leaving it.
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                 context.launchFirst(Intent(Settings.Panel.ACTION_WIFI), Intent(Settings.ACTION_WIFI_SETTINGS))
@@ -935,25 +954,24 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
             }
             Unit
         },
-        "Navigation" to { onOpen(MmiPage.NAV_SETTINGS) },
-        (if (metric) "Units: km/h, metres" else "Units: mph, feet") to { onSetMetric(!metric) },
-        (if (mmiCallBar) "Phone calls: MMI call bar" else "Phone calls: car's own bubble") to {
+        Triple("general", if (metric) "Units: km/h, metres" else "Units: mph, feet") { onSetMetric(!metric) },
+        Triple("connections", if (mmiCallBar) "Phone calls: MMI call screen" else "Phone calls: car's own bubble") {
             mmiCallBar = !mmiCallBar
             com.openlauncher.app.util.TwBridge.setMmiCallBar(mmiCallBar)
         },
-        (if (mmiClimatePopup) "Climate pop-up: MMI style" else "Climate pop-up: car's own") to {
+        Triple("car", if (mmiClimatePopup) "Climate pop-up: MMI style" else "Climate pop-up: car's own") {
             mmiClimatePopup = !mmiClimatePopup
             com.openlauncher.app.util.Climate.setReplaceVendorPopup(mmiClimatePopup)
         },
-        (if (keepReverseMusic) "Music while reversing: keeps playing" else "Music while reversing: muted, resumes after") to {
+        Triple("car", if (keepReverseMusic) "Music while reversing: keeps playing" else "Music while reversing: muted, resumes after") {
             keepReverseMusic = !keepReverseMusic
             com.openlauncher.app.util.TwBridge.setKeepMusicInReverse(keepReverseMusic)
         },
-        (if (popupsHidden) "Android pop-ups: hidden (tap to show)" else "Android pop-ups: shown (tap to hide)") to {
+        Triple("general", if (popupsHidden) "Android pop-ups: hidden (tap to show)" else "Android pop-ups: shown (tap to hide)") {
             popupsHidden = !popupsHidden
             com.openlauncher.app.service.MediaListenerService.setPopupsHidden(context, popupsHidden)
         },
-        (if (introSet) "Startup video: on (tap to remove)" else "Startup video: import from USB") to {
+        Triple("general", if (introSet) "Startup video: on (tap to remove)" else "Startup video: import from USB") {
             if (introSet) {
                 IntroVideo.remove(context)
                 introSet = false
@@ -961,15 +979,46 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, onOpe
                 pickIntro.launch(arrayOf("video/*"))
             }
         },
-        "Permissions" to { onOpen(MmiPage.PERMISSIONS) },
-        "Date & time" to { context.launchFirst(Intent(Settings.ACTION_DATE_SETTINGS)); Unit },
-        "Unit cleanup & speed" to { onOpen(MmiPage.CLEANUP) },
-        "Storage & about" to { onOpen(MmiPage.STORAGE) },
-        "Android settings" to openSystem,
+        Triple("general", "Date & time") { context.launchFirst(Intent(Settings.ACTION_DATE_SETTINGS)); Unit },
+        Triple("system", "Permissions") { onOpen(MmiPage.PERMISSIONS) },
+        Triple("system", "Unit cleanup & speed") { onOpen(MmiPage.CLEANUP) },
+        Triple("system", "Storage & about") { onOpen(MmiPage.STORAGE) },
+        Triple("system", "Android settings", openSystem),
     )
-    // MIB settings list: one row per entry, label left, chevron right, thin dividers.
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        rows.forEach { (label, action) -> MibListRow(label, onClick = action) }
+    if (category != null) {
+        // A category: MIB list, label left, chevron right, thin dividers.
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            rows.filter { it.first == category }.forEach { (_, label, action) -> MibListRow(label, onClick = action) }
+        }
+        return
+    }
+    // Settings home: 4 × 2 category tiles (outline icon above the label).
+    val tiles = listOf(
+        Triple("General", androidx.compose.material.icons.Icons.Outlined.Tune) { onOpen(MmiPage.GENERAL_SET) },
+        Triple("Display &\nbrightness", androidx.compose.material.icons.Icons.Outlined.LightMode) { onOpen(MmiPage.DISPLAY) },
+        Triple("Sound", androidx.compose.material.icons.Icons.Outlined.VolumeUp) { onOpen(MmiPage.SOUND) },
+        Triple("Bluetooth &\nconnections", androidx.compose.material.icons.Icons.Outlined.Bluetooth) { onOpen(MmiPage.CONN_SET) },
+        Triple("Navigation", androidx.compose.material.icons.Icons.Outlined.NearMe) { onOpen(MmiPage.NAV_SETTINGS) },
+        Triple("Car", androidx.compose.material.icons.Icons.Outlined.DirectionsCar) { onOpen(MmiPage.CAR_SET) },
+        Triple("Language &\nkeyboard", androidx.compose.material.icons.Icons.Outlined.Language) { context.launchFirst(Intent(Settings.ACTION_LOCALE_SETTINGS)); Unit },
+        Triple("System &\nupdates", androidx.compose.material.icons.Icons.Outlined.SettingsSuggest) { onOpen(MmiPage.SYSTEM_SET) },
+    )
+    Column(Modifier.fillMaxSize().padding(top = 42.dp, start = 8.dp), verticalArrangement = Arrangement.spacedBy(32.dp)) {
+        tiles.chunked(4).forEach { row ->
+            Row(Modifier.fillMaxWidth().height(222.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                row.forEach { (label, icon, action) ->
+                    Column(
+                        Modifier.weight(1f).fillMaxHeight().border(1.5.dp, Color(0x66FFFFFF), androidx.compose.ui.graphics.RectangleShape).pressable(action),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        androidx.compose.material3.Icon(icon, contentDescription = null, modifier = Modifier.size(72.dp), tint = Color.White)
+                        Spacer(Modifier.height(22.dp))
+                        Text(label, color = Color.White, fontFamily = MmiFont, fontSize = 25.sp, textAlign = TextAlign.Center, lineHeight = 28.sp)
+                    }
+                }
+            }
+        }
     }
 }
 

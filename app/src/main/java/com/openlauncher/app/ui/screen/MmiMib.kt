@@ -125,17 +125,17 @@ internal fun MibListRow(label: String, value: String? = null, onClick: (() -> Un
     }
 }
 
-/** MIB on/off switch: outlined pill; on = filled white with a dark knob on the right. */
+/** On/off switch from the design: on = grey pill, white knob right; off = outlined pill, grey knob left. */
 @Composable
 internal fun MibSwitch(on: Boolean) {
     val x by androidx.compose.animation.core.animateFloatAsState(if (on) 1f else 0f, androidx.compose.animation.core.tween(160), label = "switch")
-    Canvas(Modifier.size(width = 62.dp, height = 32.dp)) {
+    Canvas(Modifier.size(width = 80.dp, height = 40.dp)) {
         val r = size.height / 2
-        val stroke = 1.5.dp.toPx()
-        drawRoundRect(Color.White.copy(alpha = 0.9f * x), cornerRadius = androidx.compose.ui.geometry.CornerRadius(r))
-        drawRoundRect(Color.White.copy(alpha = 0.7f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(r), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+        val cr = androidx.compose.ui.geometry.CornerRadius(r)
+        drawRoundRect(Color(0xFF8A8A8A).copy(alpha = x), cornerRadius = cr)
+        drawRoundRect(Color(0xAAFFFFFF), cornerRadius = cr, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
         val cx = r + (size.width - 2 * r) * x
-        drawCircle(if (on) Color(0xFF15171A) else Color(0xFFBFC3C8), r - 5.dp.toPx(), Offset(cx, r))
+        drawCircle(androidx.compose.ui.graphics.lerp(Color(0xFF9A9A9A), Color.White, x), r - 4.dp.toPx(), Offset(cx, r))
     }
 }
 
@@ -147,7 +147,7 @@ internal fun MibSegmented(options: List<String>, selected: Int, onSelect: (Int) 
             val on = i == selected
             Box(
                 Modifier.weight(1f).fillMaxHeight()
-                    .background(if (on) Brush.verticalGradient(listOf(Color(0xFF8A8D91), Color(0xFF3A3D41))) else Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent)))
+                    .background(if (on) Color(0xFF707070) else Color.Transparent)
                     .drawBehind { if (i > 0) drawLine(Color(0x66FFFFFF), Offset(0f, 0f), Offset(0f, size.height), 1.dp.toPx()) }
                     .pressable { onSelect(i) },
                 contentAlignment = Alignment.Center,

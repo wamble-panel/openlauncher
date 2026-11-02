@@ -15,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
@@ -129,7 +130,10 @@ class MainActivity : ComponentActivity() {
                 return@setContent
             }
             introPlayed = true
+            // Start-up screen (your car + loading line) once per cold start, over the shell.
+            var splash by remember { mutableStateOf(!splashShown) }
 
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
             VolumeGestureBox(
                 accent = MmiCyan,
                 panel = MmiPageBg,
@@ -157,6 +161,8 @@ class MainActivity : ComponentActivity() {
                     onLaunchPackage = vm::launchApp,
                     homeSignal = home,
                 )
+            }
+            if (splash) com.openlauncher.app.ui.screen.MmiSplash { splashShown = true; splash = false }
             }
         }
     }
@@ -224,6 +230,7 @@ class MainActivity : ComponentActivity() {
     private companion object {
         const val HOLDER = "home"
         var introPlayed = false
+        var splashShown = false
     }
 }
 

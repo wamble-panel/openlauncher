@@ -112,68 +112,58 @@ internal fun MmiDisplayPage() {
     val clock24 by prefs.clock24.collectAsStateWithLifecycle()
     var canWrite by remember { mutableStateOf(canWriteSettings(context)) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { canWrite = canWriteSettings(context) }
+    val cr = context.contentResolver
     var brightness by remember {
-        mutableFloatStateOf(runCatching { Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f }.getOrDefault(0.5f))
+        mutableFloatStateOf(runCatching { Settings.System.getInt(cr, Settings.System.SCREEN_BRIGHTNESS) / 255f }.getOrDefault(0.5f))
+    }
+    fun setBrightness(v: Float) {
+        brightness = v
+        runCatching {
+            Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
+            Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS, (v * 255).roundToInt().coerceIn(5, 255))
+        }
+    }
+    // Day / night: Auto = the screen's automatic brightness, Day = full, Night = 30 %.
+    val modePrefs = remember(context) { context.getSharedPreferences("mmi_prefs", android.content.Context.MODE_PRIVATE) }
+    var dayNight by remember { mutableIntStateOf(modePrefs.getInt("day_night", 0)) }
+    var touchSounds by remember { mutableStateOf(com.openlauncher.app.util.UiSound.enabled) }
+    var screenOff by remember {
+        mutableStateOf(runCatching { Settings.System.getInt(cr, Settings.System.SCREEN_OFF_TIMEOUT) }.getOrDefault(Int.MAX_VALUE) <= 1_800_000)
     }
 
-    SettingsColumn(Modifier.padding(horizontal = 48.dp)) {
-        SectionTitle("Screen brightness")
-        if (canWrite) {
-            Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
-                MmiLineIcon(MmiLine.MINUS, MmiDim, Modifier.size(18.dp))
-                Spacer(Modifier.width(16.dp))
-                MmiSlider(brightness, { v ->
-                    brightness = v
-                    runCatching {
-                        val cr = context.contentResolver
-                        Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
-                        Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS, (v * 255).roundToInt().coerceIn(5, 255))
-                    }
-                }, Modifier.weight(1f).height(40.dp))
-                Spacer(Modifier.width(16.dp))
-                MmiLineIcon(MmiLine.PLUS, MmiDim, Modifier.size(18.dp))
-                Spacer(Modifier.width(16.dp))
-                Text("${(brightness * 100).roundToInt()}%", color = MmiInk, fontFamily = MmiFont, fontSize = 18.sp, modifier = Modifier.width(56.dp))
-            }
-        } else {
+    SettingsColumn(Modifier.padding(horizontal = 8.dp)) {
+        if (!canWrite) {
             SettingRow("Allow brightness control", "one-time permission", onClick = {
                 context.launchFirst(
                     Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:${context.packageName}")),
                     Intent(Settings.ACTION_DISPLAY_SETTINGS),
                 )
             })
+        } else {
+            MibSliderRow("Brightness", brightness, { setBrightness(it.coerceAtLeast(0.02f)) })
+            Text("Day / night mode", color = Color.White, fontFamily = MmiFont, fontSize = 24.sp, modifier = Modifier.padding(start = 8.dp, top = 18.dp, bottom = 12.dp))
+            MibSegmented(listOf("Auto", "Day", "Night"), dayNight, { i ->
+                dayNight = i
+                modePrefs.edit().putInt("day_night", i).apply()
+                when (i) {
+                    0 -> runCatching { Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC) }
+                    1 -> setBrightness(1f)
+                    else -> setBrightness(0.3f)
+                }
+            })
+            Spacer(Modifier.height(10.dp))
+        }
+        ToggleRow("Touch sounds", touchSounds) { on ->
+            touchSounds = on
+            com.openlauncher.app.util.UiSound.setEnabled(on)
         }
         if (canWrite) {
-            var auto by remember {
-                mutableStateOf(runCatching {
-                    Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE) == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC
-                }.getOrDefault(false))
-            }
-            ToggleRow("Automatic brightness", auto) { on ->
-                auto = on
-                runCatching {
-                    Settings.System.putInt(
-                        context.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE,
-                        if (on) Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC else Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL,
-                    )
-                }
-            }
-            SectionTitle("Screen turns off")
-            var timeout by remember {
-                mutableIntStateOf(runCatching { Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_OFF_TIMEOUT) }.getOrDefault(600_000))
-            }
-            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                listOf(60_000 to "1 min", 600_000 to "10 min", 1_800_000 to "30 min", Int.MAX_VALUE to "Never").forEach { (ms, label) ->
-                    val selected = timeout == ms
-                    ChromePill(if (selected) "• $label" else label, {
-                        timeout = ms
-                        runCatching { Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_OFF_TIMEOUT, ms) }
-                    })
-                }
+            ToggleRow("Screen off while parked", screenOff) { on ->
+                screenOff = on
+                runCatching { Settings.System.putInt(cr, Settings.System.SCREEN_OFF_TIMEOUT, if (on) 600_000 else Int.MAX_VALUE) }
             }
         }
-        SectionTitle("Clock")
-        ToggleRow("24-hour clock", clock24, prefs::setClock24)
+        SettingRow("Clock format", if (clock24) "24 h" else "12 h", onClick = { prefs.setClock24(!clock24) })
     }
 }
 

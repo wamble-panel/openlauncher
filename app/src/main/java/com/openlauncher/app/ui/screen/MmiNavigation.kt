@@ -42,6 +42,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -305,47 +307,56 @@ private fun NavMap(
     Box(Modifier.fillMaxSize()) {
         AndroidView(factory = { map }, modifier = Modifier.fillMaxSize())
 
-        // Left rail, as in the Audi MMI: quick jumps without leaving the map.
-        NavRail(Modifier.align(Alignment.CenterStart), onOpenPage)
+        // Panels from the design: flat black boxes with thin fading outlines, floating on the map.
+        val panel = Modifier.background(Color(0xF0000000)).border(1.5.dp, Brush.verticalGradient(listOf(Color(0x88FFFFFF), Color(0xCCFFFFFF))), RectangleShape)
+        val divider: @Composable () -> Unit = { Box(Modifier.width(1.5.dp).height(36.dp).background(Color(0x99FFFFFF))) }
 
-        Column(
-            Modifier.align(Alignment.TopStart).padding(start = 76.dp, top = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(Modifier.size(48.dp).pressable(onOpenDestination).mmiPanel(), contentAlignment = Alignment.Center) {
-                    MmiLineIcon(MmiLine.GRID, MmiInk, Modifier.size(24.dp))
+        // Top left: next turn (arrow | distance and street).
+        if (destination != null) {
+            val next = nav.next
+            Row(
+                Modifier.align(Alignment.TopStart).padding(start = 20.dp, top = 24.dp).width(456.dp).height(127.dp).then(panel),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val type = when { nav.arrived -> ManeuverType.ARRIVE; next != null -> next.type; else -> ManeuverType.STRAIGHT }
+                Box(Modifier.width(124.dp), contentAlignment = Alignment.Center) {
+                    if (route != null || nav.calculating) ManeuverGlyph(type, next?.exit ?: 0, Color.White, Modifier.size(78.dp))
+                    else MmiLineIcon(MmiLine.NAV_ARROW, Color.White, Modifier.size(60.dp))
                 }
-                Row(
-                    Modifier.height(48.dp).widthIn(min = 170.dp).pressable(onSearch).mmiPanel().padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    MmiLineIcon(MmiLine.SEARCH, MmiInk, Modifier.size(22.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Text("Search", color = MmiInk, fontFamily = MmiFont, fontSize = 18.sp)
-                }
-            }
-            if (destination != null) {
-                if (route != null || nav.calculating) {
-                    ManeuverPanel(nav, metric)
-                } else {
-                    GuidanceBanner(destination, here, course, metric)
-                }
-                val status = when {
-                    nav.rerouting -> "Recalculating…"
-                    nav.calculating -> "Calculating route…"
-                    else -> nav.message
-                }
-                if (status != null) {
+                Box(Modifier.width(1.5.dp).height(72.dp).background(Color(0x99FFFFFF)))
+                Column(Modifier.padding(horizontal = 24.dp)) {
+                    val status = when {
+                        nav.rerouting -> "Recalculating…"
+                        nav.calculating -> "Calculating route…"
+                        else -> nav.message
+                    }
+                    when {
+                        nav.arrived -> Text("Arrived", color = Color.White, fontFamily = MmiFont, fontSize = 46.sp)
+                        next != null -> Text(formatDistance(nav.distanceToNextM, metric), color = Color.White, fontFamily = MmiFont, fontSize = 46.sp)
+                        else -> Text(here?.let { formatDistance(distanceMeters(it.latitude, it.longitude, destination.lat, destination.lon), metric) } ?: "--", color = Color.White, fontFamily = MmiFont, fontSize = 46.sp)
+                    }
                     Text(
-                        status, color = MmiInk, fontFamily = MmiFont, fontSize = 15.sp,
-                        modifier = Modifier.width(380.dp).mmiPanel().padding(horizontal = 14.dp, vertical = 8.dp),
+                        status ?: next?.text ?: destination.title,
+                        color = Color.White, fontFamily = MmiFont, fontSize = 21.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
         }
-        if (destination != null) {
-            TripPanel(nav, here, metric, Modifier.align(Alignment.BottomStart).padding(start = 76.dp, bottom = 12.dp), onEnd)
+
+        // Top centre: home grid | search.
+        Row(
+            Modifier.align(Alignment.TopStart).padding(start = 498.dp, top = 24.dp).width(324.dp).height(63.dp).then(panel),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.width(80.dp).fillMaxHeight().pressable { onOpenPage("home") }, contentAlignment = Alignment.Center) {
+                MmiLineIcon(MmiLine.GRID, Color.White, Modifier.size(38.dp))
+            }
+            divider()
+            Row(Modifier.weight(1f).fillMaxHeight().pressable(onSearch).padding(start = 22.dp), verticalAlignment = Alignment.CenterVertically) {
+                MmiLineIcon(MmiLine.SEARCH, Color.White, Modifier.size(34.dp))
+                Spacer(Modifier.width(16.dp))
+                Text("Search", color = Color(0xFFD0D0D0), fontFamily = MmiFont, fontSize = 26.sp)
+            }
         }
 
         nav.camera?.let { cam ->
@@ -367,33 +378,36 @@ private fun NavMap(
             }
         }
 
-        // Top right: clock, compass (heading-up / north-up) and settings.
-        Column(
-            Modifier.align(Alignment.TopEnd).padding(end = 12.dp, top = 12.dp),
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        // Top right: clock | north-up | settings.
+        Row(
+            Modifier.align(Alignment.TopEnd).padding(end = 13.dp, top = 24.dp).width(244.dp).height(63.dp).then(panel),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                NavClock()
-                Spacer(Modifier.width(4.dp))
-                Box(
-                    Modifier.size(48.dp).pressable {
-                        northUp = !northUp
-                        navPrefs.edit().putBoolean("north_up", northUp).apply()
-                        following = true
-                    }.mmiPanel(),
-                    contentAlignment = Alignment.Center,
-                ) { CompassButton(if (northUp) 0f else -course, northUp) }
-                Box(Modifier.size(48.dp).pressable { onOpenPage("settings") }.mmiPanel(), contentAlignment = Alignment.Center) {
-                    MmiLineIcon(MmiLine.GEAR, MmiInk, Modifier.size(24.dp))
-                }
+            Box(Modifier.weight(1.3f), contentAlignment = Alignment.Center) { NavClock() }
+            divider()
+            Box(
+                Modifier.weight(0.8f).fillMaxHeight().pressable {
+                    northUp = !northUp
+                    navPrefs.edit().putBoolean("north_up", northUp).apply()
+                    following = true
+                },
+                contentAlignment = Alignment.Center,
+            ) { Text(if (northUp) "N" else "↑", color = Color.White, fontFamily = MmiFont, fontSize = 28.sp) }
+            divider()
+            Box(Modifier.weight(0.9f).fillMaxHeight().pressable { onOpenPage("settings") }, contentAlignment = Alignment.Center) {
+                MmiLineIcon(MmiLine.GEAR, Color.White, Modifier.size(36.dp))
             }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.End) {
-                ChromeButton(MmiLine.PLUS, 40.dp, { zoomOffset = (zoomOffset + 1f).coerceAtMost(3f) })
-                ChromeButton(MmiLine.MINUS, 40.dp, { zoomOffset = (zoomOffset - 1f).coerceAtLeast(-4f) })
-                ChromeButton(MmiLine.LOCATE, 40.dp, { following = true }, highlighted = !following)
-                ChromeButton(MmiLine.MENU, 40.dp, { markMenu = !markMenu }, highlighted = markMenu)
-            }
+        }
+
+        // Right edge: round + / − / locate / menu.
+        Column(
+            Modifier.align(Alignment.TopEnd).padding(end = 22.dp, top = 202.dp),
+            verticalArrangement = Arrangement.spacedBy(13.dp),
+        ) {
+            RoundMapButton(MmiLine.PLUS) { zoomOffset = (zoomOffset + 1f).coerceAtMost(3f) }
+            RoundMapButton(MmiLine.MINUS) { zoomOffset = (zoomOffset - 1f).coerceAtLeast(-4f) }
+            RoundMapButton(MmiLine.LOCATE, highlighted = !following) { following = true }
+            RoundMapButton(MmiLine.MENU, highlighted = markMenu) { markMenu = !markMenu }
         }
 
         // Mark a bump / pothole here, or confirm the last detected jolt.
@@ -421,35 +435,41 @@ private fun NavMap(
             }
         }
 
-        // Bottom right info box, like the Audi one: limit, speed, altitude.
-        if (here != null) {
-            Column(
-                Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 12.dp).width(150.dp).mmiPanel().padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+        // Bottom left: arrival | distance | time left | End.
+        if (destination != null) {
+            val remaining = if (route != null) nav.remainingM
+            else here?.let { distanceMeters(it.latitude, it.longitude, destination.lat, destination.lon) }
+            val seconds = if (route != null) nav.remainingS else null
+            Row(
+                Modifier.align(Alignment.BottomStart).padding(start = 20.dp, bottom = 36.dp).height(87.dp).then(panel).padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (nav.speedLimit > 0) {
-                        SpeedLimitSign(nav.speedLimit, Modifier.size(46.dp))
-                        Spacer(Modifier.width(10.dp))
-                    }
-                    val speed = if (metric) nav.speedKmh else nav.speedKmh / 1.609f
-                    Text(
-                        "${speed.roundToInt()}", color = if (nav.overspeed) Color(0xFFFF5252) else MmiInk,
-                        fontFamily = MmiFont, fontSize = 28.sp,
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(if (metric) "km/h" else "mph", color = MmiDim, fontFamily = MmiFont, fontSize = 12.sp)
-                }
-                if (altitude != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        MmiLineIcon(MmiLine.MOUNTAIN, MmiDim, Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            if (metric) "${altitude.roundToInt()} m" else "${(altitude * 3.281).roundToInt()} ft",
-                            color = MmiInk, fontFamily = MmiFont, fontSize = 15.sp,
-                        )
-                    }
-                }
+                Text("Arrive " + (seconds?.let { formatEta(it) } ?: "--:--"), color = Color.White, fontFamily = MmiFont, fontSize = 29.sp, modifier = Modifier.padding(horizontal = 14.dp))
+                divider()
+                Text(remaining?.let { formatDistance(it, metric) } ?: "--", color = Color.White, fontFamily = MmiFont, fontSize = 29.sp, modifier = Modifier.padding(horizontal = 24.dp))
+                divider()
+                Text(seconds?.let { formatDuration(it) } ?: "--", color = Color.White, fontFamily = MmiFont, fontSize = 29.sp, modifier = Modifier.padding(horizontal = 24.dp))
+                divider()
+                Spacer(Modifier.width(24.dp))
+                Box(
+                    Modifier.size(width = 98.dp, height = 62.dp).border(1.5.dp, Color(0xCCFFFFFF), RectangleShape).pressable(onEnd),
+                    contentAlignment = Alignment.Center,
+                ) { Text("End", color = Color.White, fontFamily = MmiFont, fontSize = 29.sp) }
+            }
+        }
+
+        // Bottom right: speed limit and speed.
+        if (here != null) {
+            Row(
+                Modifier.align(Alignment.BottomEnd).padding(end = 21.dp, bottom = 36.dp).width(247.dp).height(87.dp).then(panel).padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (nav.speedLimit > 0) SpeedLimitSign(nav.speedLimit, Modifier.size(68.dp)) else Spacer(Modifier.size(68.dp))
+                Spacer(Modifier.weight(1f))
+                val speed = if (metric) nav.speedKmh else nav.speedKmh / 1.609f
+                Text("${speed.roundToInt()}", color = if (nav.overspeed) Color(0xFFFF5252) else Color.White, fontFamily = MmiFont, fontSize = 42.sp)
+                Spacer(Modifier.width(6.dp))
+                Text(if (metric) "km/h" else "mph", color = Color.White, fontFamily = MmiFont, fontSize = 24.sp, modifier = Modifier.padding(top = 10.dp))
             }
         }
 
@@ -504,6 +524,17 @@ private fun NavRail(modifier: Modifier, onOpen: (String) -> Unit) {
     }
 }
 
+/** Round map button from the design: black disc, thin white ring, white glyph. */
+@Composable
+private fun RoundMapButton(kind: MmiLine, highlighted: Boolean = false, onClick: () -> Unit) {
+    Box(
+        Modifier.size(74.dp).clip(CircleShape).background(Color(0xF0000000))
+            .border(if (highlighted) 2.5.dp else 1.5.dp, if (highlighted) Color.White else Color(0xBBFFFFFF), CircleShape)
+            .pressable(onClick),
+        contentAlignment = Alignment.Center,
+    ) { MmiLineIcon(kind, Color.White, Modifier.size(40.dp)) }
+}
+
 @Composable
 private fun CompassButton(rotation: Float, northUp: Boolean) {
     val turn by animateFloatAsState(rotation, tween(400), label = "compass_btn")
@@ -527,8 +558,7 @@ private fun NavClock() {
     }
     val fmt = remember(clock24) { java.text.SimpleDateFormat(if (clock24) "HH:mm" else "h:mm a", java.util.Locale.getDefault()) }
     Text(
-        fmt.format(java.util.Date(now)), color = MmiInk, fontFamily = MmiFont, fontSize = 18.sp,
-        modifier = Modifier.mmiPanel().padding(horizontal = 12.dp, vertical = 12.dp),
+        fmt.format(java.util.Date(now)), color = Color.White, fontFamily = MmiFont, fontSize = 28.sp,
     )
 }
 

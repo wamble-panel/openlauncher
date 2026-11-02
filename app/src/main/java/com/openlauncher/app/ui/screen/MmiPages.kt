@@ -657,7 +657,7 @@ internal fun MmiAppsPage(
         apps.filter { it.launchable && it.packageName != context.packageName && (editing || it.packageName !in hidden) }
             .sortedBy { it.appName.lowercase() }
     }
-    val perPage = 18
+    val perPage = 15
     val pages = ((shown.size + perPage - 1) / perPage).coerceAtLeast(1)
     val pager = rememberPagerState { pages }
     // Car knob: move a highlight through the apps and open on press (no touchscreen needed).
@@ -676,25 +676,25 @@ internal fun MmiAppsPage(
         }
     }
     Box(Modifier.fillMaxSize()) {
-    Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 4.dp)) {
+    Column(Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 4.dp)) {
         HorizontalPager(pager, Modifier.weight(1f).fillMaxWidth()) { page ->
             val slice = shown.drop(page * perPage).take(perPage)
-            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
-                slice.chunked(6).forEach { row ->
-                    Row(Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(46.dp)) {
+                slice.chunked(5).forEach { row ->
+                    Row(Modifier.fillMaxWidth().height(145.dp), horizontalArrangement = Arrangement.spacedBy(58.dp)) {
                         row.forEach { app ->
                             val isHidden = app.packageName in hidden
                             val focused = shown.getOrNull(focus) === app
                             AppCell(
                                 app,
-                                Modifier.weight(1f).graphicsLayer { alpha = if (editing && isHidden) 0.3f else 1f }
-                                    .then(if (focused) Modifier.border(2.dp, MmiCyan, RoundedCornerShape(10.dp)) else Modifier),
+                                Modifier.weight(1f).fillMaxHeight().graphicsLayer { alpha = if (editing && isHidden) 0.3f else 1f },
+                                focused = focused,
                                 onLongClick = { menuApp = app },
                             ) {
                                 if (editing) onToggleHidden(app.packageName) else onLaunch(app.packageName)
                             }
                         }
-                        repeat(6 - row.size) { Spacer(Modifier.weight(1f)) }
+                        repeat(5 - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }
@@ -740,27 +740,31 @@ internal fun MmiAppsPage(
     }
 }
 
+/** App tile: outlined rounded box, the app's icon in greyscale, its name below; knob focus = white outline. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AppCell(app: AppInfo, modifier: Modifier, onLongClick: () -> Unit = {}, onClick: () -> Unit) {
+private fun AppCell(app: AppInfo, modifier: Modifier, focused: Boolean = false, onLongClick: () -> Unit = {}, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(10.dp)
     Column(
-        modifier.combinedClickable(
-            interactionSource = remember { MutableInteractionSource() }, indication = null,
-            onLongClick = onLongClick, onClick = onClick,
-        ).padding(vertical = 4.dp),
+        modifier
+            .border(if (focused) 3.dp else 1.5.dp, if (focused) Color.White else Color(0x66FFFFFF), shape)
+            .clip(shape)
+            .combinedClickable(
+                interactionSource = remember { MutableInteractionSource() }, indication = null,
+                onLongClick = onLongClick, onClick = { com.openlauncher.app.util.UiSound.tap(); onClick() },
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Box(
-            Modifier.size(64.dp).drawBehind {
-                drawOval(Color(0x88000000), topLeft = Offset(size.width * 0.1f, size.height * 0.88f), size = Size(size.width * 0.8f, size.height * 0.14f))
-            },
-            contentAlignment = Alignment.Center,
-        ) {
-            val icon = remember(app.packageName) { runCatching { app.icon.toBitmap(112, 112).asImageBitmap() }.getOrNull() }
-            if (icon != null) Image(icon, contentDescription = app.appName, modifier = Modifier.size(56.dp))
+        val icon = remember(app.packageName) { runCatching { app.icon.toBitmap(112, 112).asImageBitmap() }.getOrNull() }
+        if (icon != null) {
+            Image(
+                icon, contentDescription = app.appName, modifier = Modifier.size(64.dp),
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix().apply { setToSaturation(0f) }),
+            )
         }
-        Spacer(Modifier.height(6.dp))
-        Text(app.appName, color = MmiInk, fontFamily = MmiFont, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(12.dp))
+        Text(app.appName, color = Color.White, fontFamily = MmiFont, fontSize = 22.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 8.dp))
     }
 }
 
