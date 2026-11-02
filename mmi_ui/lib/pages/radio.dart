@@ -66,7 +66,7 @@ class _RadioPageState extends State<RadioPage> with Live<RadioPage> {
               child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(name?.isNotEmpty == true ? name! : fmt(freq), style: Mib.text(42), maxLines: 1, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 4),
-                Text([fmt(freq), if (genre != null && genre.isNotEmpty) genre].join('   ·   '), style: Mib.text(26, color: Mib.grey)),
+                Text([if (name?.isNotEmpty == true) fmt(freq) else (am ? 'AM' : 'FM'), if (genre != null && genre.isNotEmpty) genre].join('   ·   '), style: Mib.text(26, color: Mib.grey)),
               ]),
             ),
             Pressable(
