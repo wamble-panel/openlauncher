@@ -21,7 +21,7 @@ object CarAppsExport {
     // vendor home ("Theme"), CarMate and framework.jar. Now: the phone-link app
     // (CarPlay / Android Auto), camera / DVR / TV / colour apps and the boot animation.
     private val PACKAGES = listOf(
-        "com.tw.rightview", "com.tw.dvr", "com.tw.tv", "com.tw.color",
+        "com.zjinnova.zlink", "com.tw.rightview", "com.tw.dvr", "com.tw.tv", "com.tw.color",
         "com.tw.bootanimation", "com.tw.radio.theme",
         // Car-data side: TPMS, CAN-box UART and the car apps bundle.
         "com.dofun.tpms", "com.tw.canuart", "com.tw.carapps",

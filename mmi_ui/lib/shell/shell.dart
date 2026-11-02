@@ -333,7 +333,7 @@ class _MmiShellState extends State<MmiShell> {
       MmiPage.vendor => const VendorAppsPage(),
       MmiPage.health => const HealthPage(),
       MmiPage.usb => UsbPage(onPlaying: () => _open(MmiPage.music)),
-      MmiPage.phonelink => PhoneLinkPage(onOpen: _openKey),
+      MmiPage.phonelink => const PhoneLinkPage(),
       _ => CategoryPage(category: _page.name, onOpen: _openKey),
     };
     return Padding(
