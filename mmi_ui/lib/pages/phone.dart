@@ -272,7 +272,16 @@ class InCallPage extends StatefulWidget {
 }
 
 class _InCallPageState extends State<InCallPage> {
-  late final Timer _tick = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+  // Ticks the call duration every second (started in initState; a lazy field never ran).
+  late final Timer _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
 
   @override
   void dispose() {
