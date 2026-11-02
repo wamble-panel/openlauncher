@@ -1,6 +1,9 @@
 package com.openlauncher.app.ui.screen
 
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
@@ -230,23 +233,66 @@ enum class MmiLine {
     RETURN, DOTS, CHEVRON_UP, PHONE, SDCARD, USB, VOICEMAIL, DIALPAD,
 }
 
+/** Small line icon: the Material outline icon for [kind], tinted (one icon style everywhere). */
 @Composable
 fun MmiLineIcon(kind: MmiLine, color: Color, modifier: Modifier) {
-    Spacer(
-        modifier.drawWithCache {
-            val s = size.minDimension
-            val ox = (size.width - s) / 2f
-            val oy = (size.height - s) / 2f
-            val stroke = Stroke(s * 0.085f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-            val (strokes, fills) = linePaths(kind, s)
-            onDrawBehind {
-                translate(ox, oy) {
-                    strokes.forEach { drawPath(it, color, style = stroke) }
-                    fills.forEach { drawPath(it, color) }
-                }
-            }
-        }
-    )
+    androidx.compose.material3.Icon(outlineIcon(kind), contentDescription = null, modifier = modifier, tint = color)
+}
+
+@Suppress("DEPRECATION")
+private fun outlineIcon(kind: MmiLine): androidx.compose.ui.graphics.vector.ImageVector {
+    val o = Icons.Outlined
+    return when (kind) {
+        MmiLine.CHEVRON_LEFT -> o.ChevronLeft
+        MmiLine.ARROW -> o.ChevronRight
+        MmiLine.MENU -> o.Menu
+        MmiLine.PREV -> o.SkipPrevious
+        MmiLine.NEXT -> o.SkipNext
+        MmiLine.PLAY -> o.PlayArrow
+        MmiLine.PAUSE -> o.Pause
+        MmiLine.CALL -> o.Call
+        MmiLine.BACKSPACE -> o.Backspace
+        MmiLine.OPEN -> o.OpenInNew
+        MmiLine.BLUETOOTH -> o.Bluetooth
+        MmiLine.CONTACTS -> o.Contacts
+        MmiLine.NOTE -> o.MusicNote
+        MmiLine.PLUS -> o.Add
+        MmiLine.MINUS -> o.Remove
+        MmiLine.LOCATE -> o.MyLocation
+        MmiLine.SEARCH -> o.Search
+        MmiLine.STAR -> o.StarOutline
+        MmiLine.STAR_FILLED -> Icons.Filled.Star
+        MmiLine.HISTORY -> o.History
+        MmiLine.PIN -> o.Place
+        MmiLine.FUEL -> o.LocalGasStation
+        MmiLine.CLOSE -> o.Close
+        MmiLine.HOME -> o.Home
+        MmiLine.FLAG -> o.Flag
+        MmiLine.CARD -> o.CreditCard
+        MmiLine.GLOBE -> o.Public
+        MmiLine.SPEAKER -> o.VolumeUp
+        MmiLine.MUTE -> o.VolumeOff
+        MmiLine.CAMERA -> o.PhotoCamera
+        MmiLine.MOUNTAIN -> o.Terrain
+        MmiLine.BATTERY -> o.BatteryFull
+        MmiLine.GRID -> o.Apps
+        MmiLine.ANTENNA -> o.SettingsInputAntenna
+        MmiLine.NAV_ARROW -> o.Navigation
+        MmiLine.GEAR -> o.Settings
+        MmiLine.BUMP -> o.WarningAmber
+        MmiLine.CAR -> o.DirectionsCar
+        MmiLine.CLOUD -> o.Cloud
+        MmiLine.FILM -> o.Movie
+        MmiLine.LINK -> o.Devices
+        MmiLine.RETURN -> o.KeyboardReturn
+        MmiLine.DOTS -> o.MoreHoriz
+        MmiLine.CHEVRON_UP -> o.ExpandLess
+        MmiLine.PHONE -> o.Smartphone
+        MmiLine.SDCARD -> o.SdCard
+        MmiLine.USB -> o.Usb
+        MmiLine.VOICEMAIL -> o.Voicemail
+        MmiLine.DIALPAD -> o.Dialpad
+    }
 }
 
 private fun path(s: Float, block: Path.(Float) -> Unit) = Path().apply { block(s) }

@@ -5,6 +5,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
@@ -30,33 +35,38 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.openlauncher.app.R
 
-/**
- * One home tile. Page-one tiles use artwork and label strips cut straight from the
- * reference screen (so logos, their fades, icons, text and underline are exact);
- * the others draw a glyph and label until their artwork is supplied.
- */
+/** One home tile: your artwork, a small outline icon with an upper-case label, a coloured underline. */
 internal class HomeTile(
     val key: String,
     val label: String,
-    val art: Int? = null,
-    val strip: Int? = null,
-    val glyph: MmiGlyph? = null,
-    val underline: List<Color> = emptyList(),
+    val icon: MmiLine,
+    val art: Int,
+    val underline: Color,
 )
+
+// Underline colours as on the MIB home screen.
+private val GOLD = Color(0xFFE8C25A)
+private val AMBER = Color(0xFFF0A030)
+private val SILVER = Color(0xFFD9DCE0)
+private val BLUE = Color(0xFF3FA9F5)
+private val LIME = Color(0xFFD8E05A)
+private val RED = Color(0xFFE5304A)
 
 /** Two pages of eight, in knob order. */
 internal val HOME_TILES = listOf(
-    HomeTile("video", "Video", R.drawable.home_art_video, R.drawable.home_label_video),
-    HomeTile("music", "Music", R.drawable.home_art_music, R.drawable.home_label_music),
-    HomeTile("phone", "Phone", R.drawable.home_art_phone, R.drawable.home_label_phone),
-    HomeTile("nav", "Navigation", R.drawable.home_art_navigation, R.drawable.home_label_navigation),
-    HomeTile("phonelink", "PhoneLink", R.drawable.home_art_phonelink, R.drawable.home_label_phonelink),
-    HomeTile("carinfo", "Car Info", R.drawable.home_art_carinfo, R.drawable.home_label_carinfo),
-    HomeTile("weather", "Weather", R.drawable.home_art_weather, R.drawable.home_label_weather),
-    HomeTile("settings", "Settings", R.drawable.home_art_settings, R.drawable.home_label_settings),
-    HomeTile("radio", "Radio", glyph = MmiGlyph.RADIO, underline = listOf(Color(0xFF9B51E0), Color(0xFF56CCF2))),
-    HomeTile("apps", "Apps", glyph = MmiGlyph.APPS, underline = listOf(Color(0xFF29C5F6), Color(0xFF3FD07A))),
-    HomeTile("eq", "Equaliser", glyph = MmiGlyph.GAUGE, underline = listOf(Color(0xFFE040FB), Color(0xFFFF7A2E))),
+    HomeTile("radio", "RADIO", MmiLine.ANTENNA, R.drawable.home_art_radio, GOLD),
+    HomeTile("music", "MEDIA", MmiLine.NOTE, R.drawable.home_art_media, AMBER),
+    HomeTile("phone", "TELEPHONE", MmiLine.CALL, R.drawable.home_art_telephone, SILVER),
+    HomeTile("nav", "NAVIGATION", MmiLine.NAV_ARROW, R.drawable.home_art_navigation, BLUE),
+    HomeTile("phonelink", "PHONE APPS", MmiLine.LINK, R.drawable.home_art_phoneapps, LIME),
+    HomeTile("carinfo", "CAR", MmiLine.CAR, R.drawable.home_art_car, RED),
+    HomeTile("settings", "SETTINGS", MmiLine.GEAR, R.drawable.home_art_settings, SILVER),
+    HomeTile("help", "HELP", MmiLine.CARD, R.drawable.home_art_help, SILVER),
+    HomeTile("video", "VIDEO", MmiLine.FILM, R.drawable.home_art_video, AMBER),
+    HomeTile("eq", "EQUALISER", MmiLine.SPEAKER, R.drawable.home_art_equaliser, GOLD),
+    HomeTile("weather", "WEATHER", MmiLine.CLOUD, R.drawable.home_art_weather, BLUE),
+    HomeTile("apps", "APPS", MmiLine.GRID, R.drawable.home_art_apps, LIME),
+    HomeTile("browser", "BROWSER", MmiLine.GLOBE, R.drawable.home_art_browser, SILVER),
 )
 
 private const val PER_PAGE = 8
@@ -79,15 +89,16 @@ private const val FRAME_W = 2f
 private val TILE_X = floatArrayOf(270f, 672f, 1074f, 1477f)
 private val TILE_W = floatArrayOf(352f, 352f, 353f, 353f)
 
-/** Left rail of the home screen, top to bottom, with its cut-out icons (size in ref px). */
-private class RailEntry(val key: String, val icon: Int, val w: Float, val h: Float)
+/** The rail, top to bottom, as on the MIB: Home, Radio, Media, Telephone, Navigation. */
+private class RailEntry(val key: String, val icon: MmiLine)
 private val HOME_RAIL = listOf(
-    RailEntry("music", R.drawable.home_rail_music, 51f, 56f),
-    RailEntry("nav", R.drawable.home_rail_nav, 46f, 56f),
-    RailEntry("phone", R.drawable.home_rail_phone, 60f, 57f),
-    RailEntry("settings", R.drawable.home_rail_settings, 59f, 58f),
-    RailEntry("carinfo", R.drawable.home_rail_car, 61f, 47f),
+    RailEntry("home", MmiLine.HOME),
+    RailEntry("radio", MmiLine.ANTENNA),
+    RailEntry("music", MmiLine.NOTE),
+    RailEntry("phone", MmiLine.CALL),
+    RailEntry("nav", MmiLine.NAV_ARROW),
 )
+private const val RAIL_ICON = 60f
 
 /** Reference top bar (grey gradient with its hairline), full width, 86 px tall. */
 @Composable
@@ -106,7 +117,7 @@ internal fun refTopBarHeight(k: Dp): Dp = k * TOP_BAR
 internal fun refRailWidth(k: Dp): Dp = k * RAIL_W
 
 /**
- * Reference rail: five cells (Music, Navigation, Phone, Settings, Car) with 2 px black
+ * Reference rail: five cells (Home, Radio, Media, Telephone, Navigation) with 2 px black
  * gaps, from 105 px down to 22 px above the bottom; [active] lights its cell.
  */
 @Composable
@@ -119,9 +130,9 @@ internal fun RefRail(k: Dp, height: Dp, active: String?, onOpen: (String) -> Uni
                 .pressable { onOpen(entry.key) },
         ) {
             RailCell(k, entry.key == active)
-            Image(
-                painterResource(entry.icon), null,
-                modifier = Modifier.align(Alignment.Center).offset(x = -(k * 2f)).size(k * entry.w, k * entry.h),
+            MmiLineIcon(
+                entry.icon, if (entry.key == active) Color.White else Color(0xFFF2F2F2),
+                Modifier.align(Alignment.Center).offset(x = -(k * 2f)).size(k * RAIL_ICON),
             )
         }
     }
@@ -196,44 +207,31 @@ private fun HomeTileView(tile: HomeTile, selected: Boolean, k: Dp, w: Dp, h: Dp,
             .then(if (selected) Modifier.border(k * 3f, Color.White.copy(alpha = 0.85f), RectangleShape) else Modifier)
             .pressable(onClick),
     ) {
-        // Side lines fading in from black at the top to the strip's grey (116/255).
+        // Side lines fading in from black at the top to grey at the bottom, then the 3 px underline.
         Canvas(Modifier.fillMaxSize()) {
             val fw = with(d) { (k * FRAME_W).toPx() }
-            val bottom = size.height - with(d) { stripH.toPx() }
-            val fade = Brush.verticalGradient(listOf(Color.Black, Color(0xFF747474)), 0f, bottom)
-            drawRect(fade, Offset(0f, 0f), Size(fw, bottom))
-            drawRect(fade, Offset(size.width - fw, 0f), Size(fw, bottom))
-            if (tile.strip == null) {
-                // Placeholder tiles: continue the lines and draw the 3 px underline.
-                val grey = Brush.verticalGradient(listOf(Color(0xFF747474), Color(0xFF969696)), bottom, size.height)
-                drawRect(grey, Offset(0f, bottom), Size(fw, size.height - bottom))
-                drawRect(grey, Offset(size.width - fw, bottom), Size(fw, size.height - bottom))
-                val ul = with(d) { (k * 3f).toPx() }
-                drawRect(Brush.horizontalGradient(tile.underline), Offset(0f, size.height - ul), Size(size.width, ul))
-            }
+            val ul = with(d) { (k * 3f).toPx() }
+            val fade = Brush.verticalGradient(listOf(Color.Black, Color(0xFF969696)), 0f, size.height)
+            drawRect(fade, Offset(0f, 0f), Size(fw, size.height))
+            drawRect(fade, Offset(size.width - fw, 0f), Size(fw, size.height))
+            drawRect(tile.underline, Offset(0f, size.height - ul), Size(size.width, ul))
         }
-        // Artwork block, centred in the space above the label strip.
+        // Artwork, centred in the space above the label.
         val artTop = ((h - stripH - k * ART_H) / 2).coerceAtLeast(0.dp)
-        when {
-            tile.art != null -> Image(
-                painterResource(tile.art), null, contentScale = ContentScale.FillBounds,
-                modifier = Modifier.offset(k * FRAME_W, artTop).size(k * ART_W, k * ART_H),
-            )
-            tile.glyph != null -> MmiIcon(
-                tile.glyph,
-                Modifier.align(Alignment.TopCenter).offset(y = artTop + k * 25f).size(k * 150f),
-            )
-        }
-        if (tile.strip != null) {
-            Image(
-                painterResource(tile.strip), null, contentScale = ContentScale.FillBounds,
-                modifier = Modifier.align(Alignment.BottomStart).size(w, stripH),
-            )
-        } else {
-            val labelSize = with(d) { (k * 40f).toSp() }
+        Image(
+            painterResource(tile.art), null, contentScale = ContentScale.Fit,
+            modifier = Modifier.offset(k * FRAME_W, artTop).size(k * ART_W, k * ART_H),
+        )
+        // Label: outline icon + upper-case Roboto, centred in the strip above the underline.
+        Row(
+            Modifier.align(Alignment.BottomCenter).height(stripH).padding(bottom = k * 6f),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            MmiLineIcon(tile.icon, Color.White, Modifier.size(k * 36f))
+            Spacer(Modifier.width(k * 12f))
             Text(
-                tile.label, color = Color.White, fontFamily = MmiFont, fontSize = labelSize,
-                modifier = Modifier.align(Alignment.BottomCenter).offset(y = -(k * 10f)),
+                tile.label, color = Color.White, fontFamily = MmiFont, fontSize = with(d) { (k * 34f).toSp() },
+                maxLines = 1,
             )
         }
     }

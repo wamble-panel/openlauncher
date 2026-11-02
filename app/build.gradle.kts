@@ -82,6 +82,8 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.foundation:foundation")
+    // One consistent outline icon set (rail, tile labels, pages); R8 keeps only the icons used.
+    implementation("androidx.compose.material:material-icons-extended")
 
     // Installs the bundled startup profile so ART pre-compiles the hot code
     // instead of interpreting it for the first days of use.

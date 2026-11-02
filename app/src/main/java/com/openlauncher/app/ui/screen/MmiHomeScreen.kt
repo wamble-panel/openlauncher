@@ -220,6 +220,8 @@ fun MmiHomeScreen(
             "phonelink" -> apps.findByLabel("phonelink", "phone link", "carlink", "zlink", "easyconnect", "easy connect", "carplay", "autokit")
                 ?.let { onLaunchPackage(it.packageName) } ?: run { page = MmiPage.APPS }
             "weather" -> apps.findByLabel("weather")?.let { onLaunchPackage(it.packageName) } ?: run { page = MmiPage.APPS }
+            "help" -> page = MmiPage.STORAGE
+            "browser" -> if (!context.launchFirst(Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_BROWSER))) page = MmiPage.APPS
         }
     }
     fun stepRing(dir: Int) {
@@ -349,11 +351,11 @@ fun MmiHomeScreen(
             if (page != MmiPage.HOME) StatusClock(Modifier.align(Alignment.TopEnd).padding(end = 28.dp).height(frameTop))
             RefRail(k, maxHeight, railKey(page)) { key ->
                 page = when (key) {
+                    "home" -> MmiPage.HOME
+                    "radio" -> MmiPage.RADIO
                     "music" -> MmiPage.MUSIC
-                    "nav" -> MmiPage.NAV
                     "phone" -> MmiPage.BT_HUB
-                    "settings" -> MmiPage.SETTINGS
-                    else -> MmiPage.DASHBOARD
+                    else -> MmiPage.NAV
                 }
             }
         }
@@ -987,12 +989,12 @@ private tailrec fun Context.findActivity(): android.app.Activity? = when (this) 
 /** Dash buttons that open an MMI page (Radio, Phone, Setup, Tone, Back, Media). */
 private val PAGE_KEYS = setOf(16, 32, 90, 24, 18, 33)
 
-/** Which reference-rail cell an inner page belongs to (lit on that page). */
-private fun railKey(p: MmiPage): String? = when {
-    p == MmiPage.MUSIC || p == MmiPage.SOURCE -> "music"
-    p == MmiPage.BT_HUB || p == MmiPage.PHONE || p == MmiPage.CONTACTS -> "phone"
-    p == MmiPage.DASHBOARD -> "carinfo"
-    p == MmiPage.SETTINGS || p.inSettings -> "settings"
+/** Which rail cell a page belongs to (lit on that page). */
+private fun railKey(p: MmiPage): String? = when (p) {
+    MmiPage.HOME -> "home"
+    MmiPage.RADIO -> "radio"
+    MmiPage.MUSIC, MmiPage.SOURCE -> "music"
+    MmiPage.BT_HUB, MmiPage.PHONE, MmiPage.CONTACTS -> "phone"
     else -> null
 }
 
