@@ -55,7 +55,7 @@ object RootOptimize {
             log += (if (ok) "✓ Wi-Fi adb on (port 5555)" else "✗ Wi-Fi adb")
         }
         context.getSharedPreferences("mmi_prefs", Context.MODE_PRIVATE).edit().putBoolean("root_optimized", true).apply()
-        log += "", "Done. Restart the unit to finish."
+        log += listOf("", "Done. Restart the unit to finish.")
         log
     }
 
@@ -90,7 +90,7 @@ object RootOptimize {
             val ok = Root.run("dd if=/dev/block/by-name/$n of=$dir/$n.img bs=4M") != null
             log += (if (ok) "✓ " else "✗ ") + "$n.img"
         }
-        log += "", "Saved to $dir. Give these to the developer for the firmware."
+        log += listOf("", "Saved to $dir. Give these to the developer for the firmware.")
         log
     }
 }
