@@ -16,11 +16,14 @@ import java.util.zip.ZipOutputStream
  * offers to the browser.
  */
 object CarAppsExport {
-    // Only what hasn't been received yet. Already in: Bluetooth, music, radio,
-    // steering wheel, service, reverse, climate, CarSetting, EQ, car info, car
-    // choice, AUX and framework.jar. Next: the vendor home screen ("Theme") and
-    // CarMate, to see exactly what the original home sends to the car.
-    private val PACKAGES = listOf("com.dofun.variety", "com.dofun.carassistant.car", "com.tw.carinfoservice")
+    // Only what hasn't been received yet. Already in: Bluetooth, music, radio, steering
+    // wheel, service, reverse, climate, CarSetting, EQ, car info, car choice, AUX, the
+    // vendor home ("Theme"), CarMate and framework.jar. Now: the phone-link app
+    // (CarPlay / Android Auto), camera / DVR / TV / colour apps and the boot animation.
+    private val PACKAGES = listOf(
+        "com.zjinnova.zlink", "com.tw.rightview", "com.tw.dvr", "com.tw.tv", "com.tw.color",
+        "com.tw.bootanimation", "com.tw.radio.theme",
+    )
     // GitHub's web upload takes files up to 25 MB: parts stay well below that.
     private const val PART_LIMIT = 20L * 1024 * 1024
     private const val CHUNK = 15L * 1024 * 1024
@@ -52,6 +55,8 @@ object CarAppsExport {
         // The car library's native side, if readable (framework.jar is already in).
         nativeLibs().filter { it.name.contains("twutil", ignoreCase = true) || it.name.startsWith("libtw") }
             .forEach { files += "lib/${it.parentFile?.name}/${it.name}" to it }
+        // What the firmware build needs to know: partitions, boot-time services, build.
+        runCatching { File(out, "mmi-system.txt").writeText(systemReport()) }
         if (files.isEmpty()) return@withContext null
 
         val names = ArrayList<String>()
@@ -109,5 +114,42 @@ object CarAppsExport {
         }
         zip?.close()
         names
+    }
+
+    /**
+     * Facts about the unit's system for building MMI's firmware: build properties,
+     * partitions and mounts, CPU / memory, which services start at boot (init .rc
+     * files) and which apps are preinstalled where. No personal data.
+     */
+    private fun systemReport(): String = buildString {
+        fun section(title: String, body: () -> String) {
+            append("\n==== ").append(title).append(" ====\n")
+            append(runCatching(body).getOrElse { "(not readable: ${it.message})" }).append('\n')
+        }
+        for (f in listOf("/system/build.prop", "/vendor/build.prop", "/product/build.prop", "/odm/etc/build.prop")) {
+            section(f) { File(f).readLines().filter { !it.contains("serial", true) && !it.contains("fingerprint", true) }.joinToString("\n") }
+        }
+        for (f in listOf("/proc/partitions", "/proc/mounts", "/proc/cpuinfo", "/proc/meminfo", "/proc/version", "/proc/cmdline")) {
+            section(f) { File(f).readText().lines().filter { !it.contains("serial", true) }.joinToString("\n") }
+        }
+        section("/dev/block/by-name") {
+            listOf("/dev/block/by-name", "/dev/block/platform").map(::File).flatMap { d -> d.walkTopDown().maxDepth(3).toList() }
+                .joinToString("\n") { it.path + (runCatching { " -> " + it.canonicalPath }.getOrDefault("")) }
+        }
+        for (dir in listOf("/system/etc/init", "/vendor/etc/init", "/system/etc/init/hw", "/odm/etc/init", "/product/etc/init")) {
+            File(dir).listFiles()?.filter { it.name.endsWith(".rc") }?.sortedBy { it.name }?.forEach { rc ->
+                section(rc.path) { rc.readText() }
+            }
+        }
+        section("init.*.rc in /") { File("/").listFiles()?.filter { it.name.endsWith(".rc") }?.joinToString("\n") { it.name + "\n" + runCatching { it.readText() }.getOrDefault("(not readable)") } ?: "" }
+        for (dir in listOf("/system/app", "/system/priv-app", "/vendor/app", "/vendor/priv-app", "/product/app", "/product/priv-app", "/system/framework")) {
+            section(dir) { File(dir).listFiles()?.sortedBy { it.name }?.joinToString("\n") { it.name } ?: "(empty)" }
+        }
+        section("native libraries named tw / mcu / can / bt") {
+            listOf("/system/lib", "/system/lib64", "/vendor/lib", "/vendor/lib64").map(::File)
+                .flatMap { d -> d.listFiles()?.toList().orEmpty() }
+                .filter { f -> listOf("tw", "mcu", "can", "bt", "goc", "uart", "audio").any { f.name.contains(it, true) } }
+                .joinToString("\n") { "${it.path} ${it.length()}" }
+        }
     }
 }

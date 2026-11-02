@@ -105,6 +105,17 @@ class MmiFlutterActivity : FlutterActivity() {
                     "source" -> { car.source(arg<String>("key") ?: ""); result.success(null) }
                     "btGet" -> result.success(car.bt())
                     "carGet" -> result.success(carInfo())
+                    "devSend" -> {
+                        val app = applicationContext
+                        com.openlauncher.app.util.DevUpload.start(app) {
+                            com.openlauncher.app.util.CarAppsExport.export(app) { s -> com.openlauncher.app.util.DevUpload.say(s) }
+                        }
+                        result.success(null)
+                    }
+                    "devStatus" -> result.success(mapOf(
+                        "running" to com.openlauncher.app.util.DevUpload.running,
+                        "status" to com.openlauncher.app.util.DevUpload.status.value,
+                    ))
                     "weatherGet" -> result.success(Weather.get(this))
                     "btScan" -> { car.btScan(); result.success(null) }
                     "btStop" -> { car.btStop(); result.success(null) }

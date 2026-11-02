@@ -169,9 +169,38 @@ class _CategoryPageState extends State<CategoryPage> with Live<CategoryPage>, Se
           open('Storage', 'classic:SYSTEM_SET', icon: MibIcons.storage),
           MibRow(label: 'Classic MMI', sub: 'switch back to the previous screens', trailing: MibToggle(value: false, onChanged: (_) => Bridge.call('classic'))),
           MibRow(label: 'Version', value: '${v('version', '')}'),
+          const _DevSend(),
         ],
       _ => <Widget>[],
     };
     return SettingsList(children: rows);
+  }
+}
+
+/// Sends the unit's car software and system facts to the developer's private repo
+/// (one tap; GitHub asks for a one-time code on the first send). Shows progress.
+class _DevSend extends StatefulWidget {
+  const _DevSend();
+  @override
+  State<_DevSend> createState() => _DevSendState();
+}
+
+class _DevSendState extends State<_DevSend> with Live<_DevSend> {
+  @override
+  String get liveMethod => 'devStatus';
+
+  @override
+  Widget build(BuildContext context) {
+    final running = live?['running'] == true;
+    return MibRow(
+      label: running ? 'Sending unit data…' : 'Send unit data to developer',
+      sub: (live?['status'] as String?) ?? 'Car software and system details, to your private repo',
+      icon: MibIcons.sync,
+      height: 96,
+      onTap: running ? null : () async {
+        await Bridge.call('devSend');
+        refresh();
+      },
+    );
   }
 }
