@@ -17,6 +17,14 @@ Future<void> _fonts() async {
 }
 
 final _demo = <String, Object?>{
+  'carGet': {'voltage': 14.1, 'coolant': 88, 'oilLife': 72, 'range': 412, 'consumption': 7.4, 'outside': 27, 'tyres': [230, 230, 220, 220]},
+  'weatherGet': {
+    'place': 'Nasr City', 'temp': 27, 'code': 1, 'wind': 14, 'hi': 31, 'lo': 19, 'updated': '12:30',
+    'days': [
+      {'day': 'Tue', 'code': 0, 'hi': 31, 'lo': 19}, {'day': 'Wed', 'code': 2, 'hi': 30, 'lo': 18}, {'day': 'Thu', 'code': 3, 'hi': 28, 'lo': 18},
+      {'day': 'Fri', 'code': 61, 'hi': 25, 'lo': 17}, {'day': 'Sat', 'code': 0, 'hi': 29, 'lo': 18}, {'day': 'Sun', 'code': 1, 'hi': 30, 'lo': 19},
+    ],
+  },
   'eqGet': {'levels': [200, 200, 200, 200, 200], 'min': -1500, 'max': 1500, 'preset': 'Custom', 'speedVolume': 2},
   'settingsGet': {'brightness': 0.55, 'dayNight': 0, 'touchSounds': true, 'screenOff': false, 'clock24': true, 'canWrite': true, 'metric': true, 'cameraAlerts': true, 'version': '2.0.0'},
   'radioGet': {

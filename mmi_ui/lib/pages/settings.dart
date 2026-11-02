@@ -155,7 +155,7 @@ class _CategoryPageState extends State<CategoryPage> with Live<CategoryPage>, Se
           open('Maps and offline data', 'classic:NAV'),
         ],
       'carset' => [
-          open('Car information', 'classic:DASHBOARD', icon: MibIcons.directions_car),
+          open('Car information', 'carinfo', icon: MibIcons.directions_car),
           open('Diagnostics', 'classic:DIAGNOSTICS', icon: MibIcons.build),
           open('Climate', 'classic:DASHBOARD', icon: MibIcons.mode_fan),
         ],

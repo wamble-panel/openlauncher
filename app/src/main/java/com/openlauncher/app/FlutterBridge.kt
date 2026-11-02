@@ -434,3 +434,88 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
         else runCatching { d.createBond() }
     }
 }
+
+/** Car information for the Flutter Car page (CAN box values; null when not sent). */
+internal fun carInfo(): Map<String, Any?> {
+    val car = com.openlauncher.app.util.CarCore.data.value
+    return mapOf(
+        "voltage" to car.voltage?.toDouble(),
+        "coolant" to car.coolantC,
+        "oilLife" to car.oilLifePct,
+        "range" to car.rangeKm,
+        "consumption" to car.avgConsumption?.toDouble(),
+        "outside" to com.openlauncher.app.util.Climate.state.value.outdoor?.toDouble(),
+        "tyres" to car.tyresKpa,
+        "doors" to com.openlauncher.app.util.CarCore.doorsText(car.doors)?.lowercase(),
+    )
+}
+
+/**
+ * Weather where the car is, from Open-Meteo (free, no key). Fetched at most every
+ * 30 minutes; the last answer is kept in prefs and shown while offline.
+ */
+internal object Weather {
+    private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
+    @Volatile private var fetching = false
+
+    fun get(ctx: Context): Map<String, Any?> {
+        val prefs = ctx.getSharedPreferences("mmi_weather", Context.MODE_PRIVATE)
+        val at = prefs.getLong("at", 0L)
+        if (System.currentTimeMillis() - at > 30 * 60_000L && !fetching) {
+            fetching = true
+            worker.execute {
+                try { fetch(ctx) } catch (_: Exception) {} finally { fetching = false }
+            }
+        }
+        val json = prefs.getString("json", null) ?: return mapOf(
+            "message" to if (com.openlauncher.app.util.CarLocation.get(ctx).location.value == null) "Waiting for the car's position…" else "Loading the weather…",
+        )
+        return runCatching { parse(org.json.JSONObject(json), prefs.getString("place", null), at) }.getOrDefault(mapOf("message" to "No weather yet"))
+    }
+
+    private fun fetch(ctx: Context) {
+        val loc = com.openlauncher.app.util.CarLocation.get(ctx).location.value ?: return
+        val url = "https://api.open-meteo.com/v1/forecast?latitude=%.3f&longitude=%.3f".format(Locale.US, loc.latitude, loc.longitude) +
+            "&current=temperature_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=7"
+        val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        val body = try {
+            c.connectTimeout = 8000; c.readTimeout = 10000
+            if (c.responseCode != 200) return
+            c.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
+        } finally { c.disconnect() }
+        val place = runCatching {
+            @Suppress("DEPRECATION")
+            android.location.Geocoder(ctx, Locale.ENGLISH).getFromLocation(loc.latitude, loc.longitude, 1)?.firstOrNull()
+                ?.let { it.subLocality ?: it.locality ?: it.subAdminArea }
+        }.getOrNull()
+        ctx.getSharedPreferences("mmi_weather", Context.MODE_PRIVATE).edit()
+            .putString("json", body).putString("place", place).putLong("at", System.currentTimeMillis()).apply()
+    }
+
+    private fun parse(j: org.json.JSONObject, place: String?, at: Long): Map<String, Any?> {
+        val cur = j.getJSONObject("current")
+        val d = j.getJSONObject("daily")
+        val times = d.getJSONArray("time")
+        val codes = d.getJSONArray("weather_code")
+        val hi = d.getJSONArray("temperature_2m_max")
+        val lo = d.getJSONArray("temperature_2m_min")
+        val day = SimpleDateFormat("EEE", Locale.ENGLISH)
+        val iso = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val days = (1 until times.length()).map { i ->
+            mapOf(
+                "day" to runCatching { day.format(iso.parse(times.getString(i))!!) }.getOrDefault(""),
+                "code" to codes.getInt(i), "hi" to hi.getDouble(i), "lo" to lo.getDouble(i),
+            )
+        }
+        return mapOf(
+            "place" to place,
+            "temp" to cur.getDouble("temperature_2m"),
+            "code" to cur.getInt("weather_code"),
+            "wind" to cur.getDouble("wind_speed_10m"),
+            "hi" to hi.getDouble(0),
+            "lo" to lo.getDouble(0),
+            "updated" to SimpleDateFormat("HH:mm", Locale.US).format(java.util.Date(at)),
+            "days" to days,
+        )
+    }
+}

@@ -17,7 +17,11 @@ android {
         versionCode    = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()?.plus(1000) ?: 21
         versionName    = "2.0.0-mmi"
         // Head units are ARM: leave out the x86 builds of MapLibre and ML Kit (about half the APK).
-        ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+            // -Pemulator: also x86_64, for CI's screenshot emulator only.
+            if (providers.gradleProperty("emulator").isPresent) abiFilters += "x86_64"
+        }
     }
 
     // CI points MMI_KEYSTORE at the owner's shared key, so every build installs

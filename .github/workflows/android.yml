@@ -40,7 +40,7 @@ jobs:
           flutter pub get
           flutter analyze
           flutter test --update-goldens
-          flutter build aar --no-debug --no-profile --build-number 1.0 --target-platform android-arm,android-arm64
+          flutter build aar --no-debug --no-profile --build-number 1.0 --target-platform android-arm,android-arm64,android-x64
 
       - name: Attach Flutter renders to the mmi-screens release
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/mbux'
@@ -103,6 +103,22 @@ jobs:
           echo $(( ${{ github.run_number }} + 1000 )) > version.txt
           gh release upload install-mmi version.txt --clobber
 
+      # Same app with x86_64 code added, only for the screenshot emulator (the car's APK stays ARM-only).
+      - name: Assemble emulator APK
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/mbux'
+        run: |
+          mkdir -p emu
+          ./gradlew --no-daemon assembleRelease -Pemulator
+          cp app/build/outputs/apk/release/*.apk emu/MMI-emulator.apk
+
+      - name: Upload emulator APK
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/mbux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: openlauncher-emulator-${{ github.sha }}
+          path: emu/MMI-emulator.apk
+          if-no-files-found: error
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -129,7 +145,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: openlauncher-INSTALL-THIS-${{ github.sha }}
+          name: openlauncher-emulator-${{ github.sha }}
           path: apk
 
       - name: Enable KVM
@@ -155,6 +171,7 @@ jobs:
             adb shell appops set com.openlauncher.app WRITE_SETTINGS allow
             mkdir -p shots
             for p in HOME SETTINGS GENERAL_SET DISPLAY SOUND EQ CONN_SET BLUETOOTH BT_HUB PHONE CONTACTS MUSIC SOURCE RADIO APPS DASHBOARD DIAGNOSTICS CAR_SET SYSTEM_SET NAV; do adb shell am start -n com.openlauncher.app/.MainActivity --es mmi_page $p > /dev/null; sleep 4; adb exec-out screencap -p > shots/$p.png; done
+            for p in home settings display sound radio music source apps calls dial btsearch carinfo weather; do adb shell am start -n com.openlauncher.app/.MainActivity --es flutter_page $p > /dev/null; sleep 5; adb exec-out screencap -p > shots/fl_$p.png; done
 
       - name: Attach screenshots to the mmi-screens release
         env:

@@ -104,6 +104,8 @@ class MmiFlutterActivity : FlutterActivity() {
                     "sourcesGet" -> result.success(car.sources())
                     "source" -> { car.source(arg<String>("key") ?: ""); result.success(null) }
                     "btGet" -> result.success(car.bt())
+                    "carGet" -> result.success(carInfo())
+                    "weatherGet" -> result.success(Weather.get(this))
                     "btScan" -> { car.btScan(); result.success(null) }
                     "btStop" -> { car.btStop(); result.success(null) }
                     "btConnect" -> { car.btConnect(arg<String>("address") ?: ""); result.success(null) }
@@ -164,6 +166,13 @@ class MmiFlutterActivity : FlutterActivity() {
                 if (resumed && k.press == 1) ch.invokeMethod("key", mapOf("code" to k.code))
             }
         }
+    }
+
+    // Already open: show the asked-for page (Home button, adb --es flutter_page …).
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra("flutter_page")?.let { channel?.invokeMethod("page", it) }
     }
 
     override fun onResume() {
