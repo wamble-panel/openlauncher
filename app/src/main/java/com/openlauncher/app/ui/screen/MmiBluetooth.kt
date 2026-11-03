@@ -388,24 +388,11 @@ internal fun MmiBluetoothHub(
                 Modifier.width(320.dp).pressable(onConnectNew).padding(vertical = 10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // Thin outline phone with a Bluetooth mark inside and a plus beside it.
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    androidx.compose.foundation.Canvas(Modifier.size(34.dp)) {
-                        val w = 2.dp.toPx()
-                        drawLine(Color(0xCCFFFFFF), androidx.compose.ui.geometry.Offset(0f, size.height / 2), androidx.compose.ui.geometry.Offset(size.width, size.height / 2), w)
-                        drawLine(Color(0xCCFFFFFF), androidx.compose.ui.geometry.Offset(size.width / 2, 0f), androidx.compose.ui.geometry.Offset(size.width / 2, size.height), w)
-                    }
-                    Spacer(Modifier.width(22.dp))
-                    Box(contentAlignment = Alignment.Center) {
-                        androidx.compose.foundation.Canvas(Modifier.size(width = 70.dp, height = 120.dp)) {
-                            drawRoundRect(
-                                Color.White, cornerRadius = androidx.compose.ui.geometry.CornerRadius(12.dp.toPx()),
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(2.5.dp.toPx()),
-                            )
-                        }
-                        MmiLineIcon(MmiLine.BLUETOOTH, Color.White, Modifier.size(46.dp))
-                    }
-                }
+                // Your "Connect mobile device" art: plus, glass phone, Bluetooth mark.
+                androidx.compose.foundation.Image(
+                    androidx.compose.ui.res.painterResource(com.openlauncher.app.R.drawable.connect_device), null,
+                    modifier = Modifier.size(width = 117.dp, height = 140.dp),
+                )
                 Spacer(Modifier.height(10.dp))
                 Text("Connect mobile device", color = Color.White, fontFamily = MmiFont, fontSize = 22.sp)
             }
