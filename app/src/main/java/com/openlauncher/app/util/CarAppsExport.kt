@@ -167,6 +167,17 @@ object CarAppsExport {
             listOf("/dev/block/by-name", "/dev/block/platform").map(::File).flatMap { d -> d.walkTopDown().maxDepth(3).toList() }
                 .joinToString("\n") { it.path + (runCatching { " -> " + it.canonicalPath }.getOrDefault("")) }
         }
+        // Hardware mappings for the reverse-camera handshake: the reverse-gear trigger
+        // (sysfs), the sound-card and USB device nodes, and the live unix sockets.
+        // /proc/net/unix usually needs root, so it may read back "(not readable)".
+        section("/sys/class/car_reverse") {
+            File("/sys/class/car_reverse").walkTopDown().maxDepth(2)
+                .joinToString("\n") { it.path + runCatching { " -> " + it.canonicalPath }.getOrDefault("") }
+        }
+        for (dir in listOf("/dev/snd", "/dev/bus/usb")) {
+            section(dir) { File(dir).walkTopDown().maxDepth(3).joinToString("\n") { it.path } }
+        }
+        section("/proc/net/unix") { File("/proc/net/unix").readText() }
         for (dir in listOf("/system/etc/init", "/vendor/etc/init", "/system/etc/init/hw", "/odm/etc/init", "/product/etc/init")) {
             File(dir).listFiles()?.filter { it.name.endsWith(".rc") }?.sortedBy { it.name }?.forEach { rc ->
                 section(rc.path) { rc.readText() }
