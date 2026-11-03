@@ -328,6 +328,10 @@ fun MmiHomeScreen(
         if (page == MmiPage.RADIO && tw.available && com.openlauncher.app.util.CarCore.active.value) tw.radioResume()
         com.openlauncher.app.util.KnobTarget.radio = page == MmiPage.RADIO
     }
+    // The flag is cleared when the activity pauses; set it again only if Radio is still showing.
+    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+        com.openlauncher.app.util.KnobTarget.radio = page == MmiPage.RADIO
+    }
     LaunchedEffect(page, lastTouch, playing) {
         // Like a parked MMI: only from the home screen, never while reading a page or playing music.
         if (page != MmiPage.HOME || playing) return@LaunchedEffect

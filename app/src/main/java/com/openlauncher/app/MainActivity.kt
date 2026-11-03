@@ -224,6 +224,8 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         playingWhenPaused = vm.nowPlaying.value?.isPlaying == true
         pausedAt = android.os.SystemClock.elapsedRealtime()
+        // Leaving this screen (new MMI, another app) must not leave the knob tuning the radio.
+        com.openlauncher.app.util.KnobTarget.radio = false
         super.onPause()
     }
 
@@ -246,6 +248,7 @@ class MainActivity : ComponentActivity() {
     private var pausedAt = 0L
 
     override fun onDestroy() {
+        com.openlauncher.app.util.KnobTarget.radio = false
         super.onDestroy()
     }
 
