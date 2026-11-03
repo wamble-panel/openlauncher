@@ -65,6 +65,10 @@ object CarAppsExport {
         // The car library's native side, if readable (framework.jar is already in).
         nativeLibs().filter { it.name.contains("twutil", ignoreCase = true) || it.name.startsWith("libtw") }
             .forEach { files += "lib/${it.parentFile?.name}/${it.name}" to it }
+        // ZLink's saved CarPlay / Android Auto pairings and settings. Its APK is already
+        // in PACKAGES; its data lives in /data/data, so only a rooted unit can add it.
+        val zlinkData = packZLinkData(context)
+        if (zlinkData != null) files += "zlink/zlink-data.tar" to zlinkData
         // What the firmware build needs to know: partitions, boot-time services, build.
         runCatching { File(out, "mmi-system.txt").writeText(systemReport()) }
         if (files.isEmpty()) return@withContext null
@@ -123,7 +127,24 @@ object CarAppsExport {
             }
         }
         zip?.close()
+        // The raw ZLink tar is now inside the zip parts; don't leave it to upload loose.
+        zlinkData?.delete()
         names
+    }
+
+    /**
+     * ZLink's own saved data (/data/data/com.zjinnova.zlink): CarPlay / Android Auto
+     * pairings and settings, tarred into the cache for the export. Only root can read
+     * /data/data, so this is null on a non-rooted unit (the APK still goes in the export).
+     */
+    private fun packZLinkData(context: Context): File? {
+        if (!Root.available()) return null
+        val tar = File(context.cacheDir, "zlink-data.tar")
+        val ok = Root.run(
+            "tar -cf '${tar.absolutePath}' -C /data/data ${PhoneLink.PKG} 2>/dev/null; chmod 644 '${tar.absolutePath}'",
+            requireSuccess = false,
+        ) != null
+        return if (ok && tar.isFile && tar.length() > 0) tar else { tar.delete(); null }
     }
 
     /**

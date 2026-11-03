@@ -41,15 +41,11 @@ object ZLinkBackup {
         if (!DevUpload.ensureSignedIn(context, onStatus))
             error("GitHub sign-in not finished. Backup saved to $where — tap Start again to upload it.")
 
-        val folder = "zlink-backup/" + stamp()
-        onStatus("Uploading ${zip.name} to GitHub…")
-        val code = withContext(Dispatchers.IO) { DevUpload.uploadFile(context, folder, zip) }
-        when (code) {
-            in 200..299 -> onStatus("Done. Uploaded to GitHub ($folder) and saved to $where.")
-            401 -> { DevUpload.signOut(context); error("GitHub sign-in expired. Backup saved to $where — tap Start again.") }
-            404 -> error("Private backup repo not found on GitHub. Backup saved to $where.")
-            else -> error("GitHub upload failed ($code). Backup saved to $where.")
+        // Upload through the very same sender as "Send to developer".
+        val n = DevUpload.send(context, listOf(zip), onStatus).getOrElse {
+            error((it.message ?: "GitHub upload failed") + " Backup saved to $where.")
         }
+        onStatus("Done. Sent $n file to GitHub and saved to $where.")
     }
 
     private fun stamp() = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.US).format(Date())

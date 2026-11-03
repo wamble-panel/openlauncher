@@ -213,12 +213,4 @@ object DevUpload {
         onStatus("On your phone open ${code.url} and enter  ${code.userCode}  — then wait.")
         return awaitApproval(context, code)
     }
-
-    /**
-     * Uploads one file into the shared private data repo under [folder], reusing the
-     * same token as "Send to developer". Returns the HTTP status code (200/201 on
-     * success, 401 when the sign-in has expired, 404 when the repo is missing).
-     */
-    fun uploadFile(context: Context, folder: String, file: File): Int =
-        putFile(context, "https://api.github.com/repos/$REPO/contents/$folder/${URLEncoder.encode(file.name, "UTF-8")}", file)
 }
