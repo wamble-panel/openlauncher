@@ -96,7 +96,7 @@ private enum class MmiPage(val title: String?, val inSettings: Boolean = false) 
     MUSIC("Music"), RADIO("Radio"), BT_HUB("Bluetooth"), PHONE("Telephone"), CONTACTS("Contacts"), APPS("Apps"),
     NAV("Navigation"), SOURCE("Source"), DIAGNOSTICS("Diagnostics"),
     GENERAL_SET("General", true), CONN_SET("Bluetooth & connections", true), CAR_SET("Car", true), SYSTEM_SET("System & updates", true),
-    PERMISSIONS("Permissions", true), CLEANUP("Unit cleanup & speed", true), STORAGE("Storage & about", true), DISPLAY("Display", true), SOUND("Sound", true), EQ("Equaliser", true), BLUETOOTH("Bluetooth devices", true), NAV_SETTINGS("Navigation settings", true), ZLINK_BACKUP("ZLink backup", true),
+    PERMISSIONS("Permissions", true), CLEANUP("Unit cleanup & speed", true), STORAGE("Storage & about", true), DISPLAY("Display", true), SOUND("Sound", true), EQ("Equaliser", true), BLUETOOTH("Bluetooth devices", true), NAV_SETTINGS("Navigation settings", true),
 }
 
 /**
@@ -415,7 +415,6 @@ fun MmiHomeScreen(
                     MmiPage.PERMISSIONS -> MmiPermissionsPage()
                     MmiPage.CLEANUP -> MmiCleanupPage()
                     MmiPage.STORAGE -> MmiStoragePage()
-                    MmiPage.ZLINK_BACKUP -> com.openlauncher.app.ui.ZLinkBackupScreen()
                     MmiPage.SOUND -> MibSoundPage()
                     MmiPage.BLUETOOTH -> MmiBluetoothPage(apps, onLaunchPackage, startPairing = pairOnOpen)
                     MmiPage.BT_HUB -> MmiBluetoothHub(
@@ -881,7 +880,6 @@ private fun SettingsPanel(metric: Boolean, onSetMetric: (Boolean) -> Unit, categ
         Triple("system", "Permissions") { onOpen(MmiPage.PERMISSIONS) },
         Triple("system", "Unit cleanup & speed") { onOpen(MmiPage.CLEANUP) },
         Triple("system", "Storage & about") { onOpen(MmiPage.STORAGE) },
-        Triple("system", "ZLink backup") { onOpen(MmiPage.ZLINK_BACKUP) },
         Triple("system", "Android settings", openSystem),
     )
     if (category != null) {

@@ -199,18 +199,4 @@ object DevUpload {
             done
         }
     }
-
-    /**
-     * Shared GitHub sign-in (the same device-flow and stored token as "Send to
-     * developer"), for other features that upload to the owner's private repo.
-     * Signs in if needed, showing the code through [onStatus]; returns whether a
-     * usable token is now in hand.
-     */
-    suspend fun ensureSignedIn(context: Context, onStatus: (String) -> Unit): Boolean {
-        if (!configured) { onStatus("Not set up yet: GitHub sign-in for MMI still needs its Client ID."); return false }
-        if (signedIn(context)) return true
-        val code = requestCode() ?: run { onStatus("No internet — connect Wi-Fi and tap again."); return false }
-        onStatus("On your phone open ${code.url} and enter  ${code.userCode}  — then wait.")
-        return awaitApproval(context, code)
-    }
 }
