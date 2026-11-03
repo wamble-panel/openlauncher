@@ -52,6 +52,26 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final _pager = PageController();
   int _page = 0;
+  // Tile pictures are decoded together first, then fade in at once (decoded one by
+  // one they popped in in a ragged order). Once done, later visits show them at once.
+  static bool _artReady = false;
+  bool _loading = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_artReady || _loading) return;
+    _loading = true;
+    final w = (_artW * refScale(MediaQuery.sizeOf(context).width) * MediaQuery.devicePixelRatioOf(context)).round();
+    // Never wait more than 1.5 s: a slow or missing picture must not keep the others hidden.
+    Future.wait([for (final t in homeTiles) precacheImage(homeArt(t, w), context)])
+        .timeout(const Duration(milliseconds: 1500))
+        .then((_) {}, onError: (_) {})
+        .whenComplete(() {
+      _artReady = true;
+      if (mounted) setState(() {});
+    });
+  }
 
   @override
   void didUpdateWidget(HomePage old) {
@@ -80,7 +100,7 @@ class _HomePageState extends State<HomePage> {
                 top: tileTop + (tileH + _rowGap * k) * (i ~/ 4),
                 width: _tileW[i % 4] * k,
                 height: tileH,
-                child: _Tile(homeTiles[page * 8 + i], homeTiles[page * 8 + i].key == widget.selected, k, () => widget.onOpen(homeTiles[page * 8 + i].key)),
+                child: _Tile(homeTiles[page * 8 + i], homeTiles[page * 8 + i].key == widget.selected, k, _artReady, () => widget.onOpen(homeTiles[page * 8 + i].key)),
               ),
           ]),
         ),
@@ -101,11 +121,16 @@ class _HomePageState extends State<HomePage> {
 
 }
 
+/// The picture for [tile], decoded [width] px wide (the size shown).
+ImageProvider homeArt(HomeTile tile, int width) =>
+    ResizeImage.resizeIfNeeded(width, null, AssetImage('assets/images/home_art_${tile.art}.webp'));
+
 class _Tile extends StatelessWidget {
-  const _Tile(this.tile, this.selected, this.k, this.onTap);
+  const _Tile(this.tile, this.selected, this.k, this.artReady, this.onTap);
   final HomeTile tile;
   final bool selected;
   final double k;
+  final bool artReady;
   final VoidCallback onTap;
 
   @override
@@ -135,9 +160,13 @@ class _Tile extends StatelessWidget {
               top: artTop,
               width: _artW * k,
               height: _artH * k,
-              child: Image.asset('assets/images/home_art_${tile.art}.webp', fit: BoxFit.contain, filterQuality: FilterQuality.medium,
-                  // Decoded at the size shown (a third of the file): less memory traffic on the A133.
-                  cacheWidth: (_artW * k * MediaQuery.devicePixelRatioOf(context)).round()),
+              child: AnimatedOpacity(
+                opacity: artReady ? 1 : 0,
+                duration: const Duration(milliseconds: 280),
+                curve: Curves.easeOut,
+                // Decoded at the size shown (a third of the file): less memory traffic on the A133.
+                child: Image(image: homeArt(tile, (_artW * k * MediaQuery.devicePixelRatioOf(context)).round()), fit: BoxFit.contain, filterQuality: FilterQuality.medium),
+              ),
             ),
             Positioned(
               left: 0,

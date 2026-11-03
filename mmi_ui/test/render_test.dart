@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mmi_ui/bridge.dart';
+import 'dart:async';
 import 'package:mmi_ui/main.dart';
+import 'package:mmi_ui/pages/home.dart';
 import 'package:mmi_ui/shell/shell.dart';
 
 Future<void> _fonts() async {
@@ -99,6 +101,7 @@ Future<void> _render(WidgetTester tester, Widget app, String name) async {
   tester.view.physicalSize = const Size(1280, 800);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
+  await _homeArt(tester);
   await tester.pumpWidget(app);
   await tester.runAsync(() async {
     for (final e in find.byType(Image).evaluate()) {
@@ -111,6 +114,17 @@ Future<void> _render(WidgetTester tester, Widget app, String name) async {
   await expectLater(find.byType(MmiApp), matchesGoldenFile('../goldens/$name.png'));
   await tester.pumpWidget(const SizedBox());
 }
+
+/// Decodes the home pictures at the size Home asks for (1280-wide screen), as a running
+/// unit would have done by the time Home shows; the test clock cannot load files itself.
+Future<void> _homeArt(WidgetTester tester) => tester.runAsync(() async {
+      final w = (348 * 1280 / 1920).round();
+      for (final t in homeTiles) {
+        final done = Completer<void>();
+        homeArt(t, w).resolve(ImageConfiguration.empty).addListener(ImageStreamListener((_, _) => done.complete(), onError: (_, _) => done.complete()));
+        await done.future;
+      }
+    });
 
 void main() {
   setUpAll(() async {
