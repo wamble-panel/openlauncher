@@ -32,29 +32,34 @@ class MmiApp extends StatelessWidget {
   }
 }
 
-/// Every page is laid out for an 800 px tall screen (the 1280 × 800 designs). On any
-/// other screen (a 7-inch 1024 × 600 unit, for example) the whole interface is scaled
-/// to fit the height, and the width follows the screen's shape, so nothing is cut off.
-/// Touches are scaled back automatically.
+/// Every page is laid out for the 1280 × 800 designs. On a wider screen (1024 × 600,
+/// 1280 × 720, 1920 × 720) the interface is scaled to fit the height and the width
+/// follows the screen. On a taller, squarer screen (1024 × 768) it is scaled to fit
+/// the width instead and centred, so pages keep their designed shape: nothing is cut
+/// off or squeezed into tall, narrow tiles. Touches are scaled back automatically.
 class FitScreen extends StatelessWidget {
   const FitScreen({super.key, required this.child});
   final Widget child;
+  static const designWidth = 1280.0;
   static const designHeight = 800.0;
 
   @override
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
     final size = mq.size;
-    if (size.height <= 0 || (size.height - designHeight).abs() < 1) return child;
-    final scale = size.height / designHeight;
-    final logical = Size(size.width / scale, designHeight);
+    if (size.height <= 0 || size.width <= 0) return child;
+    final squarer = size.width / size.height < designWidth / designHeight;
+    if (!squarer && (size.height - designHeight).abs() < 1) return child;
+    final logical = squarer ? const Size(designWidth, designHeight) : Size(size.width * designHeight / size.height, designHeight);
     return ColoredBox(
       color: const Color(0xFF000000),
-      child: FittedBox(
-        fit: BoxFit.fill,
-        child: SizedBox.fromSize(
-          size: logical,
-          child: MediaQuery(data: mq.copyWith(size: logical), child: child),
+      child: Center(
+        child: FittedBox(
+          fit: BoxFit.contain,
+          child: SizedBox.fromSize(
+            size: logical,
+            child: MediaQuery(data: mq.copyWith(size: logical), child: child),
+          ),
         ),
       ),
     );
