@@ -345,11 +345,9 @@ internal fun MmiBluetoothHub(
         }
     }
     val addBox: @Composable RowScope.() -> Unit = {
+        // Gear: paired phones and Bluetooth settings.
         MibBox(onDevices) {
-            Box {
-                MmiLineIcon(MmiLine.PHONE, Color.White, Modifier.size(34.dp))
-                MmiLineIcon(MmiLine.PLUS, Color.White, Modifier.size(16.dp).align(Alignment.TopEnd))
-            }
+            MmiLineIcon(MmiLine.GEAR, Color.White, Modifier.size(34.dp))
         }
     }
 
@@ -389,11 +387,13 @@ internal fun MmiBluetoothHub(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 // Your "Connect mobile device" art: plus, glass phone, Bluetooth mark.
+                // The phone (not the plus) sits centred over the label, as on the MIB:
+                // it fills the right 65 % of the picture, so the picture moves left a little.
                 androidx.compose.foundation.Image(
                     androidx.compose.ui.res.painterResource(com.openlauncher.app.R.drawable.connect_device), null,
-                    modifier = Modifier.size(width = 117.dp, height = 140.dp),
+                    modifier = Modifier.offset(x = (-24).dp).size(width = 158.dp, height = 190.dp),
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(24.dp))
                 Text("Connect mobile device", color = Color.White, fontFamily = MmiFont, fontSize = 22.sp)
             }
             Spacer(Modifier.weight(0.4f))
