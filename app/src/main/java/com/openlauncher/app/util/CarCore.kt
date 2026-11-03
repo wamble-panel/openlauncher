@@ -258,13 +258,27 @@ object CarCore {
      * 3 next favourite, 4 previous favourite, 9 seek down, 10 seek up. Only answered
      * when the vendor radio app is gone, so the two never both act.
      */
+    private val main = Handler(android.os.Looper.getMainLooper())
+    private val KNOB_KEYS = setOf(5, 6, 19, 21)
+
+    /** True when the big knob (or side keys) was turned within [windowMs] before [now]. */
+    private fun knobTurnedRecently(now: Long, windowMs: Long): Boolean =
+        _lastKey.value?.let { it.code in KNOB_KEYS && now - it.at in -windowMs..windowMs } == true
+
     private fun radioCommand(cmd: Int) {
         if (vendorRadioPresent) return
-        when (cmd) {
-            3, 4 -> TwBridge.radioNextFavourite(cmd == 3)
-            9 -> TwBridge.radioSeek(false)
-            10 -> TwBridge.radioSeek(true)
-        }
+        val at = System.currentTimeMillis()
+        // The MCU turns every knob step into a radio next / previous while radio is still the
+        // car's source, on any page. The knob belongs to the page it is on (the Radio page tunes
+        // by itself), so drop those. The key may land just after the command: wait a moment.
+        main.postDelayed({
+            if (knobTurnedRecently(at, 400)) return@postDelayed
+            when (cmd) {
+                3, 4 -> TwBridge.radioNextFavourite(cmd == 3)
+                9 -> TwBridge.radioSeek(false)
+                10 -> TwBridge.radioSeek(true)
+            }
+        }, 120)
     }
 
     /** True while the vendor radio app is installed and enabled. */
