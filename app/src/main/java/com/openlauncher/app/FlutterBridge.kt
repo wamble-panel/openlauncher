@@ -138,6 +138,7 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
         val tuner = com.openlauncher.app.util.CarCore.radio.value
         val name = state?.stationName?.takeUnless { it.endsWith("…") }
             ?: TwBridge.radioPresets().indexOfFirst { kotlin.math.abs(it - freq) < 0.05f }.takeIf { it >= 0 }?.let { presetName(it) }
+            ?: RadioLogos.stationName(freq)
         return mapOf(
             "am" to am,
             "freq" to freq.toDouble(),
@@ -150,7 +151,8 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
             "live" to com.openlauncher.app.util.CarCore.active.value,
             "logo" to RadioLogos.file(ctx, name, freq)?.absolutePath,
             "presets" to TwBridge.radioPresets().take(6).mapIndexed { i, f ->
-                mapOf("freq" to f.toDouble(), "name" to presetName(i))
+                val n = presetName(i) ?: RadioLogos.stationName(f)
+                mapOf("freq" to f.toDouble(), "name" to n, "logo" to (if (f > 0f) RadioLogos.file(ctx, n, f)?.absolutePath else null))
             },
         )
     }

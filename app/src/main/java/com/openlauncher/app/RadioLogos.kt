@@ -12,8 +12,8 @@ import java.util.concurrent.Executors
 /**
  * Station logos for the Radio page. Looked up once per station name in the free
  * radio-browser.info directory (Egyptian stations first), saved in the app's files
- * and shown from there afterwards, so they also work offline. A logo placed by hand
- * at files/radio_logos/<station name>.png wins over the downloaded one.
+ * and shown from there afterwards, so they also work offline. Your own picture in
+ * MMI/radio/<frequency>.png and the logos built into MMI come first.
  */
 internal object RadioLogos {
     private val worker = Executors.newSingleThreadExecutor()
@@ -23,10 +23,35 @@ internal object RadioLogos {
 
     private fun dir(ctx: Context) = File(ctx.filesDir, "radio_logos").apply { mkdirs() }
 
-    /** The saved logo for [name], or null (a lookup then starts in the background). */
+    /**
+     * Cairo FM stations by frequency, for when a station sends no RDS name (most
+     * Egyptian ones don't): its name on the Radio page and in the favourites, and the
+     * name its logo is looked up by.
+     */
+    private val CAIRO = mapOf(
+        87.8f to "Mix FM", 88.2f to "Radio Hits", 88.7f to "Radio Masr", 90.9f to "El Radio 9090",
+        92.1f to "NRJ Egypt", 92.7f to "Mega FM", 95.0f to "Shaabi FM", 100.6f to "Nogoum FM",
+        104.2f to "Nile FM", 105.3f to "Nagham FM",
+    )
+
+    private fun fm(freq: Float) = String.format(java.util.Locale.US, "%.1f", freq)
+
+    /** The station's name from the table, when it is a known Cairo FM frequency. */
+    fun stationName(freq: Float): String? =
+        if (freq <= 0f || freq > 200f) null else CAIRO.entries.firstOrNull { kotlin.math.abs(it.key - freq) < 0.05f }?.value
+
+    /**
+     * The logo for the station on [freq] (named [name] by RDS, a favourite or the table):
+     *  1. your own picture: MMI/radio/<frequency>.png (or .jpg / .webp), e.g. MMI/radio/100.6.png;
+     *  2. a logo built into MMI for that frequency;
+     *  3. one downloaded once by the station's name (radio-browser.info), kept offline.
+     * Null for now when none is saved yet (the download then starts in the background).
+     */
     fun file(ctx: Context, name: String?, freq: Float): File? {
-        if (name.isNullOrBlank()) return null
-        val k = key(name)
+        val am = freq > 200f
+        if (freq > 0f && !am) local(ctx, fm(freq))?.let { return it }
+        val n = name?.takeIf { it.isNotBlank() } ?: stationName(freq) ?: return null
+        val k = key(n)
         if (k.isEmpty()) return null
         val f = File(dir(ctx), "$k.png")
         if (f.length() > 0) return f
@@ -36,13 +61,43 @@ internal object RadioLogos {
         synchronized(pending) { if (!pending.add(k)) return null }
         worker.execute {
             try {
-                if (download(name, f)) none.delete() else none.writeText("")
+                if (download(n, f)) none.delete() else none.writeText("")
             } catch (_: Exception) {
             } finally {
                 synchronized(pending) { pending.remove(k) }
             }
         }
         return null
+    }
+
+    // Own and built-in logos per frequency, looked at most every 15 s: the Radio page
+    // asks often, and this runs on the screen thread.
+    private val localCache = HashMap<String, Pair<Long, File?>>()
+
+    private fun local(ctx: Context, f: String): File? {
+        synchronized(localCache) {
+            val hit = localCache[f]
+            if (hit != null && System.currentTimeMillis() - hit.first < 15_000) return hit.second
+            val own = File(android.os.Environment.getExternalStorageDirectory(), "MMI/radio")
+            val file = listOf("png", "jpg", "jpeg", "webp").map { File(own, "$f.$it") }.firstOrNull { it.isFile && it.length() > 0 }
+                ?: builtIn(ctx, f)
+            localCache[f] = System.currentTimeMillis() to file
+            return file
+        }
+    }
+
+    /** A logo shipped with MMI (assets/radio_logos/<frequency>.png), copied out once so the screens can show it. */
+    @Volatile private var shipped: Set<String>? = null
+
+    private fun builtIn(ctx: Context, f: String): File? {
+        val out = File(dir(ctx), "builtin_$f.png")
+        if (out.length() > 0) return out
+        if (shipped == null) shipped = runCatching { ctx.assets.list("radio_logos")?.toSet() }.getOrNull() ?: emptySet()
+        if ("$f.png" !in shipped!!) return null
+        return runCatching {
+            ctx.assets.open("radio_logos/$f.png").use { input -> out.outputStream().use { input.copyTo(it) } }
+            out
+        }.getOrNull()
     }
 
     private fun download(name: String, out: File): Boolean {

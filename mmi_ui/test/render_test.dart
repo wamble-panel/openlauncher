@@ -8,6 +8,7 @@ import 'package:mmi_ui/bridge.dart';
 import 'package:mmi_ui/car_art.dart';
 import 'package:mmi_ui/unit.dart';
 import 'dart:async';
+import 'dart:io';
 import 'package:mmi_ui/main.dart';
 import 'package:mmi_ui/pages/home.dart';
 import 'package:mmi_ui/shell/shell.dart';
@@ -76,10 +77,12 @@ final _demo = <String, Object?>{
   },
   'settingsGet': {'brightness': 0.55, 'dayNight': 0, 'touchSounds': true, 'screenOff': false, 'clock24': true, 'canWrite': true, 'metric': true, 'cameraAlerts': true, 'version': '2.0.0'},
   'radioGet': {
-    'am': false, 'freq': 104.2, 'name': 'Nile FM', 'genre': 'Pop', 'stereo': true, 'text': 'Now: Morning Show with Ahmed',
+    'am': false, 'freq': 100.6, 'name': 'Nogoum FM', 'genre': 'Pop', 'stereo': true, 'text': 'Now: Morning Show with Ahmed',
+    'logo': '../app/src/main/assets/radio_logos/100.6.png',
     'presets': [
-      {'freq': 104.2, 'name': 'Nile FM'}, {'freq': 95.0, 'name': 'Mega FM'}, {'freq': 92.7, 'name': 'Radio Hits'},
-      {'freq': 98.8, 'name': 'Nogoum'}, {'freq': 100.6, 'name': 'Shaabi FM'},
+      {'freq': 100.6, 'name': 'Nogoum FM', 'logo': '../app/src/main/assets/radio_logos/100.6.png'},
+      {'freq': 87.8, 'name': 'Mix FM', 'logo': '../app/src/main/assets/radio_logos/87.8.png'},
+      {'freq': 104.2, 'name': 'Nile FM'}, {'freq': 92.7, 'name': 'Mega FM'}, {'freq': 95.0, 'name': 'Shaabi FM'},
     ],
   },
   'appsGet': {'found': ['browser', 'files', 'music', 'video', 'camera', 'calculator', 'calendar', 'clock', 'gallery', 'maps', 'weather', 'settings', 'store', 'notes', 'recorder'], 'others': []},
@@ -111,6 +114,7 @@ Future<void> _render(WidgetTester tester, Widget app, String name) async {
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await _homeArt(tester);
+  await _radioLogos(tester);
   await tester.pumpWidget(app);
   await tester.runAsync(() async {
     for (final e in find.byType(Image).evaluate()) {
@@ -132,6 +136,19 @@ Future<void> _homeArt(WidgetTester tester) => tester.runAsync(() async {
         final done = Completer<void>();
         homeArt(t, w).resolve(ImageConfiguration.empty).addListener(ImageStreamListener((_, _) => done.complete(), onError: (_, _) => done.complete()));
         await done.future;
+      }
+    });
+
+/// The demo station logos, decoded at the sizes the Radio page asks for.
+Future<void> _radioLogos(WidgetTester tester) => tester.runAsync(() async {
+      for (final f in ['100.6', '87.8']) {
+        for (final w in [256, 128]) {
+          final done = Completer<void>();
+          ResizeImage.resizeIfNeeded(w, null, FileImage(File('../app/src/main/assets/radio_logos/$f.png')))
+              .resolve(ImageConfiguration.empty)
+              .addListener(ImageStreamListener((_, _) => done.complete(), onError: (_, _) => done.complete()));
+          await done.future;
+        }
       }
     });
 

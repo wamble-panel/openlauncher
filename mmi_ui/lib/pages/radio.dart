@@ -65,8 +65,9 @@ class _RadioPageState extends State<RadioPage> with Live<RadioPage> {
             Container(
               width: 148,
               decoration: BoxDecoration(border: Border.all(color: const Color(0x99FFFFFF))),
+              // Station logos are made for white (dark text, white boxes): shown on a white card.
               child: logo != null && File(logo).existsSync()
-                  ? Padding(padding: const EdgeInsets.all(10), child: Image.file(File(logo), fit: BoxFit.contain, cacheWidth: 128))
+                  ? Center(child: _LogoCard(logo, size: 128))
                   : const Center(child: Icon(MibIcons.cell_tower, size: 84, color: Mib.white)),
             ),
             const SizedBox(width: 34),
@@ -159,6 +160,7 @@ class _RadioPageState extends State<RadioPage> with Live<RadioPage> {
     final empty = f <= 0;
     final on = !empty && (f - freq).abs() < 0.05;
     final name = p?['name'] as String?;
+    final logo = p?['logo'] as String?;
     return Pressable(
       onTap: () => empty ? _do('radioSave', {'slot': i}) : _do('radioTune', {'am': f > 200, 'freq': f}),
       onLongPress: () => _do('radioSave', {'slot': i}),
@@ -173,6 +175,10 @@ class _RadioPageState extends State<RadioPage> with Live<RadioPage> {
         ),
         child: Row(children: [
           SizedBox(width: 68, child: Center(child: Text('${i + 1}', style: Mib.text(30, color: Mib.grey)))),
+          if (!empty && logo != null && File(logo).existsSync()) ...[
+            _LogoCard(logo, size: 64),
+            const SizedBox(width: 14),
+          ],
           Expanded(
             child: empty
                 ? Text('Empty – press Save', style: Mib.text(25))
@@ -258,4 +264,20 @@ class _Scale extends CustomPainter {
 
   @override
   bool shouldRepaint(_Scale old) => old.at != at || old.lo != lo;
+}
+
+/// A station logo on a white card, decoded at the size shown.
+class _LogoCard extends StatelessWidget {
+  const _LogoCard(this.path, {required this.size});
+  final String path;
+  final int size;
+  @override
+  Widget build(BuildContext context) => Container(
+        width: size.toDouble(),
+        height: size.toDouble(),
+        margin: EdgeInsets.all(size > 80 ? 9 : 0),
+        padding: EdgeInsets.all(size > 80 ? 8 : 4),
+        decoration: BoxDecoration(color: const Color(0xFFFFFFFF), borderRadius: BorderRadius.circular(size > 80 ? 6 : 4)),
+        child: Image.file(File(path), fit: BoxFit.contain, cacheWidth: size * 2, filterQuality: FilterQuality.medium),
+      );
 }
