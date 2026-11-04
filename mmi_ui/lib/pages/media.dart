@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/widgets.dart';
 import '../bridge.dart';
 import '../live.dart';
@@ -41,7 +42,25 @@ class _NowPlayingPageState extends State<NowPlayingPage> with Live<NowPlayingPag
     super.dispose();
   }
   Uint8List? _art;
+  ui.Image? _glow;
   double? _drag;
+
+  /// The cover shrunk to 40 px and blurred once (a few hundred pixels of work), shown
+  /// stretched behind the page: the soft colour glow of Audi / Apple Music without
+  /// any live blur, so nothing extra is drawn per frame.
+  static Future<ui.Image?> _bakeGlow(Uint8List bytes) async {
+    try {
+      final codec = await ui.instantiateImageCodec(bytes, targetWidth: 40, targetHeight: 40);
+      final tiny = (await codec.getNextFrame()).image;
+      final rec = ui.PictureRecorder();
+      Canvas(rec).drawImage(tiny, Offset.zero, Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: 4, sigmaY: 4, tileMode: TileMode.clamp));
+      final out = await rec.endRecording().toImage(40, 40);
+      tiny.dispose();
+      return out;
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   Future<void> refresh() async {
@@ -50,10 +69,17 @@ class _NowPlayingPageState extends State<NowPlayingPage> with Live<NowPlayingPag
     if (id != null && id != _artId) {
       _artId = id;
       final bytes = await Bridge.call<Uint8List>('mediaArt');
-      if (mounted) setState(() => _art = bytes);
+      final glow = bytes == null ? null : await _bakeGlow(bytes);
+      if (mounted) {
+        setState(() {
+          _art = bytes;
+          _glow = glow;
+        });
+      }
     } else if (id == null && _art != null && live != null) {
       setState(() {
         _art = null;
+        _glow = null;
         _artId = null;
       });
     }
@@ -134,7 +160,17 @@ class _NowPlayingPageState extends State<NowPlayingPage> with Live<NowPlayingPag
         )
       else
         Expanded(
-          child: Padding(
+          child: Stack(children: [
+            // Album glow: cross-fades when the song changes.
+            Positioned.fill(
+              child: RepaintBoundary(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 700),
+                  child: _glow == null ? const SizedBox.expand() : _Glow(key: ValueKey(_artId), image: _glow!),
+                ),
+              ),
+            ),
+            Padding(
             padding: const EdgeInsets.only(left: 18, top: 26),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               SizedBox(
@@ -214,9 +250,29 @@ class _NowPlayingPageState extends State<NowPlayingPage> with Live<NowPlayingPag
               ]),
             ]),
           ),
+          ]),
         ),
     ]);
   }
+}
+
+/// The baked glow, stretched smooth (bilinear) at reduced strength, darkened towards
+/// the text on the left and the bottom so white text stays easy to read.
+class _Glow extends StatelessWidget {
+  const _Glow({super.key, required this.image});
+  final ui.Image image;
+  @override
+  Widget build(BuildContext context) => Stack(fit: StackFit.expand, children: [
+        RawImage(image: image, fit: BoxFit.cover, filterQuality: FilterQuality.medium, opacity: const AlwaysStoppedAnimation(0.6)),
+        const DecoratedBox(
+          decoration: BoxDecoration(gradient: LinearGradient(colors: [Color(0xE6000000), Color(0x99000000), Color(0x40000000)], stops: [0, 0.45, 1])),
+        ),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0x00000000), Color(0xCC000000)], stops: [0.4, 1]),
+          ),
+        ),
+      ]);
 }
 
 class _HeadBox extends StatelessWidget {
