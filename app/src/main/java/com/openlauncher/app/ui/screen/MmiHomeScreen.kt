@@ -68,7 +68,6 @@ import com.openlauncher.app.R
 import com.openlauncher.app.data.CarPrefs
 import com.openlauncher.app.model.AppInfo
 import com.openlauncher.app.model.NowPlayingState
-import com.openlauncher.app.map.MapData
 import com.openlauncher.app.map.RoadMemory
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -78,7 +77,6 @@ import com.openlauncher.app.model.HardwareRadioState
 import com.openlauncher.app.service.NavGuidance
 import com.openlauncher.app.map.NavigationEngine
 import com.openlauncher.app.service.NavigationTracker
-import com.openlauncher.app.util.BtConnect
 import com.openlauncher.app.util.IntroVideo
 import com.openlauncher.app.util.LocationData
 import kotlinx.coroutines.launch
@@ -316,9 +314,6 @@ fun MmiHomeScreen(
         }
     }
 
-    // Idle: with no touch, no music playing and no phone connected for a while,
-    // the screen fades over to the map, like a parked MMI.
-    val playing = nowPlaying?.isPlaying == true
     // Opening Music selects Bluetooth as the car's audio source, like the vendor
     // launcher's Bluetooth page; otherwise the phone's music never reaches the speakers.
     LaunchedEffect(page) {
@@ -328,16 +323,8 @@ fun MmiHomeScreen(
         if (page == MmiPage.RADIO && tw.available && com.openlauncher.app.util.CarCore.active.value) tw.radioResume()
         com.openlauncher.app.util.KnobTarget.radio = page == MmiPage.RADIO
     }
-    LaunchedEffect(page, lastTouch, playing) {
-        // Like a parked MMI: only from the home screen, never while reading a page or playing music.
-        if (page != MmiPage.HOME || playing) return@LaunchedEffect
-        delay(IDLE_TO_MAP_MS)
-        val busy = BtConnect.anyConnected() || nowPlaying?.isPlaying == true || !MapData.isInstalled(context)
-        if (!busy) {
-            idleFade = true
-            page = MmiPage.NAV
-        }
-    }
+    // (The map no longer opens by itself after two idle minutes on Home: the owner asked
+    // for it to stay where it was left.)
 
     BoxWithConstraints(
         Modifier.fillMaxSize().mmiBackdrop().pointerInput(Unit) {
@@ -757,7 +744,6 @@ private fun ClimatePopup(modifier: Modifier) {
     }
 }
 
-private const val IDLE_TO_MAP_MS = 120_000L
 
 // ── Backdrop ─────────────────────────────────────────────────────────────────
 
