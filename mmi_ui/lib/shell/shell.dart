@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart' hide Text;
+import '../car_art.dart';
 import '../i18n.dart';
 import '../bridge.dart';
 import '../theme/mib.dart';
@@ -108,6 +109,7 @@ class _MmiShellState extends State<MmiShell> {
     Bridge.call<Map<Object?, Object?>>('settingsGet').then((m) {
       CarKeys.load(m?['keymap'] as String?);
       lang.value = m?['lang'] as String? ?? 'en';
+      carArt.value = m?['carArt'] as String? ?? 'opel';
     });
     Bridge.listen((call) async {
       switch (call.method) {

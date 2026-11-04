@@ -56,6 +56,36 @@ object CarProfile {
         app?.let { prefs().edit().putString("car_decoder", d.name).apply() }
     }
 
+    /**
+     * Which built-in car picture MMI shows (Home CAR tile, start-up, Car information):
+     * "opel", "sunny" or "none". AUTO follows the car chosen in the vendor car list
+     * (Opel / GM → Opel, Nissan → Sunny); with no car list it is the owner's Opel on a
+     * TW unit and none elsewhere (pick it once in Settings › Car).
+     */
+    fun artSetting(): String = app?.let { prefs().getString("car_art", "auto") } ?: "auto"
+
+    fun setArt(a: String) {
+        app?.let { prefs().edit().putString("car_art", if (a in ARTS) a else "auto").apply() }
+    }
+
+    fun art(): String {
+        val s = artSetting()
+        if (s != "auto") return s
+        val c = car
+        return when {
+            c.known && c.brand?.startsWith("Nissan", ignoreCase = true) == true -> "sunny"
+            c.known && c.gm -> "opel"
+            c.known -> "none"
+            twUnit -> "opel"
+            else -> "none"
+        }
+    }
+
+    private val ARTS = setOf("auto", "opel", "sunny", "none")
+
+    /** A TW-platform unit (the owner's Astra unit): its car library is in the system. */
+    private val twUnit: Boolean by lazy { runCatching { Class.forName("android.tw.john.TWUtil") }.isSuccess }
+
     /** May MMI decode the Raise box's generic door message (0x24)? */
     val raiseDoors: Boolean
         get() = when (decoder) {

@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart' hide Text;
+import '../car_art.dart';
 import '../i18n.dart';
 import '../theme/mib.dart';
 import '../theme/mib_icons.dart';
@@ -75,6 +76,23 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    carArt.addListener(_carArtChanged);
+  }
+
+  void _carArtChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    carArt.removeListener(_carArtChanged);
+    _pager.dispose();
+    super.dispose();
+  }
+
+  @override
   void didUpdateWidget(HomePage old) {
     super.didUpdateWidget(old);
     final i = homeTiles.indexWhere((t) => t.key == widget.selected);
@@ -123,8 +141,9 @@ class _HomePageState extends State<HomePage> {
 }
 
 /// The picture for [tile], decoded [width] px wide (the size shown).
-ImageProvider homeArt(HomeTile tile, int width) =>
-    ResizeImage.resizeIfNeeded(width, null, AssetImage('assets/images/home_art_${tile.art}.webp'));
+/// The CAR tile shows this unit's own car (car_art.dart).
+ImageProvider homeArt(HomeTile tile, int width) => ResizeImage.resizeIfNeeded(
+    width, null, AssetImage(tile.art == 'car' ? carTileAsset(carArt.value) : 'assets/images/home_art_${tile.art}.webp'));
 
 class _Tile extends StatelessWidget {
   const _Tile(this.tile, this.selected, this.k, this.artReady, this.onTap);

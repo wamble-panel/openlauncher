@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mmi_ui/bridge.dart';
+import 'package:mmi_ui/car_art.dart';
 import 'dart:async';
 import 'package:mmi_ui/main.dart';
 import 'package:mmi_ui/pages/home.dart';
@@ -169,4 +170,24 @@ void main() {
       tester,
       MmiApp(initialCall: {'state': 'active', 'name': 'Ahmed', 'number': '0100 123 4567', 'since': DateTime.now().millisecondsSinceEpoch - 151000}),
       'call'));
+  // A Nissan Sunny unit: its own car on Home, at start-up and in Car information.
+  group('Nissan Sunny', () {
+    late Map<String, Object?> saved;
+    setUp(() {
+      saved = Bridge.demo!;
+      Bridge.demo = {
+        ...saved,
+        'carGet': {'speed': 0, 'rpm': 760, 'voltage': 13.9, 'outside': 31, 'carName': 'Nissan Sunny', 'carArt': 'sunny'},
+        'settingsGet': {...saved['settingsGet']! as Map, 'carArt': 'sunny', 'carArtSetting': 'sunny', 'carName': 'Nissan Sunny'},
+      };
+      carArt.value = 'sunny';
+    });
+    tearDown(() {
+      Bridge.demo = saved;
+      carArt.value = 'opel';
+    });
+    testWidgets('render home', (tester) => _render(tester, const MmiApp(initialPage: 'home'), 'sunny_home'));
+    testWidgets('render car information', (tester) => _render(tester, const MmiApp(initialPage: 'carinfo'), 'sunny_carinfo'));
+    testWidgets('render car settings', (tester) => _render(tester, const MmiApp(initialPage: 'carset'), 'sunny_carset'));
+  });
 }

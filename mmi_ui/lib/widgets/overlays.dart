@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/widgets.dart' hide Text;
+import '../car_art.dart';
 import '../i18n.dart';
 import '../bridge.dart';
 import '../theme/mib.dart';
@@ -18,8 +19,9 @@ class Splash extends StatefulWidget {
 class _SplashState extends State<Splash> with SingleTickerProviderStateMixin {
   late final AnimationController _t = AnimationController(vsync: this, duration: const Duration(milliseconds: 2600))
     ..forward().whenComplete(() => widget.onDone());
-  // Your own car photo (MMI/car.png), the Astra J, or no car on cars it isn't.
-  Widget? _car = Image.asset('assets/images/boot_car.webp', fit: BoxFit.contain);
+  // Your own car photo (MMI/car.png), the built-in picture of this car, or none.
+  Widget? _car = _builtIn(carArt.value);
+  static Widget? _builtIn(String art) => bootCarAsset(art) == null ? null : Image.asset(bootCarAsset(art)!, fit: BoxFit.contain);
 
   @override
   void initState() {
@@ -30,8 +32,10 @@ class _SplashState extends State<Splash> with SingleTickerProviderStateMixin {
       setState(() {
         if (own != null && File(own).existsSync()) {
           _car = Image.file(File(own), fit: BoxFit.contain, cacheWidth: 800);
-        } else if (m['carDefaultPicture'] == false) {
-          _car = null;
+        } else {
+          final art = m['carArt'] as String? ?? (m['carDefaultPicture'] == false ? 'none' : 'opel');
+          carArt.value = art;
+          _car = _builtIn(art);
         }
       });
     });

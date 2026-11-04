@@ -136,7 +136,7 @@ const _ar = <String, String>{
   // Car.
   'Car information': 'معلومات السيارة', 'Car buttons': 'أزرار السيارة', 'Diagnostics': 'التشخيص', 'Climate': 'التكييف',
   'Not found in the car list': 'غير موجودة في قائمة السيارات', 'Car picture': 'صورة السيارة', 'Your photo': 'صورتك',
-  'Astra J': 'Astra J', 'None': 'بلا', 'Your own: put car.png in the MMI folder (unit storage)': 'صورتك: ضع car.png في مجلد MMI (ذاكرة الجهاز)',
+  'Astra J': 'Astra J', 'Opel': 'أوبل', 'Nissan Sunny': 'نيسان صني', 'None': 'بلا', 'Your own: put car.png in the MMI folder (unit storage)': 'صورتك: ضع car.png في مجلد MMI (ذاكرة الجهاز)',
   'give unknown steering-wheel or dash buttons a job': 'خصّص وظيفة لأزرار المقود أو اللوحة غير المعروفة',
   'Coolant': 'سائل التبريد', 'Oil life': 'عمر الزيت', 'Range': 'المدى', 'Avg consumption': 'متوسط الاستهلاك', 'Outside': 'الخارج',
   'km/h': 'كم/س', 'rpm': 'د/د', 'Handbrake on': 'فرامل اليد مفعّلة', 'all closed': 'مغلقة جميعها',

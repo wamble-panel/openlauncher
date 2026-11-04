@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/widgets.dart' hide Text;
+import '../car_art.dart';
 import '../i18n.dart';
 import '../bridge.dart';
 import '../live.dart';
@@ -64,9 +65,10 @@ class _CarInfoPageState extends State<CarInfoPage> with Live<CarInfoPage> {
     final right = items.skip(half).take(3).toList();
     final Widget? picture = own != null && File(own).existsSync()
         ? Image.file(File(own), fit: BoxFit.contain, cacheWidth: 600)
-        : live?['carDefaultPicture'] == false
-            ? null
-            : Image.asset('assets/images/boot_car.webp', fit: BoxFit.contain, cacheWidth: 600);
+        : switch (bootCarAsset(live?['carArt'] as String? ?? (live?['carDefaultPicture'] == false ? 'none' : carArt.value))) {
+            null => null,
+            final a => Image.asset(a, fit: BoxFit.contain, cacheWidth: 600),
+          };
     Widget column(List<(IconData, String, String?)> list) =>
         SizedBox(width: 250, child: Column(children: [for (final i in list) _Info(i.$1, i.$2, i.$3)]));
     return Column(children: [

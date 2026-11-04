@@ -96,6 +96,7 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
             "gles" -> prefs.edit().putBoolean("gles", on).apply() // used from the next start
             "carDecoder" -> runCatching { com.openlauncher.app.util.CarProfile.setDecoder(com.openlauncher.app.util.CarProfile.Decoder.valueOf(value as String)) }
             "keymap" -> prefs.edit().putString("keymap", value as? String ?: "{}").apply()
+            "carArt" -> com.openlauncher.app.util.CarProfile.setArt(value as? String ?: "auto")
             "lang" -> prefs.edit().putString("lang", if (value == "ar") "ar" else "en").apply()
         }
     }
@@ -514,8 +515,8 @@ internal fun carInfo(): Map<String, Any?> {
 
 /**
  * The car this unit is set up for, and its picture: your own photo if there is one in
- * the MMI folder (car.png / car.jpg / car.webp), else the built-in Astra J only when the
- * unit is set to an Opel / GM car (or the car list could not be read).
+ * the MMI folder (car.png / car.jpg / car.webp), else the built-in picture for the car
+ * (Opel or Nissan Sunny; CarProfile.art), or none.
  */
 internal fun carIdentity(): Map<String, Any?> {
     val profile = com.openlauncher.app.util.CarProfile
@@ -528,7 +529,9 @@ internal fun carIdentity(): Map<String, Any?> {
         "carBox" to c.canBox,
         "carKnown" to c.known,
         "carPicture" to own?.absolutePath,
-        "carDefaultPicture" to (!c.known || c.gm),
+        "carArt" to profile.art(),
+        "carArtSetting" to profile.artSetting(),
+        "carDefaultPicture" to (profile.art() != "none"),
         "carDecoder" to profile.decoderSetting().name,
     )
 }

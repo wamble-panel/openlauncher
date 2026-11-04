@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart' hide Text;
+import '../car_art.dart';
 import '../i18n.dart';
 import '../bridge.dart';
 import '../live.dart';
@@ -168,9 +169,26 @@ class _CategoryPageState extends State<CategoryPage> with Live<CategoryPage>, Se
           ),
           MibRow(
             label: 'Car picture',
-            value: v('carPicture', null) != null ? 'Your photo' : (v('carDefaultPicture', true) == true ? 'Astra J' : 'None'),
+            value: v('carPicture', null) != null ? 'Your photo' : null,
             sub: 'Your own: put car.png in the MMI folder (unit storage)',
           ),
+          if (v('carPicture', null) == null) ...[
+            const SizedBox(height: 10),
+            MibSegmented(
+              options: const ['Automatic', 'Opel', 'Nissan Sunny', 'None'],
+              selected: const ['auto', 'opel', 'sunny', 'none'].indexOf('${v('carArtSetting', 'auto')}').clamp(0, 3),
+              onSelect: (i) async {
+                final a = const ['auto', 'opel', 'sunny', 'none'][i];
+                setState(() => live = {...?live, 'carArtSetting': a});
+                await Bridge.call('settingsSet', {'key': 'carArt', 'value': a});
+                // The host resolves Automatic to this car's picture.
+                final m = await Bridge.call<Map<Object?, Object?>>('settingsGet');
+                carArt.value = m?['carArt'] as String? ?? 'opel';
+                if (mounted && m != null) setState(() => live = m);
+              },
+            ),
+            const SizedBox(height: 10),
+          ],
           open('Car buttons', 'carkeys', icon: MibIcons.tune, sub: 'give unknown steering-wheel or dash buttons a job'),
           open('Car information', 'carinfo', icon: MibIcons.directions_car),
           open('Diagnostics', 'classic:DIAGNOSTICS', icon: MibIcons.build),
