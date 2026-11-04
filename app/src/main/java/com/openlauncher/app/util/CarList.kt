@@ -90,7 +90,7 @@ object CarList {
                     "path" to child,
                     "name" to english(n.name, depth),
                     "original" to n.name,
-                    "more" to index.containsKey(child),
+                    "more" to (index?.containsKey(child) == true),
                     "chosen" to (chosen.getOrNull(depth) == n.id),
                 )
             },
