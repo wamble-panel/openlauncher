@@ -196,8 +196,8 @@ class _CategoryPageState extends State<CategoryPage> with Live<CategoryPage>, Se
           system('Date and time', 'date'),
         ],
       'system' => [
-          open('Software update', 'classic:SYSTEM_SET', icon: MibIcons.sync),
-          open('Storage', 'classic:SYSTEM_SET', icon: MibIcons.storage),
+          open('Software update', 'update', icon: MibIcons.sync),
+          open('Storage', 'update', icon: MibIcons.storage),
           toggle('OpenGL ES graphics', 'gles', sub: 'try if pages stutter; used from the next start'),
           MibRow(label: 'Classic MMI', sub: 'switch back to the previous screens', trailing: MibToggle(value: false, onChanged: (_) => Bridge.call('classic'))),
           MibRow(label: 'Version', value: '${v('version', '')}'),

@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.content.BroadcastReceiver
 import android.content.Context
+import kotlinx.coroutines.launch
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
@@ -723,5 +724,68 @@ internal object UsbLibrary {
         val queue = if (filter != null) songsFor(mode, filter) else music.library.value
         com.openlauncher.app.util.TwBridge.btPause()
         music.play(queue, queue.indexOfFirst { it.id == id }.coerceAtLeast(0))
+    }
+}
+
+/**
+ * Software update for the new screens: the same updater as before (builds download in
+ * the background; one tap installs), with its progress kept here for the page to show.
+ */
+internal object UpdateFlow {
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
+    private val updater = com.openlauncher.app.util.AppUpdater
+    @Volatile private var latest: Long? = null
+    @Volatile private var checked = false
+    @Volatile private var status: String? = null
+    @Volatile private var progress: Int? = null
+    @Volatile private var busy = false
+
+    fun state(context: Context): Map<String, Any?> {
+        if (!checked) check()
+        val installed = updater.installedVersion(context)
+        val stat = runCatching { android.os.StatFs(android.os.Environment.getDataDirectory().path) }.getOrNull()
+        val name = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull()
+        return mapOf(
+            "installed" to installed,
+            "versionName" to name,
+            "latest" to latest,
+            "checked" to checked,
+            "ready" to updater.ready.value,
+            "failure" to updater.failure.value,
+            "status" to status,
+            "progress" to progress,
+            "busy" to busy,
+            "freeGb" to stat?.let { it.availableBytes / 1e9 },
+            "totalGb" to stat?.let { it.totalBytes / 1e9 },
+        )
+    }
+
+    fun check() {
+        checked = true
+        scope.launch { latest = updater.latestVersion() }
+    }
+
+    /** Download if needed, then install. */
+    fun run(context: Context) {
+        if (busy) return
+        busy = true
+        scope.launch {
+            try {
+                if (updater.ready.value == null) {
+                    status = "Checking…"
+                    progress = null
+                    val got = updater.prefetch(context) { p -> progress = p; status = "Downloading $p %" }
+                    latest = updater.latestVersion()
+                    progress = null
+                    if (got == null) {
+                        status = if (latest == null) "No internet. Connect Wi-Fi and try again." else "MMI is up to date."
+                        return@launch
+                    }
+                }
+                status = if (updater.installReady(context)) "Installing…" else "Allow MMI to install apps, then tap again."
+            } finally {
+                busy = false
+            }
+        }
     }
 }

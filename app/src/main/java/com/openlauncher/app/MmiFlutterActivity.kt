@@ -174,6 +174,9 @@ class MmiFlutterActivity : FlutterActivity() {
                     "source" -> { car.source(arg<String>("key") ?: ""); result.success(null) }
                     "btGet" -> result.success(car.bt())
                     "carGet" -> result.success(carInfo())
+                    "updateGet" -> result.success(UpdateFlow.state(this))
+                    "updateCheck" -> { UpdateFlow.check(); result.success(null) }
+                    "updateRun" -> { UpdateFlow.run(applicationContext); result.success(null) }
                     "phoneLinkGet" -> {
                         val st = com.openlauncher.app.util.PhoneLink.status.value
                         result.success(mapOf(

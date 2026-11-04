@@ -155,6 +155,18 @@ fun MmiHomeScreen(
         }
     }
     // Screenshot runs open a page directly by name.
+    // With the new screens on, the classic shell only shows the pages they don't have yet.
+    // Leaving such a page for Home (Back, the Home cell, the home key) returns to the new
+    // screens instead of the classic home, so the look never "reverts".
+    val shellContext = LocalContext.current
+    var leftHome by remember { mutableStateOf(false) }
+    LaunchedEffect(page) {
+        if (page != MmiPage.HOME) leftHome = true
+        else if (leftHome && com.openlauncher.app.MmiFlutterActivity.isOn(shellContext)) {
+            leftHome = false
+            com.openlauncher.app.MmiFlutterActivity.start(shellContext)
+        }
+    }
     LaunchedEffect(requestPage) {
         requestPage?.let { name -> MmiPage.entries.firstOrNull { it.name == name }?.let { page = it } }
     }

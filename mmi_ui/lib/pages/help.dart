@@ -36,7 +36,7 @@ class HelpPage extends StatelessWidget {
             ),
           ]),
         ),
-      MibRow(label: 'Software update', icon: MibIcons.sync, onTap: () => onOpen('classic:SYSTEM_SET')),
+      MibRow(label: 'Software update', icon: MibIcons.sync, onTap: () => onOpen('update')),
     ]);
   }
 }
