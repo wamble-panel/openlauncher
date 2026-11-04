@@ -795,27 +795,26 @@ internal object UpdateFlow {
 }
 
 /**
- * The developer page's PIN, chosen by the owner the first time. Only a salted SHA-256 of
- * it is kept. Forgotten PIN: clear MMI's app data (Android settings) and choose a new one.
+ * The developer page's PIN: one fixed PIN for every unit (no setup). Only a salted,
+ * slow PBKDF2 hash of it is in the code (the repository is public), so the PIN itself
+ * is never written here. It keeps drivers out of the developer page; it is not meant
+ * to stop someone determined.
  */
 internal object DevPin {
-    private fun prefs(c: Context) = c.getSharedPreferences("mmi_dev", Context.MODE_PRIVATE)
+    private const val SALT = "mmi-dev-ebd6d158a82b0e63"
+    private const val HASH = "b2414edd1aea83ebb9c07f63c0b0f916a49e5b8fe19ad0a397af170d614782e5"
 
-    private fun hash(salt: String, pin: String): String =
-        java.security.MessageDigest.getInstance("SHA-256").digest((salt + pin).toByteArray()).joinToString("") { "%02x".format(it) }
-
-    fun isSet(c: Context) = prefs(c).getString("hash", null) != null
-
-    fun set(c: Context, pin: String): Boolean {
-        if (pin.length !in 4..8 || !pin.all(Char::isDigit)) return false
-        val salt = java.util.UUID.randomUUID().toString()
-        prefs(c).edit().putString("salt", salt).putString("hash", hash(salt, pin)).apply()
-        return true
+    private fun hash(pin: String): String {
+        val spec = javax.crypto.spec.PBEKeySpec(pin.toCharArray(), SALT.toByteArray(), 60000, 256)
+        val key = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1").generateSecret(spec).encoded
+        return key.joinToString("") { "%02x".format(it) }
     }
 
-    fun check(c: Context, pin: String): Boolean {
-        val p = prefs(c)
-        val salt = p.getString("salt", null) ?: return false
-        return p.getString("hash", null) == hash(salt, pin)
-    }
+    /** Always set: the same PIN on every unit. */
+    fun isSet(c: Context) = true
+
+    fun set(c: Context, pin: String) = false
+
+    fun check(c: Context, pin: String): Boolean =
+        pin.length in 4..12 && pin.all(Char::isDigit) && runCatching { hash(pin) == HASH }.getOrDefault(false)
 }
