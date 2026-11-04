@@ -80,6 +80,10 @@ class _MmiShellState extends State<MmiShell> {
   final _history = <MmiPage>[];
   String _selected = '';
   late Map<Object?, Object?>? _call = widget.initialCall;
+  /// During a call the driver can go to other pages (Back, Home, rail); a slim call
+  /// bar then stays on top and brings the call screen back.
+  bool _callAway = false;
+  bool get _callShown => _call != null && !_callAway;
   final _scope = FocusScopeNode(debugLabel: 'mmi');
   late bool _splash = widget.splash;
   Map<Object?, Object?>? _camera;
@@ -98,7 +102,12 @@ class _MmiShellState extends State<MmiShell> {
           _onKey((call.arguments as Map)['code'] as int);
         case 'call':
           final m = call.arguments as Map?;
-          setState(() => _call = m == null || m['state'] == 'none' ? null : m);
+          final next = m == null || m['state'] == 'none' ? null : m;
+          setState(() {
+            // A new call, or one that starts ringing, always comes to the front.
+            if (next == null || _call == null || next['state'] == 'incoming' && _call!['state'] != 'incoming') _callAway = false;
+            _call = next;
+          });
         case 'camera':
           final m = call.arguments as Map?;
           if (m != null && _camera == null) Bridge.chime();
@@ -139,6 +148,7 @@ class _MmiShellState extends State<MmiShell> {
   }
 
   void _open(MmiPage p, {bool remember = true}) {
+    if (_callShown) setState(() => _callAway = true);
     if (p == _page) return;
     Bridge.chime();
     setState(() {
@@ -152,6 +162,10 @@ class _MmiShellState extends State<MmiShell> {
   }
 
   void _back() {
+    if (_callShown) {
+      setState(() => _callAway = true);
+      return;
+    }
     if (_history.isEmpty) {
       _open(MmiPage.home);
     } else {
@@ -162,6 +176,12 @@ class _MmiShellState extends State<MmiShell> {
 
   /// Opens a page by key: home tiles, rail cells, settings tiles, car buttons.
   void _openKey(String key) {
+    // Telephone during a call: back to the call screen.
+    if (key == 'phone' && _call != null) {
+      setState(() => _callAway = false);
+      return;
+    }
+    if (_callShown) setState(() => _callAway = true);
     if (key.startsWith('classic:')) {
       Bridge.call('open', {'page': key.substring(8)});
       return;
@@ -206,7 +226,7 @@ class _MmiShellState extends State<MmiShell> {
 
   void _turn(int dir) {
     Bridge.tick();
-    if (_call != null) {
+    if (_callShown) {
       _moveFocus(dir);
       return;
     }
@@ -230,7 +250,7 @@ class _MmiShellState extends State<MmiShell> {
   }
 
   void _press() {
-    if (_page == MmiPage.home && _call == null) {
+    if (_page == MmiPage.home && !_callShown) {
       if (_selected.isNotEmpty) {
         final k = _selected;
         setState(() => _selected = '');
@@ -250,7 +270,7 @@ class _MmiShellState extends State<MmiShell> {
     final k = refScale(size.width);
     final top = topBarH * k;
     final rail = railW * k;
-    final key = _call != null ? 'call' : _page.name;
+    final key = _callShown ? 'call' : _page.name;
     return ColoredBox(
       color: Mib.black,
       child: FocusScope(
@@ -259,8 +279,8 @@ class _MmiShellState extends State<MmiShell> {
           // Separate repaint areas: a ticking clock or a pressed button redraws only its own
           // part, not the whole screen (less work for the GE8300 and the memory bus).
           Positioned(left: 0, top: 0, right: 0, height: top, child: RepaintBoundary(child: Image.asset('assets/images/home_topbar.webp', fit: BoxFit.fill, cacheWidth: size.width.round()))),
-          if (_page != MmiPage.home || _call != null) Positioned(right: 28, top: 0, height: top, child: const RepaintBoundary(child: Center(child: _Clock()))),
-          Positioned(left: 0, top: 0, width: rail, bottom: 0, child: RepaintBoundary(child: _Rail(k: k, active: _call != null ? 'phone' : _page.rail, onOpen: _openKey))),
+          if (_page != MmiPage.home || _callShown) Positioned(right: 28, top: 0, height: top, child: const RepaintBoundary(child: Center(child: _Clock()))),
+          Positioned(left: 0, top: 0, width: rail, bottom: 0, child: RepaintBoundary(child: _Rail(k: k, active: _callShown ? 'phone' : _page.rail, onOpen: _openKey))),
           Positioned(
             left: rail,
             top: top,
@@ -270,9 +290,18 @@ class _MmiShellState extends State<MmiShell> {
               duration: const Duration(milliseconds: 260),
               reverseDuration: const Duration(milliseconds: 160),
               switchInCurve: Curves.easeOutCubic,
-              child: KeyedSubtree(key: ValueKey(key), child: RepaintBoundary(child: _call != null ? InCallPage(call: _call!) : _pageView())),
+              child: KeyedSubtree(key: ValueKey(key), child: RepaintBoundary(child: _callShown ? InCallPage(call: _call!) : _pageView())),
             ),
           ),
+          // Call going on while another page is open: slim bar, tap to return.
+          if (_call != null && _callAway)
+            Positioned(
+              left: rail,
+              right: 0,
+              top: 0,
+              height: top,
+              child: Center(child: CallBar(call: _call!, height: top - 10, onOpen: () => setState(() => _callAway = false))),
+            ),
           // Speed camera banner and volume pop-up, over every page.
           Positioned(
             left: rail,

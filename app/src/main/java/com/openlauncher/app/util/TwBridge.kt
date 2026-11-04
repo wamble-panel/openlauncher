@@ -239,7 +239,28 @@ object TwBridge {
 
     /** Asks the vendor Bluetooth app to answer, end or place a call. */
     fun answer() = send(Intent("action.intent.AIOS_ACCEPT"))
-    fun hangUp() = send(Intent("action.intent.AIOS_REJECT"))
+    fun hangUp() {
+        send(Intent("action.intent.AIOS_REJECT"))
+        // The driver ended it: if the module never confirms, leave the call screen anyway.
+        // (A call that really goes on brings it back with its next message.)
+        val c = _call.value
+        main.postDelayed({ if (_call.value === c) endCall("hung up, no confirmation") }, 5000)
+    }
+
+    private val noAnswer = Runnable { if (_call.value.state == CallState.INCOMING || _call.value.state == CallState.OUTGOING) endCall("ringing over 90 s") }
+
+    private fun endCall(why: String) {
+        if (_call.value.state == CallState.NONE) return
+        record("call screen closed: $why")
+        _call.value = Call(CallState.NONE, null, null, 0L)
+    }
+
+    /** After every call message: a call still ringing after 90 s has ended without saying so. */
+    private fun watchCall() {
+        main.removeCallbacks(noAnswer)
+        val st = _call.value.state
+        if (st == CallState.INCOMING || st == CallState.OUTGOING) main.postDelayed(noAnswer, 90_000)
+    }
     fun dial(number: String) = send(Intent("action.intent.AIOS_DIAL").putExtra("number", number))
 
     private fun send(intent: Intent) {
@@ -300,14 +321,20 @@ object TwBridge {
                 send(Intent("com.unisound.intent.action.GET_PAIR_INFO"))
                 send(Intent("com.unisound.intent.action.GET_BATTARY_INFO"))
             }
-            "com.android.bt.disconnected" -> { _phoneConnected.value = false; _btTrack.value = null; _phone.value = Phone() }
+            "com.android.bt.disconnected" -> { _phoneConnected.value = false; _btTrack.value = null; _phone.value = Phone(); endCall("phone disconnected") }
             "com.unisound.intent.action.SEND_PAIR_INFO" -> text(extras, "pairName")?.let { n -> _phone.value = _phone.value.copy(name = n) }
             "com.tw.bt_phone_info" -> _phone.value = _phone.value.copy(
                 battery = extras?.getInt("power", -1)?.takeIf { it >= 0 } ?: _phone.value.battery,
                 signal = extras?.getInt("singal", -1)?.takeIf { it >= 0 } ?: _phone.value.signal,
             )
-            MUTE, UNMUTE -> extras?.let { if (it.containsKey("reverse")) onReverse(it.getInt("reverse", 0) != 0) }
+            MUTE, UNMUTE -> extras?.let {
+                if (it.containsKey("reverse")) onReverse(it.getInt("reverse", 0) != 0)
+                // The car service's own "call running" flag: 0 means no call. Trust it once
+                // the call has had a few seconds to start (its first message can lag).
+                if (it.containsKey("call") && it.getInt("call", 0) == 0 && now - _call.value.since > 4000) endCall("car service says no call")
+            }
         }
+        watchCall()
     }
 
     /** Adds a line to mmi-twlog.txt (used by the car-library probe too). */

@@ -1,4 +1,5 @@
 import 'dart:ui' show PlatformDispatcher;
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'perf.dart';
 import 'shell/shell.dart';
@@ -9,6 +10,9 @@ void main() {
   // Picture cache sized for a 2 GB unit (Flutter's default is 100 MB).
   PaintingBinding.instance.imageCache.maximumSizeBytes = 32 << 20;
   FrameMonitor.start();
+  // Full screen, and Flutter re-applies it each time MMI comes back to the front
+  // (otherwise it resets to its default and the navigation bar returns).
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   final uri = Uri.parse(PlatformDispatcher.instance.defaultRouteName);
   final page = uri.path.replaceFirst('/', '');
   runApp(MmiApp(initialPage: page.isEmpty ? 'home' : page, splash: uri.queryParameters['splash'] == '1'));
@@ -43,22 +47,39 @@ class FitScreen extends StatelessWidget {
   static const designWidth = 1280.0;
   static const designHeight = 800.0;
 
+  /// The full screen as last seen. A system bar that shows for a moment makes the view
+  /// shorter; the interface keeps its size (the bar just covers an edge) instead of
+  /// shrinking and growing again.
+  static Size? _full;
+
   @override
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
-    final size = mq.size;
-    if (size.height <= 0 || size.width <= 0) return child;
+    final view = mq.size;
+    if (view.height <= 0 || view.width <= 0) return child;
+    if (_full == null || _full!.width != view.width || view.height > _full!.height) _full = view;
+    final size = _full!;
     final squarer = size.width / size.height < designWidth / designHeight;
-    if (!squarer && (size.height - designHeight).abs() < 1) return child;
+    // Always the same widget structure (even at exactly 1280 x 800, where it scales by 1):
+    // switching structure would rebuild the whole interface and lose the open page.
     final logical = squarer ? const Size(designWidth, designHeight) : Size(size.width * designHeight / size.height, designHeight);
     return ColoredBox(
       color: const Color(0xFF000000),
-      child: Center(
-        child: FittedBox(
-          fit: BoxFit.contain,
-          child: SizedBox.fromSize(
-            size: logical,
-            child: MediaQuery(data: mq.copyWith(size: logical), child: child),
+      child: ClipRect(
+        child: OverflowBox(
+          alignment: Alignment.topCenter,
+          minWidth: size.width,
+          maxWidth: size.width,
+          minHeight: size.height,
+          maxHeight: size.height,
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.contain,
+              child: SizedBox.fromSize(
+                size: logical,
+                child: MediaQuery(data: mq.copyWith(size: logical), child: child),
+              ),
+            ),
           ),
         ),
       ),

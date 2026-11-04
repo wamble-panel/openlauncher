@@ -391,3 +391,74 @@ class _Bar extends StatelessWidget {
         ),
       );
 }
+
+/// Slim bar over other pages while a call goes on: who, the running time (or
+/// "Calling…"), End; tapping the bar brings the call screen back.
+class CallBar extends StatefulWidget {
+  const CallBar({super.key, required this.call, required this.onOpen, this.height = 48});
+  final Map<Object?, Object?> call;
+  final double height;
+  final VoidCallback onOpen;
+  @override
+  State<CallBar> createState() => _CallBarState();
+}
+
+class _CallBarState extends State<CallBar> {
+  late final Timer _tick = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+
+  @override
+  void dispose() {
+    _tick.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.call;
+    final state = c['state'] as String? ?? 'active';
+    final since = (c['since'] as num?)?.toInt() ?? 0;
+    final secs = since > 0 ? (DateTime.now().millisecondsSinceEpoch - since) ~/ 1000 : 0;
+    final who = ((c['name'] as String?)?.trim().isNotEmpty == true ? c['name'] : c['number']) as String? ?? 'Phone';
+    final status = switch (state) {
+      'incoming' => 'Incoming call',
+      'outgoing' => 'Calling…',
+      _ => '${(secs ~/ 60).toString().padLeft(2, '0')}:${(secs % 60).toString().padLeft(2, '0')}',
+    };
+    return Pressable(
+      onTap: widget.onOpen,
+      radius: 6,
+      child: Container(
+        height: widget.height,
+        constraints: const BoxConstraints(minWidth: 460),
+        padding: const EdgeInsets.only(left: 18, right: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xF0101310),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFF2E9E4A), width: 1.5),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(MibIcons.call, size: 28, color: Color(0xFF5BD35B)),
+          const SizedBox(width: 14),
+          ConstrainedBox(constraints: const BoxConstraints(maxWidth: 300), child: Text(who, style: Mib.text(22), maxLines: 1, overflow: TextOverflow.ellipsis)),
+          const SizedBox(width: 16),
+          Text(status, style: Mib.text(21, color: const Color(0xFFBDBDBD))),
+          const SizedBox(width: 22),
+          Pressable(
+            onTap: () => Bridge.call('hangUp'),
+            radius: 4,
+            child: Container(
+              height: widget.height - 8,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(color: _red, borderRadius: BorderRadius.circular(4)),
+              child: Row(children: [
+                const Icon(MibIcons.call_end, size: 24, color: Mib.white),
+                const SizedBox(width: 8),
+                Text('End', style: Mib.text(20)),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
