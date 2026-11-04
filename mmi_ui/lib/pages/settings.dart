@@ -165,21 +165,6 @@ class _CategoryPageState extends State<CategoryPage> with Live<CategoryPage>, Se
             value: (v('carName', null) as String?) ?? 'Not found in the car list',
             sub: v('carBox', null) == null ? null : 'CAN box: ${v('carBox', '')}',
           ),
-          const MibCaption('Car data', top: 18),
-          MibSegmented(
-            options: const ['Automatic', 'Opel / GM', 'Car service only'],
-            selected: const ['AUTO', 'GM', 'CAR_SERVICE_ONLY'].indexOf('${v('carDecoder', 'AUTO')}').clamp(0, 2),
-            onSelect: (i) => set('carDecoder', const ['AUTO', 'GM', 'CAR_SERVICE_ONLY'][i]),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 14),
-            child: Text(
-              'Automatic reads the car from the unit\'s car list. MMI\'s own Opel / GM decoding '
-              '(doors, tyres, range, oil life) is used only on those cars; every other car gets its '
-              'data from the unit\'s car service.',
-              style: Mib.text(19, color: Mib.grey),
-            ),
-          ),
           MibRow(
             label: 'Car picture',
             value: v('carPicture', null) != null ? 'Your photo' : (v('carDefaultPicture', true) == true ? 'Astra J' : 'None'),
@@ -198,13 +183,8 @@ class _CategoryPageState extends State<CategoryPage> with Live<CategoryPage>, Se
       'system' => [
           open('Software update', 'update', icon: MibIcons.sync),
           open('Storage', 'update', icon: MibIcons.storage),
-          toggle('OpenGL ES graphics', 'gles', sub: 'try if pages stutter; used from the next start'),
-          MibRow(label: 'Classic MMI', sub: 'switch back to the previous screens', trailing: MibToggle(value: false, onChanged: (_) => Bridge.call('classic'))),
           MibRow(label: 'Version', value: '${v('version', '')}'),
-          open('System tuning', 'tuning', icon: MibIcons.build, sub: 'root speed-up, disable vendor apps, firmware backup'),
-          open('Unit health', 'health', icon: MibIcons.device_thermostat, sub: 'chip temperatures, speed and memory'),
-          open('Vendor apps', 'vendor', icon: MibIcons.apps, sub: 'which ones MMI replaces; disable them one by one'),
-          const _DevSend(),
+          open('Developer', 'developer', icon: MibIcons.lock, sub: 'for the owner only; opens with your PIN'),
         ],
       _ => <Widget>[],
     };
@@ -214,13 +194,13 @@ class _CategoryPageState extends State<CategoryPage> with Live<CategoryPage>, Se
 
 /// Sends the unit's car software and system facts to the developer's private repo
 /// (one tap; GitHub asks for a one-time code on the first send). Shows progress.
-class _DevSend extends StatefulWidget {
-  const _DevSend();
+class DevSend extends StatefulWidget {
+  const DevSend({super.key});
   @override
-  State<_DevSend> createState() => _DevSendState();
+  State<DevSend> createState() => _DevSendState();
 }
 
-class _DevSendState extends State<_DevSend> with Live<_DevSend> {
+class _DevSendState extends State<DevSend> with Live<DevSend> {
   @override
   String get liveMethod => 'devStatus';
   @override

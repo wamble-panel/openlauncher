@@ -175,6 +175,16 @@ class MmiFlutterActivity : FlutterActivity() {
                     "btGet" -> result.success(car.bt())
                     "carGet" -> result.success(carInfo())
                     "updateGet" -> result.success(UpdateFlow.state(this))
+                    // Developer page: PIN and the vendor car list (read only).
+                    "devPin" -> {
+                        val pin = arg<String>("pin") ?: ""
+                        result.success(when (arg<String>("action")) {
+                            "set" -> DevPin.set(this, pin)
+                            "check" -> DevPin.check(this, pin)
+                            else -> DevPin.isSet(this)
+                        })
+                    }
+                    "carListGet" -> result.success(com.openlauncher.app.util.CarList.list(this, arg<String>("path") ?: "2"))
                     "updateCheck" -> { UpdateFlow.check(); result.success(null) }
                     "updateRun" -> { UpdateFlow.run(applicationContext); result.success(null) }
                     "phoneLinkGet" -> {

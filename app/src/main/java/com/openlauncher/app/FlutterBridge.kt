@@ -789,3 +789,29 @@ internal object UpdateFlow {
         }
     }
 }
+
+/**
+ * The developer page's PIN, chosen by the owner the first time. Only a salted SHA-256 of
+ * it is kept. Forgotten PIN: clear MMI's app data (Android settings) and choose a new one.
+ */
+internal object DevPin {
+    private fun prefs(c: Context) = c.getSharedPreferences("mmi_dev", Context.MODE_PRIVATE)
+
+    private fun hash(salt: String, pin: String): String =
+        java.security.MessageDigest.getInstance("SHA-256").digest((salt + pin).toByteArray()).joinToString("") { "%02x".format(it) }
+
+    fun isSet(c: Context) = prefs(c).getString("hash", null) != null
+
+    fun set(c: Context, pin: String): Boolean {
+        if (pin.length !in 4..8 || !pin.all(Char::isDigit)) return false
+        val salt = java.util.UUID.randomUUID().toString()
+        prefs(c).edit().putString("salt", salt).putString("hash", hash(salt, pin)).apply()
+        return true
+    }
+
+    fun check(c: Context, pin: String): Boolean {
+        val p = prefs(c)
+        val salt = p.getString("salt", null) ?: return false
+        return p.getString("hash", null) == hash(salt, pin)
+    }
+}

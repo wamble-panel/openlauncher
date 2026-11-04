@@ -27,6 +27,8 @@ object CarProfile {
         val known: Boolean = false,
         val raise: Boolean = true,
         val gm: Boolean = true,
+        /** The chosen entry ids, top down (CAN-box maker, brand, model, …). */
+        val path: List<String> = emptyList(),
     ) {
         val name: String? get() = listOfNotNull(brand, model).joinToString(" ").ifBlank { null }
     }
@@ -98,8 +100,12 @@ object CarProfile {
             known = true,
             raise = raise,
             gm = gm,
+            path = path.filter { it.isNotEmpty() }.let { p -> if (p.firstOrNull() == "2") p.drop(1) else p },
         )
     }
+
+    fun brandName(s: String): String = BRANDS[s] ?: s
+    fun modelName(s: String): String = model(s)
 
     /** "11-17款Astra J" → "Astra J (2011–17)". */
     private fun model(s: String): String {
@@ -122,5 +128,13 @@ object CarProfile {
         "克莱斯勒" to "Chrysler", "西雅特" to "SEAT", "长城" to "Great Wall", "哈弗" to "Haval", "吉利" to "Geely",
         "奇瑞" to "Chery", "比亚迪" to "BYD", "名爵" to "MG", "荣威" to "Roewe", "长安" to "Changan", "捷豹" to "Jaguar",
         "保时捷" to "Porsche", "迷你" to "MINI", "斯玛特" to "smart", "雪佛兰/别克" to "Chevrolet / Buick",
+        "现代起亚" to "Hyundai / Kia", "东风日产" to "Nissan (Dongfeng)", "美国通用" to "GM (USA)", "JEEP" to "Jeep",
+        "标志雪铁龙" to "Peugeot / Citroën", "奔腾" to "Bestune", "名爵荣威全兼容" to "MG / Roewe", "上汽大通" to "Maxus",
+        "宝骏" to "Baojun", "江淮" to "JAC", "广汽传祺" to "GAC Trumpchi", "海马" to "Haima", "东风" to "Dongfeng",
+        "中华" to "Brilliance", "力帆" to "Lifan", "北汽" to "BAIC", "众泰" to "Zotye", "汉腾" to "Hanteng", "比速" to "Bisu",
+        "陆风" to "Landwind", "启辰" to "Venucia", "东南" to "Soueast", "金杯" to "Jinbei", "江西五十铃" to "Isuzu (Jiangxi)",
+        "君马" to "Junma", "纳智捷" to "Luxgen", "野马" to "Yema", "五菱" to "Wuling", "南骏" to "Nanjun", "斯威" to "SWM",
+        "江铃" to "JMC", "银隆" to "Yinlong", "雷丁" to "Leding", "创维" to "Skyworth", "双龙" to "SsangYong", "红旗" to "Hongqi",
+        "通用机按键板" to "Generic key board", "特斯拉" to "Tesla", "马恒达" to "Mahindra",
     )
 }

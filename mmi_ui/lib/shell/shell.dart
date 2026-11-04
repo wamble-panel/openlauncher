@@ -19,6 +19,7 @@ import '../pages/phone.dart';
 import '../pages/phonelink.dart';
 import '../pages/radio.dart';
 import '../pages/settings.dart';
+import '../pages/developer.dart';
 import '../pages/update.dart';
 import '../pages/usb.dart';
 import '../pages/sound.dart';
@@ -45,6 +46,8 @@ enum MmiPage {
   carinfo('Car', 'Car information', null),
   carkeys('Car', 'Car buttons', null),
   update('Settings', 'Software update', null),
+  developer('Settings', 'Developer', null),
+  carlist('Developer', 'CAN box car list', null),
   weather(null, 'Weather', null),
   help(null, 'Help', null),
   vendor('Settings', 'Vendor apps', null),
@@ -389,6 +392,8 @@ class _MmiShellState extends State<MmiShell> {
       MmiPage.carinfo => const CarInfoPage(),
       MmiPage.carkeys => const CarKeysPage(),
       MmiPage.update => const UpdatePage(),
+      MmiPage.developer => DeveloperPage(onOpen: _openKey),
+      MmiPage.carlist => const CarListPage(),
       MmiPage.weather => const WeatherPage(),
       MmiPage.help => HelpPage(onOpen: _openKey),
       MmiPage.vendor => const VendorAppsPage(),
