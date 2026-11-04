@@ -29,9 +29,13 @@ internal object RadioLogos {
      * name its logo is looked up by.
      */
     private val CAIRO = mapOf(
-        87.8f to "Mix FM", 88.2f to "Radio Hits", 88.7f to "Radio Masr", 90.9f to "El Radio 9090",
-        92.1f to "NRJ Egypt", 92.7f to "Mega FM", 95.0f to "Shaabi FM", 100.6f to "Nogoum FM",
-        104.2f to "Nile FM", 105.3f to "Nagham FM",
+        // Greater Cairo FM (Wikipedia's list, from fmscan.org), plus two relays.
+        87.8f to "Mix FM", 88.2f to "Radio Hits", 88.4f to "Holy Quran Radio", 88.7f to "Radio Masr",
+        89.5f to "Middle East Radio", 90.9f to "El Radio 9090", 91.5f to "Cultural Programme", 92.1f to "NRJ Egypt",
+        92.7f to "Mega FM", 93.7f to "On Sport FM", 94.1f to "Radio Masr", 95.0f to "Shaabi FM",
+        95.4f to "European Programme", 98.2f to "Holy Quran Radio", 98.8f to "Music Programme", 99.0f to "99 FM",
+        100.6f to "Nogoum FM", 102.2f to "Greater Cairo Radio", 102.7f to "Nile News", 104.2f to "Nile FM",
+        105.3f to "Nagham FM", 105.8f to "Egyptian Songs", 106.3f to "Voice of the Arabs",
     )
 
     private fun fm(freq: Float) = String.format(java.util.Locale.US, "%.1f", freq)

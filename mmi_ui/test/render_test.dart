@@ -81,8 +81,11 @@ final _demo = <String, Object?>{
     'logo': '../app/src/main/assets/radio_logos/100.6.png',
     'presets': [
       {'freq': 100.6, 'name': 'Nogoum FM', 'logo': '../app/src/main/assets/radio_logos/100.6.png'},
-      {'freq': 87.8, 'name': 'Mix FM', 'logo': '../app/src/main/assets/radio_logos/87.8.png'},
-      {'freq': 104.2, 'name': 'Nile FM'}, {'freq': 92.7, 'name': 'Mega FM'}, {'freq': 95.0, 'name': 'Shaabi FM'},
+      {'freq': 92.7, 'name': 'Mega FM', 'logo': '../app/src/main/assets/radio_logos/92.7.png'},
+      {'freq': 104.2, 'name': 'Nile FM', 'logo': '../app/src/main/assets/radio_logos/104.2.png'},
+      {'freq': 90.9, 'name': 'El Radio 9090', 'logo': '../app/src/main/assets/radio_logos/90.9.png'},
+      {'freq': 105.3, 'name': 'Nagham FM', 'logo': '../app/src/main/assets/radio_logos/105.3.png'},
+      {'freq': 93.7, 'name': 'On Sport FM', 'logo': '../app/src/main/assets/radio_logos/93.7.png'},
     ],
   },
   'appsGet': {'found': ['browser', 'files', 'music', 'video', 'camera', 'calculator', 'calendar', 'clock', 'gallery', 'maps', 'weather', 'settings', 'store', 'notes', 'recorder'], 'others': []},
@@ -141,7 +144,7 @@ Future<void> _homeArt(WidgetTester tester) => tester.runAsync(() async {
 
 /// The demo station logos, decoded at the sizes the Radio page asks for.
 Future<void> _radioLogos(WidgetTester tester) => tester.runAsync(() async {
-      for (final f in ['100.6', '87.8']) {
+      for (final f in ['100.6', '87.8', '92.7', '104.2', '90.9', '105.3', '93.7']) {
         for (final w in [256, 128]) {
           final done = Completer<void>();
           ResizeImage.resizeIfNeeded(w, null, FileImage(File('../app/src/main/assets/radio_logos/$f.png')))
