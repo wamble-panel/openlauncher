@@ -1,0 +1,248 @@
+{
+ "87.8": [
+  {
+   "source": "site",
+   "url": "https://www.mixfmegypt.com/images/mixfm878.jpg",
+   "file": "out/img/87.8__site_0.jpg"
+  },
+  {
+   "source": "site",
+   "url": "https://www.mixfmegypt.com/images/mixfm_logo.png",
+   "file": "out/img/87.8__site_1.png"
+  }
+ ],
+ "88.7": [
+  {
+   "source": "site",
+   "url": "https://www.radiomasr.net/wp-content/themes/wpradiomasr/favicon.ico",
+   "file": "out/img/88.7__site_0.ico"
+  },
+  {
+   "source": "site",
+   "url": "https://www.radiomasr.net/wp-content/themes/wpradiomasr/images/logo.png",
+   "file": "out/img/88.7__site_1.png"
+  },
+  {
+   "source": "site",
+   "url": "https://www.radiomasr.net/wp-content/themes/wpradiomasr/favicon.ico",
+   "file": "out/img/88.7__site_2.ico"
+  },
+  {
+   "source": "site",
+   "url": "https://www.radiomasr.net/wp-content/themes/wpradiomasr/images/logo.png",
+   "file": "out/img/88.7__site_3.png"
+  }
+ ],
+ "89.5": [
+  {
+   "source": "wikidata",
+   "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/db/Studio_radio_M%C3%A9dias_Maghreb_3.jpg/960px-Studio_radio_M%C3%A9dias_Maghreb_3.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "file": "out/img/89.5__wikidata_0.jpg"
+  }
+ ],
+ "90.9": [
+  {
+   "source": "site",
+   "url": "https://www.9090.fm/images/favicon.ico",
+   "file": "out/img/90.9__site_0.ico"
+  },
+  {
+   "source": "site",
+   "url": "https://www.9090.fm/images/logo.png",
+   "file": "out/img/90.9__site_1.png"
+  },
+  {
+   "source": "wikidata",
+   "url": "https://upload.wikimedia.org/wikipedia/commons/a/a7/El_Radio_9090.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "file": "out/img/90.9__wikidata_2.png"
+  }
+ ],
+ "92.7": [
+  {
+   "source": "wikiar",
+   "url": "https://upload.wikimedia.org/wikipedia/commons/1/18/Mega_FM.png?utm_source=ar.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+   "file": "out/img/92.7__wikiar_0.png"
+  }
+ ],
+ "93.7": [
+  {
+   "source": "wikidata",
+   "url": "https://upload.wikimedia.org/wikipedia/commons/c/c2/ONsport_FM.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "file": "out/img/93.7__wikidata_0.png"
+  }
+ ],
+ "95.0": [
+  {
+   "source": "wikiar",
+   "url": "https://upload.wikimedia.org/wikipedia/commons/c/c2/Nile_Radio_Network.png?utm_source=ar.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+   "file": "out/img/95.0__wikiar_0.png"
+  }
+ ],
+ "95.4": [
+  {
+   "source": "wikidata",
+   "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2d/Logo_Euro_NCAP.svg/960px-Logo_Euro_NCAP.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "file": "out/img/95.4__wikidata_0.png"
+  }
+ ],
+ "100.6": [
+  {
+   "source": "site",
+   "url": "http://www.nogoumfm.net/wp-content/uploads/2016/07/About-Us.jpg",
+   "file": "out/img/100.6__site_0.jpg"
+  },
+  {
+   "source": "site",
+   "url": "https://www.nogoumfm.net/wp-content/uploads/2019/12/Nogoum-Logo-2-2014.png",
+   "file": "out/img/100.6__site_1.png"
+  },
+  {
+   "source": "site",
+   "url": "https://www.nogoumfm.net/wp-content/themes/nogom-fm/dist/images/apple-touch-icon-57-precomposed.png",
+   "file": "out/img/100.6__site_2.png"
+  },
+  {
+   "source": "site",
+   "url": "https://www.nogoumfm.net/wp-content/themes/nogom-fm/dist/images/apple-touch-icon-72-precomposed.png",
+   "file": "out/img/100.6__site_3.png"
+  },
+  {
+   "source": "site",
+   "url": "https://www.nogoumfm.net/wp-content/themes/nogom-fm/dist/images/apple-touch-icon-114-precomposed.png",
+   "file": "out/img/100.6__site_4.png"
+  },
+  {
+   "source": "site",
+   "url": "https://www.nogoumfm.net/wp-content/themes/nogom-fm/dist/images/apple-touch-icon-144-precomposed.png",
+   "file": "out/img/100.6__site_5.png"
+  },
+  {
+   "source": "site",
+   "url": "https://www.nogoumfm.net/wp-content/uploads/2019/12/logo-nogoum-1.png",
+   "file": "out/img/100.6__site_6.png"
+  },
+  {
+   "source": "site",
+   "url": "https://www.nogoumfm.net/wp-content/uploads/2017/02/fmlogo2.png",
+   "file": "out/img/100.6__site_7.png"
+  },
+  {
+   "source": "wikidata",
+   "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b4/Nogoum_FM.svg/960px-Nogoum_FM.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "file": "out/img/100.6__wikidata_8.png"
+  },
+  {
+   "source": "wikien",
+   "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b4/Nogoum_FM.svg/960px-Nogoum_FM.svg.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+   "file": "out/img/100.6__wikien_9.png"
+  },
+  {
+   "source": "wikidata",
+   "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b4/Nogoum_FM.svg/960px-Nogoum_FM.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "file": "out/img/100.6__wikidata_10.png"
+  },
+  {
+   "source": "wikiar",
+   "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b4/Nogoum_FM.svg/960px-Nogoum_FM.svg.png?utm_source=ar.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+   "file": "out/img/100.6__wikiar_11.png"
+  }
+ ],
+ "102.7": [
+  {
+   "source": "wikidata",
+   "url": "https://upload.wikimedia.org/wikipedia/commons/2/24/Nile_News_TV_logo.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "file": "out/img/102.7__wikidata_0.png"
+  },
+  {
+   "source": "wikiar",
+   "url": "https://upload.wikimedia.org/wikipedia/commons/2/24/Nile_News_TV_logo.png?utm_source=ar.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+   "file": "out/img/102.7__wikiar_1.png"
+  }
+ ],
+ "104.2": [
+  {
+   "source": "site",
+   "url": "https://api.nilefm.com/uploads/og_img.jpg",
+   "file": "out/img/104.2__site_0.jpg"
+  },
+  {
+   "source": "site",
+   "url": "https://nilefm.com/static/apple-icon-57x57.png",
+   "file": "out/img/104.2__site_1.png"
+  },
+  {
+   "source": "site",
+   "url": "https://nilefm.com/static/apple-icon-60x60.png",
+   "file": "out/img/104.2__site_2.png"
+  },
+  {
+   "source": "site",
+   "url": "https://nilefm.com/static/apple-icon-72x72.png",
+   "file": "out/img/104.2__site_3.png"
+  },
+  {
+   "source": "site",
+   "url": "https://nilefm.com/static/apple-icon-76x76.png",
+   "file": "out/img/104.2__site_4.png"
+  },
+  {
+   "source": "site",
+   "url": "https://nilefm.com/static/apple-icon-114x114.png",
+   "file": "out/img/104.2__site_5.png"
+  },
+  {
+   "source": "site",
+   "url": "https://nilefm.com/static/apple-icon-120x120.png",
+   "file": "out/img/104.2__site_6.png"
+  },
+  {
+   "source": "site",
+   "url": "https://nilefm.com/static/apple-icon-144x144.png",
+   "file": "out/img/104.2__site_7.png"
+  },
+  {
+   "source": "site",
+   "url": "https://api.nilefm.com/uploads/og_img.jpg",
+   "file": "out/img/104.2__site_8.jpg"
+  },
+  {
+   "source": "site",
+   "url": "https://www.nilefm.com/static/apple-icon-57x57.png",
+   "file": "out/img/104.2__site_9.png"
+  },
+  {
+   "source": "site",
+   "url": "https://www.nilefm.com/static/apple-icon-60x60.png",
+   "file": "out/img/104.2__site_10.png"
+  },
+  {
+   "source": "site",
+   "url": "https://www.nilefm.com/static/apple-icon-72x72.png",
+   "file": "out/img/104.2__site_11.png"
+  },
+  {
+   "source": "site",
+   "url": "https://www.nilefm.com/static/apple-icon-76x76.png",
+   "file": "out/img/104.2__site_12.png"
+  },
+  {
+   "source": "site",
+   "url": "https://www.nilefm.com/static/apple-icon-114x114.png",
+   "file": "out/img/104.2__site_13.png"
+  }
+ ],
+ "105.3": [
+  {
+   "source": "wikiar",
+   "url": "https://upload.wikimedia.org/wikipedia/commons/f/f6/Nagham_FM.png?utm_source=ar.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+   "file": "out/img/105.3__wikiar_0.png"
+  }
+ ],
+ "105.8": [
+  {
+   "source": "wikidata",
+   "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9b/Maspero_television_building.JPG/960px-Maspero_television_building.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "file": "out/img/105.8__wikidata_0.jpg"
+  }
+ ]
+}
