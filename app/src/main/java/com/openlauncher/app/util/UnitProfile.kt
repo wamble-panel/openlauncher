@@ -127,7 +127,9 @@ object UnitProfile {
                 else -> Feature("", "none")
             },
             // On TW units MMI's Phone Link page runs the engine hidden; elsewhere the unit's app.
-            "phonelink" to if (tw && linkApp != null) Feature("", "mmi", linkApp) else app(linkApp),
+            // On TW units MMI's own Phone Link page always stays (it finds the engine itself,
+            // even when the engine has no icon in the app list); elsewhere the unit's app.
+            "phonelink" to if (tw) Feature("", "mmi", linkApp) else app(linkApp),
             "sound" to Feature("", "mmi"),
             "music" to Feature("", "mmi"),
             "nav" to Feature("", "mmi"),
