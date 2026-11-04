@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/widgets.dart' hide Text;
+import '../i18n.dart';
 import '../bridge.dart';
 import '../theme/mib.dart';
 import '../theme/mib_icons.dart';
@@ -104,7 +105,10 @@ class _MmiShellState extends State<MmiShell> {
   void initState() {
     super.initState();
     // Car buttons the driver set up (Settings · Car · Car buttons).
-    Bridge.call<Map<Object?, Object?>>('settingsGet').then((m) => CarKeys.load(m?['keymap'] as String?));
+    Bridge.call<Map<Object?, Object?>>('settingsGet').then((m) {
+      CarKeys.load(m?['keymap'] as String?);
+      lang.value = m?['lang'] as String? ?? 'en';
+    });
     Bridge.listen((call) async {
       switch (call.method) {
         case 'key':
@@ -311,12 +315,12 @@ class _MmiShellState extends State<MmiShell> {
           // Separate repaint areas: a ticking clock or a pressed button redraws only its own
           // part, not the whole screen (less work for the GE8300 and the memory bus).
           Positioned(left: 0, top: 0, right: 0, height: top, child: RepaintBoundary(child: Image.asset('assets/images/home_topbar.webp', fit: BoxFit.fill, cacheWidth: size.width.round()))),
-          if (_page != MmiPage.home || _callShown) Positioned(right: 28, top: 0, height: top, child: const RepaintBoundary(child: Center(child: _Clock()))),
-          Positioned(left: 0, top: 0, width: rail, bottom: 0, child: RepaintBoundary(child: _Rail(k: k, active: _callShown ? 'phone' : _page.rail, onOpen: _openKey))),
-          Positioned(
-            left: rail,
+          if (_page != MmiPage.home || _callShown) PositionedDirectional(end: 28, top: 0, height: top, child: const RepaintBoundary(child: Center(child: _Clock()))),
+          PositionedDirectional(start: 0, top: 0, width: rail, bottom: 0, child: RepaintBoundary(child: _Rail(k: k, active: _callShown ? 'phone' : _page.rail, onOpen: _openKey))),
+          PositionedDirectional(
+            start: rail,
             top: top,
-            right: 0,
+            end: 0,
             bottom: 0,
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 260),
@@ -327,23 +331,23 @@ class _MmiShellState extends State<MmiShell> {
           ),
           // Call going on while another page is open: slim bar, tap to return.
           if (_call != null && _callAway)
-            Positioned(
-              left: rail,
-              right: 0,
+            PositionedDirectional(
+              start: rail,
+              end: 0,
               top: 0,
               height: top,
               child: Center(child: CallBar(call: _call!, height: top - 10, onOpen: () => setState(() => _callAway = false))),
             ),
           // Speed camera banner and volume pop-up, over every page.
-          Positioned(
-            left: rail,
-            right: 0,
+          PositionedDirectional(
+            start: rail,
+            end: 0,
             top: top + 14,
             child: Center(child: Fade(visible: _camera != null, child: _camera == null ? const SizedBox() : CameraBanner(cam: _camera!))),
           ),
-          Positioned(
-            left: rail,
-            right: 0,
+          PositionedDirectional(
+            start: rail,
+            end: 0,
             bottom: 40,
             child: Center(
               child: Fade(
@@ -352,15 +356,15 @@ class _MmiShellState extends State<MmiShell> {
               ),
             ),
           ),
-          Positioned(
-            left: rail,
-            right: 0,
+          PositionedDirectional(
+            start: rail,
+            end: 0,
             bottom: 40,
             child: Center(child: Fade(visible: _climate != null, child: _climate == null ? const SizedBox(width: 760, height: 92) : ClimateBanner(c: _climate!))),
           ),
-          Positioned(
-            left: rail,
-            right: 0,
+          PositionedDirectional(
+            start: rail,
+            end: 0,
             top: top + 14,
             child: Center(child: Fade(visible: _doors != null && _camera == null, child: _doors == null ? const SizedBox() : DoorBanner(text: _doors!))),
           ),
@@ -424,10 +428,10 @@ class _MmiShellState extends State<MmiShell> {
                 Bridge.changes.add('radio');
               }),
             ),
-            Padding(padding: const EdgeInsets.only(right: 18), child: MibButton(label: 'Source', icon: MibIcons.radio, width: 174, height: 63, onTap: () => _open(MmiPage.source))),
+            Padding(padding: const EdgeInsetsDirectional.only(end: 18), child: MibButton(label: 'Source', icon: MibIcons.radio, width: 174, height: 63, onTap: () => _open(MmiPage.source))),
           ],
         MmiPage.calls => [
-            Padding(padding: const EdgeInsets.only(right: 18), child: MibButton(label: 'Dial', icon: MibIcons.dialpad, width: 150, height: 63, onTap: () => _open(MmiPage.dial))),
+            Padding(padding: const EdgeInsetsDirectional.only(end: 18), child: MibButton(label: 'Dial', icon: MibIcons.dialpad, width: 150, height: 63, onTap: () => _open(MmiPage.dial))),
           ],
         _ => const [],
       };
@@ -460,13 +464,15 @@ class _Rail extends StatelessWidget {
                 duration: const Duration(milliseconds: 220),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
+                    begin: AlignmentDirectional.centerStart,
+                    end: AlignmentDirectional.centerEnd,
                     colors: _railKeys[i] == active
                         ? const [Color(0xFF2A2A2A), Color(0xFF4A4A4A), Color(0xFF6A6A6A)]
                         : const [Color(0xFF000000), Color(0xFF1E1E1E), Color(0xFF3A3A3A)],
                   ),
-                  border: Border(
+                  border: BorderDirectional(
                     top: const BorderSide(color: Color(0xFFBBBBBB), width: 1),
-                    right: BorderSide(color: _railKeys[i] == active ? Mib.white : const Color(0xFFD8D8D8), width: 2 * k),
+                    end: BorderSide(color: _railKeys[i] == active ? Mib.white : const Color(0xFFD8D8D8), width: 2 * k),
                   ),
                 ),
                 child: Center(

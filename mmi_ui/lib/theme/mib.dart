@@ -1,4 +1,5 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/widgets.dart' hide Text;
+import '../i18n.dart';
 
 /// The MMI look: pure black, white Roboto Regular, grey secondary text, thin
 /// fading lines. Sizes on the 1280 × 800 screen are logical pixels (1 : 1 at mdpi).
@@ -12,7 +13,15 @@ class Mib {
   static const outline = Color(0x88FFFFFF);
 
   static TextStyle text(double size, {Color color = white, FontWeight weight = FontWeight.w400, double height = 1.2}) =>
-      TextStyle(fontFamily: 'Roboto', fontSize: size, color: color, fontWeight: weight, height: height, decoration: TextDecoration.none);
+      TextStyle(
+        fontFamily: 'Roboto',
+        fontFamilyFallback: const ['PlexArabic'],
+        fontSize: size,
+        color: color,
+        fontWeight: weight,
+        height: height,
+        decoration: TextDecoration.none,
+      );
 
   /// Frosted panel from the designs: faint light gradient, outline brighter at the top.
   static BoxDecoration glass({double radius = 6}) => BoxDecoration(

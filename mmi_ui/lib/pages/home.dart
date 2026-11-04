@@ -1,4 +1,5 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/widgets.dart' hide Text;
+import '../i18n.dart';
 import '../theme/mib.dart';
 import '../theme/mib_icons.dart';
 import '../widgets/pressable.dart';
@@ -95,8 +96,8 @@ class _HomePageState extends State<HomePage> {
           onPageChanged: (p) => setState(() => _page = p),
           itemBuilder: (context, page) => Stack(children: [
             for (var i = 0; i < 8 && page * 8 + i < homeTiles.length; i++)
-              Positioned(
-                left: (_tileX[i % 4] - railW) * k,
+              PositionedDirectional(
+                start: (_tileX[i % 4] - railW) * k,
                 top: tileTop + (tileH + _rowGap * k) * (i ~/ 4),
                 width: _tileW[i % 4] * k,
                 height: tileH,
@@ -105,8 +106,8 @@ class _HomePageState extends State<HomePage> {
           ]),
         ),
         for (var i = 0; i < pages; i++)
-          Positioned(
-            left: ((i == 0 ? 1009.0 : 1062.0 + (i - 1) * 53) - railW) * k,
+          PositionedDirectional(
+            start: ((i == 0 ? 1009.0 : 1062.0 + (i - 1) * 53) - railW) * k,
             top: h - 26 * k,
             width: (i == 0 ? 28 : 27) * k,
             height: 11 * k,

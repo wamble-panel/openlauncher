@@ -1,4 +1,5 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/widgets.dart' hide Text;
+import '../i18n.dart';
 import '../bridge.dart';
 import '../live.dart';
 import '../perf.dart';
@@ -176,6 +177,18 @@ class _CategoryPageState extends State<CategoryPage> with Live<CategoryPage>, Se
           open('Climate', 'classic:DASHBOARD', icon: MibIcons.mode_fan),
         ],
       'language' => [
+          // MMI's own language (Android's stays as it is).
+          const MibCaption('MMI language', top: 14),
+          MibSegmented(
+            options: const ['English', 'العربية'],
+            selected: v('lang', 'en') == 'ar' ? 1 : 0,
+            onSelect: (i) {
+              final l = i == 1 ? 'ar' : 'en';
+              set('lang', l);
+              lang.value = l;
+            },
+          ),
+          const SizedBox(height: 18),
           system('Language', 'language', sub: 'system language and region'),
           system('Keyboard', 'keyboard'),
           system('Date and time', 'date'),

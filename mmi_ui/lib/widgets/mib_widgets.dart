@@ -1,4 +1,5 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/widgets.dart' hide Text;
+import '../i18n.dart';
 import '../theme/mib.dart';
 import '../theme/mib_icons.dart';
 import 'pressable.dart';
@@ -212,7 +213,8 @@ class MibStepSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(children: [
+    // Sliders run low to high, left to right, in every language.
+    return Directionality(textDirection: TextDirection.ltr, child: Column(children: [
       Row(children: [
         MibIconBox(icon: MibIcons.remove, onTap: () => onChanged((value - step).clamp(0, 1))),
         Expanded(
@@ -235,7 +237,7 @@ class MibStepSlider extends StatelessWidget {
           Text(maxLabel, style: Mib.text(20, color: Mib.grey)),
         ]),
       ),
-    ]);
+    ]));
   }
 }
 

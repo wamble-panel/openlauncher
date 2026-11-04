@@ -2,6 +2,7 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'perf.dart';
+import 'i18n.dart';
 import 'shell/shell.dart';
 
 /// The host opens a page by route name, e.g. "/sound".
@@ -31,7 +32,14 @@ class MmiApp extends StatelessWidget {
       color: const Color(0xFF000000),
       debugShowCheckedModeBanner: false,
       textStyle: const TextStyle(fontFamily: 'Roboto', color: Color(0xFFFFFFFF)),
-      builder: (context, _) => FitScreen(child: MmiShell(initialPage: initialPage, initialCall: initialCall, splash: splash)),
+      builder: (context, _) => ValueListenableBuilder<String>(
+        valueListenable: lang,
+        // Arabic: the whole interface right-to-left (rail on the right, lists mirrored).
+        builder: (context, l, _) => Directionality(
+          textDirection: l == 'ar' ? TextDirection.rtl : TextDirection.ltr,
+          child: FitScreen(child: MmiShell(initialPage: initialPage, initialCall: initialCall, splash: splash)),
+        ),
+      ),
     );
   }
 }

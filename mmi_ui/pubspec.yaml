@@ -30,6 +30,13 @@ flutter:
     - family: MibSymbols
       fonts:
         - asset: assets/fonts/MibSymbols.ttf
+    # Arabic (IBM Plex Sans Arabic, SIL Open Font License): used for Arabic letters,
+    # Roboto keeps the Latin ones.
+    - family: PlexArabic
+      fonts:
+        - asset: assets/fonts/PlexArabic-400.ttf
+        - asset: assets/fonts/PlexArabic-500.ttf
+          weight: 500
 
   module:
     androidX: true

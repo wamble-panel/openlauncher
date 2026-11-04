@@ -66,6 +66,7 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
             "version" to runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull(),
             // Car buttons the driver gave a job to: {"code": "action"} as JSON text.
             "keymap" to (prefs.getString("keymap", null) ?: "{}"),
+            "lang" to (prefs.getString("lang", null) ?: "en"),
         ) + carIdentity()
     }
 
@@ -95,6 +96,7 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
             "gles" -> prefs.edit().putBoolean("gles", on).apply() // used from the next start
             "carDecoder" -> runCatching { com.openlauncher.app.util.CarProfile.setDecoder(com.openlauncher.app.util.CarProfile.Decoder.valueOf(value as String)) }
             "keymap" -> prefs.edit().putString("keymap", value as? String ?: "{}").apply()
+            "lang" -> prefs.edit().putString("lang", if (value == "ar") "ar" else "en").apply()
         }
     }
 

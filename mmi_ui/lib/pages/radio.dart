@@ -1,5 +1,6 @@
 import 'dart:io';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/widgets.dart' hide Text;
+import '../i18n.dart';
 import '../bridge.dart';
 import '../live.dart';
 import '../theme/mib.dart';
@@ -111,7 +112,8 @@ class _RadioPageState extends State<RadioPage> with Live<RadioPage> {
         // Tuning scale.
         SizedBox(
           height: 82,
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // The tuning scale reads low to high, left to right, in every language.
+          child: Directionality(textDirection: TextDirection.ltr, child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _Seek(up: false, onTap: () => _do('radioSeek', {'up': false}), onLong: () => _do('radioScan')),
             Expanded(
               child: LayoutBuilder(builder: (context, c) {
@@ -132,7 +134,7 @@ class _RadioPageState extends State<RadioPage> with Live<RadioPage> {
               }),
             ),
             _Seek(up: true, onTap: () => _do('radioSeek', {'up': true}), onLong: () => _do('radioScan')),
-          ]),
+          ])),
         ),
         Padding(padding: const EdgeInsets.only(top: 8, bottom: 8), child: Text('Favourites', style: Mib.text(26))),
         for (var row = 0; row < 2; row++) ...[

@@ -12,8 +12,8 @@ class MibIcons {
   static const IconData android = IconData(0xe859, fontFamily: 'MibSymbols');
   static const IconData app_registration = IconData(0xef40, fontFamily: 'MibSymbols');
   static const IconData apps = IconData(0xe5c3, fontFamily: 'MibSymbols');
-  static const IconData arrow_back = IconData(0xe5c4, fontFamily: 'MibSymbols');
-  static const IconData arrow_forward = IconData(0xe5c8, fontFamily: 'MibSymbols');
+  static const IconData arrow_back = IconData(0xe5c4, fontFamily: 'MibSymbols', matchTextDirection: true);
+  static const IconData arrow_forward = IconData(0xe5c8, fontFamily: 'MibSymbols', matchTextDirection: true);
   static const IconData backspace = IconData(0xe14a, fontFamily: 'MibSymbols');
   static const IconData battery_5_bar = IconData(0xebd4, fontFamily: 'MibSymbols');
   static const IconData battery_charging_full = IconData(0xe1a3, fontFamily: 'MibSymbols');
@@ -34,8 +34,8 @@ class MibIcons {
   static const IconData cast_connected = IconData(0xe308, fontFamily: 'MibSymbols');
   static const IconData cell_tower = IconData(0xebba, fontFamily: 'MibSymbols');
   static const IconData check = IconData(0xe5ca, fontFamily: 'MibSymbols');
-  static const IconData chevron_left = IconData(0xe408, fontFamily: 'MibSymbols');
-  static const IconData chevron_right = IconData(0xe409, fontFamily: 'MibSymbols');
+  static const IconData chevron_left = IconData(0xe408, fontFamily: 'MibSymbols', matchTextDirection: true);
+  static const IconData chevron_right = IconData(0xe409, fontFamily: 'MibSymbols', matchTextDirection: true);
   static const IconData cleaning_services = IconData(0xf0ff, fontFamily: 'MibSymbols');
   static const IconData close = IconData(0xe14c, fontFamily: 'MibSymbols');
   static const IconData cloud = IconData(0xe2bd, fontFamily: 'MibSymbols');
@@ -65,7 +65,7 @@ class MibIcons {
   static const IconData image = IconData(0xe251, fontFamily: 'MibSymbols');
   static const IconData info = IconData(0xe88e, fontFamily: 'MibSymbols');
   static const IconData keyboard = IconData(0xe312, fontFamily: 'MibSymbols');
-  static const IconData keyboard_arrow_right = IconData(0xe315, fontFamily: 'MibSymbols');
+  static const IconData keyboard_arrow_right = IconData(0xe315, fontFamily: 'MibSymbols', matchTextDirection: true);
   static const IconData landscape = IconData(0xe3f7, fontFamily: 'MibSymbols');
   static const IconData language = IconData(0xe894, fontFamily: 'MibSymbols');
   static const IconData layers = IconData(0xe53b, fontFamily: 'MibSymbols');

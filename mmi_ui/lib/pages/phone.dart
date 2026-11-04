@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/widgets.dart' hide Text;
+import '../i18n.dart';
 import '../bridge.dart';
 import '../live.dart';
 import '../theme/mib.dart';

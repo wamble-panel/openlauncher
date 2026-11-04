@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
-import 'package:flutter/widgets.dart';
+import 'package:flutter/widgets.dart' hide Text;
+import '../i18n.dart';
 import '../bridge.dart';
 import '../live.dart';
 import '../theme/mib.dart';
@@ -210,7 +211,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> with Live<NowPlayingPag
                 const Spacer(flex: 30),
               ]),
               const SizedBox(height: 6),
-              LayoutBuilder(builder: (context, c) {
+              Directionality(textDirection: TextDirection.ltr, child: LayoutBuilder(builder: (context, c) {
                 double at(Offset p) => (p.dx / c.maxWidth).clamp(0.0, 1.0);
                 return GestureDetector(
                   behavior: HitTestBehavior.opaque,
@@ -223,17 +224,18 @@ class _NowPlayingPageState extends State<NowPlayingPage> with Live<NowPlayingPag
                       : null,
                   child: RepaintBoundary(child: SizedBox(height: 40, child: CustomPaint(painter: _Position(v)))),
                 );
-              }),
+              })),
               const SizedBox(height: 28),
               Row(children: [
                 const Spacer(flex: 27),
                 Container(
                   decoration: BoxDecoration(border: Border.all(color: const Color(0xAAFFFFFF))),
-                  child: Row(children: [
+                  // Playback controls keep previous | play | next in every language.
+                  child: Directionality(textDirection: TextDirection.ltr, child: Row(children: [
                     _Ctl(Transport.prev, () => _cmd('prev')),
                     _Ctl(playing ? Transport.pause : Transport.play, () => _cmd('toggle'), divider: true),
                     _Ctl(Transport.next, () => _cmd('next'), divider: true),
-                  ]),
+                  ])),
                 ),
                 const Spacer(flex: 20),
                 Pressable(

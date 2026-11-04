@@ -1,4 +1,5 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/widgets.dart' hide Text;
+import '../i18n.dart';
 import '../theme/mib.dart';
 import '../theme/mib_icons.dart';
 import '../widgets/mib_widgets.dart';
