@@ -72,12 +72,46 @@ object CarProfile {
             Decoder.AUTO -> car.raise && car.gm
         }
 
+    /**
+     * The vendor Factory menu's door options ("Switch front / rear / left / right door",
+     * Settings.System SYSTEM_DOOR bits 1 / 2 / 4 / 8) and the left- / right-hand-drive
+     * choice (LEFT_RIGHT_SEAT), so MMI shows an open door on the same side the vendor's
+     * own pop-up does. Read only; re-read with the car (at most every 30 s).
+     */
+    @Volatile var doorSwap = 0
+        private set
+    @Volatile var rightHandDrive = false
+        private set
+
+    /** Applies the Factory menu's door options to MMI's door bits (1 FL, 2 FR, 4 RL, 8 RR). */
+    fun mapDoors(doors: Int): Int {
+        fun swap(d: Int, a: Int, b: Int): Int {
+            val hasA = d and a != 0
+            val hasB = d and b != 0
+            var r = d and (a or b).inv()
+            if (hasA) r = r or b
+            if (hasB) r = r or a
+            return r
+        }
+        var d = doors
+        if (doorSwap and 1 != 0) d = swap(d, 1, 2) // front doors
+        if (doorSwap and 2 != 0) d = swap(d, 4, 8) // rear doors
+        if (doorSwap and 4 != 0) d = swap(d, 1, 4) // left doors
+        if (doorSwap and 8 != 0) d = swap(d, 2, 8) // right doors
+        if (rightHandDrive) d = swap(d, 1, 2)
+        return d
+    }
+
     /** Re-reads the file (cheap; at most every 30 s). The car is changed rarely, in the vendor menu. */
     fun refresh(force: Boolean = false) {
         val now = System.currentTimeMillis()
         if (!force && now - readAt < 30_000) return
         readAt = now
         car = runCatching { parse(File(Environment.getExternalStorageDirectory(), ".CarChoose").readText()) }.getOrElse { Car() }
+        app?.contentResolver?.let { cr ->
+            doorSwap = runCatching { android.provider.Settings.System.getInt(cr, "SYSTEM_DOOR", 0) }.getOrDefault(0)
+            rightHandDrive = runCatching { android.provider.Settings.System.getInt(cr, "LEFT_RIGHT_SEAT", 0) == 1 }.getOrDefault(false)
+        }
     }
 
     /** Records of `key=value` joined by `+`, appended one after another: later values win. */

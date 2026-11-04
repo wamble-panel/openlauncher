@@ -117,6 +117,8 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
             "keyboard" -> Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)
             "date" -> Intent(Settings.ACTION_DATE_SETTINGS)
             "settings" -> Intent(Settings.ACTION_SETTINGS)
+            // The vendor's own settings (its Factory tab asks for the vendor password as usual).
+            "vendorSettings" -> ctx.packageManager.getLaunchIntentForPackage("com.dofun.carsetting") ?: Intent(Settings.ACTION_SETTINGS)
             "write_settings" -> Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:${ctx.packageName}"))
             else -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}"))
         }

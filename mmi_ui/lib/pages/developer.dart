@@ -43,6 +43,12 @@ class _DevListState extends State<_DevList> with Live<_DevList>, SettingsState<_
     Widget open(String label, String key, IconData icon, String sub) => MibRow(label: label, sub: sub, icon: icon, onTap: () => widget.onOpen(key));
     return SettingsList(children: [
       open('CAN box car list', 'carlist', MibIcons.directions_car, 'every car the unit supports, and the one it is set to'),
+      MibRow(
+        label: 'Factory settings (vendor)',
+        sub: 'select model, steering wheel, doors: asks for the vendor password',
+        icon: MibIcons.settings,
+        onTap: () => Bridge.call('system', {'what': 'vendorSettings'}),
+      ),
       const MibCaption('Car data decoding', top: 18),
       MibSegmented(
         options: const ['Automatic', 'Opel / GM', 'Car service only'],
