@@ -1,17 +1,40 @@
-"""Collects Egyptian radio stations and logo candidates (run in CI, which has open
-internet). Output in out/: wiki_en.txt / wiki_ar.txt (station list wikitext),
-wiki_images.json (logo of every station article linked from the lists),
-radiobrowser_eg.json (all Egyptian stations in radio-browser.info) and the
-pictures themselves in out/img/. Nothing here is shipped as is: logos are checked
-by hand before any is built into MMI."""
-import json, os, re, urllib.parse, urllib.request
+"""Collects logo candidates for the Cairo FM stations (run in CI, which has open
+internet): from each station's website (og:image, touch icons, <img> named logo),
+Wikidata's official logo (P154) and Wikipedia's article picture, rendered as PNG.
+Output on the radio-logos-data branch: out/img/<freq>__<source>_<n>.<ext> and
+out/found.json. Nothing here is shipped as is: logos are checked by hand first."""
+import html, json, os, re, time, urllib.parse, urllib.request
 
 OUT = "out"
 os.makedirs(f"{OUT}/img", exist_ok=True)
-UA = {"User-Agent": "MMI-radio-logo-collector/1.0 (github.com/wamble-panel/openlauncher)"}
+UA = {"User-Agent": "MMI-radio-logo-collector/1.1 (https://github.com/wamble-panel/openlauncher; car head-unit radio logos)"}
+
+# Greater Cairo FM (Wikipedia, citing fmscan.org): frequency, names to search, websites.
+STATIONS = [
+    ("87.8", ["Mix FM Egypt"], ["https://www.mixfmegypt.com/"]),
+    ("88.2", ["Radio Hits 88.2"], ["http://radiohits882.com/", "https://radiohits882.com/"]),
+    ("88.7", ["Radio Masr", "راديو مصر"], ["https://radiomasr.net/", "https://www.radiomasr.net/"]),
+    ("89.5", ["Middle East Radio", "إذاعة الشرق الأوسط"], []),
+    ("90.9", ["El Radio 9090", "Radio 9090"], ["https://www.9090.fm/"]),
+    ("91.5", ["Cultural Program Egypt", "البرنامج الثقافي"], []),
+    ("92.1", ["NRJ Egypt"], ["https://www.nrjegypt.com/", "https://nrjegypt.com/"]),
+    ("92.7", ["Mega FM Egypt", "ميجا إف إم"], ["https://megafm.com.eg/", "https://www.megafm.com.eg/", "https://megafm.net/"]),
+    ("93.7", ["On Sport FM"], ["https://www.onsportfm.com/", "http://www.onsportfm.com/"]),
+    ("95.0", ["Shaabi FM", "شعبي إف إم"], ["http://95-fm.com/en", "https://95-fm.com/"]),
+    ("95.4", ["European Programme Egypt", "البرنامج الأوروبي"], []),
+    ("98.2", ["Holy Quran Radio Cairo", "إذاعة القرآن الكريم (مصر)"], []),
+    ("98.8", ["Musical Program Egypt", "البرنامج الموسيقي"], []),
+    ("100.6", ["Nogoum FM", "نجوم إف إم"], ["https://www.nogoumfm.net/"]),
+    ("102.2", ["Greater Cairo Radio", "إذاعة القاهرة الكبرى"], []),
+    ("102.7", ["Nile News radio", "النيل للأخبار"], []),
+    ("104.2", ["Nile FM"], ["https://nilefm.com/", "https://www.nilefm.com/"]),
+    ("105.3", ["Nagham FM", "نغم إف إم"], ["https://naghamfm.com/", "https://www.naghamfm.com/", "https://naghamfm.net/"]),
+    ("105.8", ["Egyptian Songs Radio", "إذاعة الأغاني"], []),
+    ("106.3", ["Voice of the Arabs", "صوت العرب"], []),
+]
 
 
-def get(url, binary=False, limit=3_000_000):
+def get(url, binary=False, limit=4_000_000):
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=20) as r:
             data = r.read(limit + 1)
@@ -23,70 +46,109 @@ def get(url, binary=False, limit=3_000_000):
         return None
 
 
-def slug(s):
-    return re.sub(r"[^a-z0-9]+", "_", s.lower()).strip("_")[:60] or "x"
+found = {}
+count = {}
 
 
-def save_img(url, name):
+def save(freq, src, url):
+    n = count.get(freq, 0)
+    if n >= 14:
+        return
     ext = os.path.splitext(urllib.parse.urlparse(url).path)[1].lower()
     if ext not in (".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif", ".ico"):
         ext = ".img"
     data = get(url, binary=True)
-    if not data or len(data) < 600:
+    time.sleep(0.4)
+    if not data or len(data) < 800:
+        return
+    count[freq] = n + 1
+    path = f"{OUT}/img/{freq}__{src}_{n}{ext}"
+    open(path, "wb").write(data)
+    found.setdefault(freq, []).append({"source": src, "url": url, "file": path})
+
+
+def site_images(page_url):
+    """og:image, twitter:image, touch / large icons and <img> whose src, alt or class says logo."""
+    t = get(page_url)
+    if not t:
+        return []
+    out = []
+    for m in re.finditer(r"<meta[^>]+>", t, re.I):
+        tag = m.group(0)
+        if re.search(r"(og:image|twitter:image)", tag, re.I):
+            c = re.search(r'content=["\']([^"\']+)', tag, re.I)
+            if c:
+                out.append(c.group(1))
+    for m in re.finditer(r"<link[^>]+>", t, re.I):
+        tag = m.group(0)
+        if re.search(r'rel=["\'][^"\']*(apple-touch-icon|icon)', tag, re.I):
+            h = re.search(r'href=["\']([^"\']+)', tag, re.I)
+            if h:
+                out.append(h.group(1))
+    for m in re.finditer(r"<img[^>]+>", t, re.I):
+        tag = m.group(0)
+        if re.search(r"logo", tag, re.I):
+            s = re.search(r'(?:data-src|src)=["\']([^"\']+)', tag, re.I)
+            if s:
+                out.append(s.group(1))
+    urls = []
+    for u in out:
+        u = urllib.parse.urljoin(page_url, html.unescape(u.strip()))
+        if u.startswith("http") and u not in urls:
+            urls.append(u)
+    return urls[:8]
+
+
+def commons_png(filename, width=512):
+    j = get("https://commons.wikimedia.org/w/api.php?action=query&format=json&formatversion=2&prop=imageinfo&iiprop=url"
+            f"&iiurlwidth={width}&titles=" + urllib.parse.quote("File:" + filename))
+    try:
+        ii = json.loads(j)["query"]["pages"][0]["imageinfo"][0]
+        return ii.get("thumburl") or ii.get("url")
+    except Exception:
         return None
-    path = f"{OUT}/img/{name}{ext}"
-    with open(path, "wb") as f:
-        f.write(data)
-    return path
 
 
-meta = {}
-# 1. Wikipedia station lists (English and Arabic) and the logo of every linked article.
-for lang, title in [("en", "List_of_radio_stations_in_Egypt"), ("ar", "قائمة_محطات_الإذاعة_في_مصر")]:
-    api = f"https://{lang}.wikipedia.org/w/api.php"
-    txt = get(f"{api}?action=parse&page={urllib.parse.quote(title)}&prop=wikitext&format=json&formatversion=2")
-    if txt:
-        try:
-            open(f"{OUT}/wiki_{lang}.txt", "w").write(json.loads(txt)["parse"]["wikitext"])
-        except Exception as e:
-            print("parse", lang, e)
-    links = []
-    cont = ""
-    while True:
-        j = get(f"{api}?action=query&titles={urllib.parse.quote(title)}&prop=links&pllimit=500&plnamespace=0&format=json&formatversion=2{cont}")
-        if not j:
-            break
-        j = json.loads(j)
-        for p in j["query"]["pages"]:
-            links += [l["title"] for l in p.get("links", [])]
-        if "continue" not in j:
-            break
-        cont = "&plcontinue=" + urllib.parse.quote(j["continue"]["plcontinue"])
-    for i in range(0, len(links), 40):
-        batch = "|".join(links[i:i + 40])
-        j = get(f"{api}?action=query&titles={urllib.parse.quote(batch)}&prop=pageimages&piprop=original&format=json&formatversion=2")
-        if not j:
+def wikidata_logos(name, lang):
+    j = get("https://www.wikidata.org/w/api.php?action=wbsearchentities&format=json&limit=4"
+            f"&language={lang}&search=" + urllib.parse.quote(name))
+    urls = []
+    if not j:
+        return urls
+    for e in json.loads(j).get("search", []):
+        c = get(f"https://www.wikidata.org/wiki/Special:EntityData/{e['id']}.json")
+        if not c:
             continue
-        for p in json.loads(j)["query"]["pages"]:
-            src = p.get("original", {}).get("source")
-            if src:
-                path = save_img(src, f"wiki_{lang}_{slug(p['title'])}")
-                meta[f"wiki_{lang}:{p['title']}"] = {"url": src, "file": path}
-json.dump(meta, open(f"{OUT}/wiki_images.json", "w"), ensure_ascii=False, indent=1)
+        claims = json.loads(c)["entities"][e["id"]].get("claims", {})
+        for prop in ("P154", "P18"):
+            for cl in claims.get(prop, []):
+                v = cl.get("mainsnak", {}).get("datavalue", {}).get("value")
+                if isinstance(v, str):
+                    u = commons_png(v)
+                    if u:
+                        urls.append(u)
+    return urls
 
-# 2. Every Egyptian station in radio-browser.info, with its favicon.
-rb = None
-for host in ["de1", "de2", "fi1", "nl1", "at1"]:
-    t = get(f"https://{host}.api.radio-browser.info/json/stations/bycountrycodeexact/EG?hidebroken=false&limit=1000")
-    if t:
-        rb = json.loads(t)
-        break
-rb = rb or []
-keep = []
-for s in rb:
-    e = {k: s.get(k) for k in ("name", "url_resolved", "homepage", "favicon", "tags", "state", "language", "clickcount", "stationuuid")}
-    if e["favicon"] and e["favicon"].startswith("http"):
-        e["file"] = save_img(e["favicon"], f"rb_{slug(e['name'])}_{e['stationuuid'][:6]}")
-    keep.append(e)
-json.dump(keep, open(f"{OUT}/radiobrowser_eg.json", "w"), ensure_ascii=False, indent=1)
-print("wiki images", len(meta), "radio-browser stations", len(keep))
+
+def wiki_page_image(name, lang):
+    j = get(f"https://{lang}.wikipedia.org/w/api.php?action=query&format=json&formatversion=2&redirects=1"
+            "&prop=pageimages&piprop=thumbnail&pithumbsize=512&titles=" + urllib.parse.quote(name))
+    try:
+        return [json.loads(j)["query"]["pages"][0]["thumbnail"]["source"]]
+    except Exception:
+        return []
+
+
+for freq, names, sites in STATIONS:
+    for s in sites:
+        for u in site_images(s):
+            save(freq, "site", u)
+    for n in names:
+        lang = "ar" if re.search(r"[؀-ۿ]", n) else "en"
+        for u in wikidata_logos(n, lang):
+            save(freq, "wikidata", u)
+        for u in wiki_page_image(n, lang):
+            save(freq, f"wiki{lang}", u)
+    print(freq, count.get(freq, 0))
+
+json.dump(found, open(f"{OUT}/found.json", "w"), ensure_ascii=False, indent=1)
