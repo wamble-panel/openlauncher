@@ -172,6 +172,10 @@ jobs:
             mkdir -p shots
             for p in HOME SETTINGS GENERAL_SET DISPLAY SOUND EQ CONN_SET BLUETOOTH BT_HUB PHONE CONTACTS MUSIC SOURCE RADIO APPS DASHBOARD DIAGNOSTICS CAR_SET SYSTEM_SET NAV; do adb shell am start -n com.openlauncher.app/.MainActivity --es mmi_page $p > /dev/null; sleep 4; adb exec-out screencap -p > shots/$p.png; done
             for p in home settings display sound radio music source apps calls dial btsearch carinfo weather; do adb shell am start -n com.openlauncher.app/.MainActivity --es flutter_page $p > /dev/null; sleep 5; adb exec-out screencap -p > shots/fl_$p.png; done
+            # The owner's 7-inch screen (1024 x 600): classic pages must scale to fit too.
+            adb shell am force-stop com.openlauncher.app; adb shell wm size 1024x600; sleep 3
+            for p in SYSTEM_SET BT_HUB DIAGNOSTICS HOME; do adb shell am start -n com.openlauncher.app/.MainActivity --es mmi_page $p > /dev/null; sleep 5; adb exec-out screencap -p > shots/7in_$p.png; done
+            adb shell wm size 1280x800
 
       - name: Attach screenshots to the mmi-screens release
         env:

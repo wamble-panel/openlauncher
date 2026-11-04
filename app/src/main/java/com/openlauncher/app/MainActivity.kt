@@ -139,7 +139,7 @@ class MainActivity : ComponentActivity() {
         hideSystemBars()
         requestMissingPermissions()
 
-        setContent {
+        setContent { MmiScale {
             val nowPlaying by vm.nowPlaying.collectAsStateWithLifecycle()
             val apps by vm.apps.collectAsStateWithLifecycle()
             val hardwareRadio by vm.hardwareRadio.collectAsStateWithLifecycle()
@@ -153,7 +153,7 @@ class MainActivity : ComponentActivity() {
                     introPlayed = true
                     intro = false
                 }
-                return@setContent
+                return@MmiScale
             }
             introPlayed = true
             // Start-up screen (your car + loading line) once per cold start, over the shell.
@@ -191,7 +191,7 @@ class MainActivity : ComponentActivity() {
             }
             if (splash) com.openlauncher.app.ui.screen.MmiSplash { splashShown = true; splash = false }
             }
-        }
+        } }
     }
 
     private fun requestMissingPermissions() {
@@ -263,3 +263,27 @@ class MainActivity : ComponentActivity() {
 
 /** Car codes for the dash knob (5/6) and the side / steering-wheel scroll (19/21). */
 private val KNOB_CODES = setOf(5, 6, 19, 21)
+
+/**
+ * The classic screens are laid out for 1280 × 800 dp. On any other screen (the 7-inch
+ * 1024 × 600 unit, for example) they are scaled to fit, the same rule as the new screens:
+ * fit the height, or the width on squarer screens. Uses the panel's real size, so a system
+ * bar showing for a moment never changes the scale. Text is not enlarged by the system
+ * font size either. On a 1280 × 800 mdpi screen nothing changes.
+ */
+@androidx.compose.runtime.Composable
+private fun MmiScale(content: @androidx.compose.runtime.Composable () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scale = remember(context) {
+        val m = android.util.DisplayMetrics()
+        @Suppress("DEPRECATION")
+        (context.getSystemService(android.content.Context.WINDOW_SERVICE) as android.view.WindowManager).defaultDisplay.getRealMetrics(m)
+        val w = maxOf(m.widthPixels, m.heightPixels).toFloat()
+        val h = minOf(m.widthPixels, m.heightPixels).toFloat()
+        minOf(w / 1280f, h / 800f)
+    }
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(scale, 1f),
+        content = content,
+    )
+}
