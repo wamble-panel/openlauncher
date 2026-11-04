@@ -139,6 +139,12 @@ class MmiFlutterActivity : FlutterActivity() {
                     }
                     "radioLocal" -> { result.success(com.openlauncher.app.util.CarCore.radioToggleLocal()) }
                     "radioSave" -> { car.radioSave(arg<Int>("slot") ?: 0); result.success(null) }
+                    // Dash buttons 1-6: tune the favourite saved in that place on the Radio page.
+                    "radioPreset" -> {
+                        val f = TwBridge.radioPresets().getOrNull(arg<Int>("slot") ?: -1)?.takeIf { it > 0f }
+                        if (f != null) TwBridge.radioTune(f > 200f, f)
+                        result.success(f != null)
+                    }
                     "appsGet" -> scope.launch {
                         result.success(kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { car.apps() })
                     }

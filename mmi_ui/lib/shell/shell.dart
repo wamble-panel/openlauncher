@@ -221,6 +221,10 @@ class _MmiShellState extends State<MmiShell> {
         _open(MmiPage.settings);
       case 24:
         _open(MmiPage.sound);
+      // Station buttons 1-6 on the dash: the favourite in that place, from any page.
+      case final c when c >= 49 && c <= 54:
+        _open(MmiPage.radio);
+        Bridge.call('radioPreset', {'slot': c - 49});
     }
   }
 
