@@ -146,6 +146,8 @@ class _MmiShellState extends State<MmiShell> {
           });
         case 'changed':
           Bridge.changes.add('${call.arguments}');
+          // The unit re-check found something new (an app installed or removed).
+          if (call.arguments == 'unit') loadUnit();
         case 'splash':
           setState(() => _splash = true);
         case 'trim':

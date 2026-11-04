@@ -16,6 +16,8 @@ class CarApp : Application() {
         RoadMemory.init(this)
         com.openlauncher.app.util.TwBridge.init(this)
         com.openlauncher.app.util.CarProfile.init(this)
+        // Which unit this is and what it can do: in the background, from the last check.
+        com.openlauncher.app.util.UnitProfile.start(this)
         com.openlauncher.app.util.UiSound.init(this)
         // The rest (text-to-speech, routing data, equalizer, Bluetooth profiles,
         // updates) waits until the home screen is on screen: the main thread is

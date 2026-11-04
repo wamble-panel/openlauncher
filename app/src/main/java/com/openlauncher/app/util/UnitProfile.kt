@@ -27,10 +27,36 @@ object UnitProfile {
 
     data class Feature(val key: String, val mode: String, val pkg: String? = null)
 
-    @Volatile private var cached: Pair<Long, Map<String, Any?>>? = null
+    @Volatile private var cached: Map<String, Any?>? = null
+
+    /** Goes up when a re-check finds the unit changed (an app installed or removed); the screens reload then. */
+    val version = kotlinx.coroutines.flow.MutableStateFlow(0)
+
+    /**
+     * At start, on a background thread: the saved answer (or a first check) at once, then
+     * a full re-check once start-up is over. Never on the screen thread.
+     */
+    fun start(c: Context) {
+        val app = c.applicationContext
+        Thread({
+            runCatching { describe(app) }
+            Thread.sleep(45_000)
+            runCatching { if (refresh(app)) version.value++ }
+        }, "mmi-unit").apply { priority = Thread.MIN_PRIORITY; isDaemon = true }.start()
+    }
     @Volatile private var platformCache: Platform? = null
 
-    fun platform(c: Context): Platform = platformCache ?: detect(c).also { platformCache = it }
+    private fun prefs(c: Context) = c.applicationContext.getSharedPreferences("mmi_unit", Context.MODE_PRIVATE)
+
+    /**
+     * The unit type. Remembered from the last check (same system build), so it costs
+     * nothing on the screen thread; only the very first start on a unit works it out.
+     */
+    fun platform(c: Context): Platform = platformCache ?: run {
+        val p = prefs(c)
+        val saved = if (p.getString("fingerprint", null) == Build.FINGERPRINT) p.getString("platform", null) else null
+        (saved?.let { runCatching { Platform.valueOf(it) }.getOrNull() } ?: detect(c)).also { platformCache = it }
+    }
 
     private fun prop(name: String): String = runCatching {
         @Suppress("PrivateApi")
@@ -39,17 +65,20 @@ object UnitProfile {
 
     private fun hasClass(name: String) = runCatching { Class.forName(name) }.isSuccess
 
-    private fun hasPkg(c: Context, prefix: String): Boolean =
-        runCatching { c.packageManager.getInstalledApplications(0).any { it.packageName.startsWith(prefix) } }.getOrDefault(false)
-
     private fun detect(c: Context): Platform {
         val build = (Build.DISPLAY + " " + prop("ro.build.display.id") + " " + prop("ro.build.version.incremental")).uppercase()
+        // Cheap checks first; the package list (one query) only when they don't decide.
+        if (hasClass("android.tw.john.TWUtil") || prop("ro.systemtw.version").isNotEmpty()) return Platform.TW
+        if (build.contains("WJ_")) return Platform.WJ
+        if (prop("ro.fyt.uiid").isNotEmpty()) return Platform.FYT
+        if (hasClass("android.microntek.CarManager")) return Platform.MTC
+        val pkgs = runCatching { c.packageManager.getInstalledApplications(0).map { it.packageName } }.getOrDefault(emptyList())
+        fun has(prefix: String) = pkgs.any { it.startsWith(prefix) }
         return when {
-            hasClass("android.tw.john.TWUtil") || prop("ro.systemtw.version").isNotEmpty() -> Platform.TW
-            build.contains("WJ_") || hasPkg(c, "com.hcn.") -> Platform.WJ
-            hasPkg(c, "com.syu.") || prop("ro.fyt.uiid").isNotEmpty() -> Platform.FYT
-            hasPkg(c, "com.szchoiceway.") -> Platform.KSW
-            hasClass("android.microntek.CarManager") || hasPkg(c, "com.microntek.") -> Platform.MTC
+            has("com.hcn.") -> Platform.WJ
+            has("com.syu.") -> Platform.FYT
+            has("com.szchoiceway.") -> Platform.KSW
+            has("com.microntek.") -> Platform.MTC
             else -> Platform.GENERIC
         }
     }
@@ -108,11 +137,40 @@ object UnitProfile {
         return list.map { (k, f) -> f.copy(key = k) }
     }
 
-    /** For the screens: the platform, the unit's names and each feature's mode (kept 20 s). */
+    /**
+     * For the screens: the platform, the unit's names and each feature's mode. Answers
+     * at once from memory or from the last check saved on the unit; the full check
+     * (reading the app list) runs only in [refresh], off the screen thread.
+     */
     fun describe(c: Context): Map<String, Any?> {
-        cached?.let { (at, m) -> if (System.currentTimeMillis() - at < 20_000) return m }
+        cached?.let { return it }
+        val p = prefs(c)
+        if (p.getString("fingerprint", null) == Build.FINGERPRINT) {
+            p.getString("profile", null)?.let { json -> runCatching { fromJson(org.json.JSONObject(json)) }.getOrNull() }?.let {
+                cached = it
+                return it
+            }
+        }
+        return compute(c).also { save(c, it) }
+    }
+
+    /**
+     * Checks the unit again (apps can be installed or removed) and saves the result.
+     * Run on a background thread a little after start. Returns true when anything changed.
+     */
+    fun refresh(c: Context): Boolean {
+        val before = cached
+        platformCache = null
+        val p = prefs(c)
+        p.edit().remove("platform").apply()
+        val now = compute(c)
+        save(c, now)
+        return before != null && before != now
+    }
+
+    private fun compute(c: Context): Map<String, Any?> {
         val p = platform(c)
-        val m = mapOf(
+        return mapOf(
             "platform" to p.name,
             "platformLabel" to p.label,
             "chip" to listOf(Build.HARDWARE, prop("ro.board.platform")).firstOrNull { it.isNotBlank() },
@@ -120,7 +178,33 @@ object UnitProfile {
             "android" to Build.VERSION.RELEASE,
             "features" to features(c).associate { it.key to mapOf("mode" to it.mode, "pkg" to it.pkg) },
         )
-        cached = System.currentTimeMillis() to m
-        return m
+    }
+
+    private fun save(c: Context, m: Map<String, Any?>) {
+        cached = m
+        val json = org.json.JSONObject()
+        m.forEach { (k, v) ->
+            if (v is Map<*, *>) {
+                val f = org.json.JSONObject()
+                v.forEach { (fk, fv) -> f.put(fk.toString(), org.json.JSONObject((fv as Map<*, *>).filterValues { it != null }.mapKeys { it.key.toString() })) }
+                json.put(k, f)
+            } else if (v != null) json.put(k, v)
+        }
+        prefs(c).edit()
+            .putString("fingerprint", Build.FINGERPRINT)
+            .putString("platform", m["platform"] as String)
+            .putString("profile", json.toString())
+            .apply()
+    }
+
+    private fun fromJson(j: org.json.JSONObject): Map<String, Any?> {
+        val out = HashMap<String, Any?>()
+        for (k in listOf("platform", "platformLabel", "chip", "build", "android")) out[k] = j.optString(k).takeIf { it.isNotEmpty() }
+        val f = j.getJSONObject("features")
+        out["features"] = f.keys().asSequence().associateWith { k ->
+            val o = f.getJSONObject(k)
+            mapOf("mode" to o.optString("mode", "none"), "pkg" to o.optString("pkg").takeIf { it.isNotEmpty() })
+        }
+        return out
     }
 }

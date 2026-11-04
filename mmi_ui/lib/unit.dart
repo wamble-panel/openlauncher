@@ -9,7 +9,8 @@ final unit = ValueNotifier<Map<Object?, Object?>>(const {});
 
 Future<void> loadUnit() async {
   final m = await Bridge.call<Map<Object?, Object?>>('unitGet');
-  if (m != null) unit.value = m;
+  // Only a real change rebuilds Home (the answer is usually the same as last time).
+  if (m != null && m.toString() != unit.value.toString()) unit.value = m;
 }
 
 Map<Object?, Object?>? _feature(String key) => (unit.value['features'] as Map?)?[key] as Map?;
