@@ -264,10 +264,24 @@ object CarCore {
     private fun radioCommand(cmd: Int) {
         if (vendorRadioPresent) return
         when (cmd) {
-            3, 4 -> TwBridge.radioNextFavourite(cmd == 3)
+            // The car service turns knob steps into next / previous station too. While MMI's
+            // screens are in front MMI already uses the knob (highlight, or tuning on Radio),
+            // so a step that just came from the knob must not also change the station.
+            3, 4 -> if (!knobJustTurned()) TwBridge.radioNextFavourite(cmd == 3)
             9 -> TwBridge.radioSeek(false)
             10 -> TwBridge.radioSeek(true)
         }
+    }
+
+    /** Knob codes (big knob 5 / 6, side 19 / 21) as MMI's screens use them. */
+    private val KNOB = setOf(5, 6, 19, 21)
+
+    /** MMI's screens (new or classic) are in front. Set by the activities. */
+    @Volatile var screensInFront = false
+
+    private fun knobJustTurned(): Boolean {
+        val k = _lastKey.value ?: return false
+        return screensInFront && k.code in KNOB && System.currentTimeMillis() - k.at < 800
     }
 
     /** True while the vendor radio app is installed and enabled. */

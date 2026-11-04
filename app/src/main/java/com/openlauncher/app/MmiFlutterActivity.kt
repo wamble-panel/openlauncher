@@ -357,11 +357,13 @@ class MmiFlutterActivity : FlutterActivity() {
     override fun onResume() {
         super.onResume()
         resumed = true
+        com.openlauncher.app.util.CarCore.screensInFront = true
         com.openlauncher.app.util.CarCore.vendorRadioPresent = (application as CarApp).vendorEnabled("com.tw.radio")
     }
 
     override fun onPause() {
         resumed = false
+        com.openlauncher.app.util.CarCore.screensInFront = false
         super.onPause()
     }
 

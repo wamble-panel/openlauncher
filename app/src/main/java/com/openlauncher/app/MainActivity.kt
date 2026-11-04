@@ -207,6 +207,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        com.openlauncher.app.util.CarCore.screensInFront = true
         vm.refreshMedia()
         // Back from the reverse camera (or another app that took the audio): if music
         // was playing when MMI went to the background, carry on playing.
@@ -222,6 +223,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        // (The new screens set it again when they come to the front over this one.)
+        com.openlauncher.app.util.CarCore.screensInFront = false
         playingWhenPaused = vm.nowPlaying.value?.isPlaying == true
         pausedAt = android.os.SystemClock.elapsedRealtime()
         super.onPause()
