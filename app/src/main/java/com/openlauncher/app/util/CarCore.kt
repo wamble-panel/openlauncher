@@ -183,6 +183,9 @@ object CarCore {
 
     /** Raise GM CAN-box frames (0x0501, arg1 = frame id). */
     private fun canBox(id: Int, b: ByteArray) {
+        // Only on the cars these decoders were made for (CarProfile): on any other car the
+        // same frame numbers mean something else, and the Car Info Service has its data.
+        if (id == 0x24) { if (!CarProfile.raiseDoors) return } else if (!CarProfile.gmFrames) return
         when (id) {
             0x4A -> when (u(b, 0)) {
                 1 -> if (b.size >= 6) update { it.copy(tyresKpa = (2..5).map { i -> u(b, i) * 4 }) }

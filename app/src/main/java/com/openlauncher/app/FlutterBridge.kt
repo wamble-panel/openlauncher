@@ -63,7 +63,9 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
             "phonelinkAuto" to com.openlauncher.app.util.PhoneLink.autoOpen(ctx),
             "gles" to prefs.getBoolean("gles", false),
             "version" to runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull(),
-        )
+            // Car buttons the driver gave a job to: {"code": "action"} as JSON text.
+            "keymap" to (prefs.getString("keymap", null) ?: "{}"),
+        ) + carIdentity()
     }
 
     fun setSetting(key: String, value: Any?) {
@@ -90,6 +92,8 @@ internal class FlutterBridge(private val activity: MmiFlutterActivity) {
             "keepMusicReverse" -> TwBridge.setKeepMusicInReverse(on)
             "phonelinkAuto" -> com.openlauncher.app.util.PhoneLink.setAutoOpen(ctx, on)
             "gles" -> prefs.edit().putBoolean("gles", on).apply() // used from the next start
+            "carDecoder" -> runCatching { com.openlauncher.app.util.CarProfile.setDecoder(com.openlauncher.app.util.CarProfile.Decoder.valueOf(value as String)) }
+            "keymap" -> prefs.edit().putString("keymap", value as? String ?: "{}").apply()
         }
     }
 
@@ -498,6 +502,29 @@ internal fun carInfo(): Map<String, Any?> {
         "tyresText" to info.tyres.takeIf { t -> car.tyresKpa == null && t.any { it != null } }
             ?.map { v -> v?.let { "%.1f".format(Locale.US, it) + " " + (info.tyreUnit ?: "") } ?: "--" },
         "doors" to com.openlauncher.app.util.CarCore.doorsText(car.doors)?.lowercase(),
+        // Doors are only known on cars whose CAN box MMI can read (CarProfile).
+        "doorsKnown" to com.openlauncher.app.util.CarProfile.raiseDoors,
+    ) + carIdentity()
+}
+
+/**
+ * The car this unit is set up for, and its picture: your own photo if there is one in
+ * the MMI folder (car.png / car.jpg / car.webp), else the built-in Astra J only when the
+ * unit is set to an Opel / GM car (or the car list could not be read).
+ */
+internal fun carIdentity(): Map<String, Any?> {
+    val profile = com.openlauncher.app.util.CarProfile
+    profile.refresh()
+    val c = profile.car
+    val dir = java.io.File(android.os.Environment.getExternalStorageDirectory(), "MMI")
+    val own = listOf("car.png", "car.jpg", "car.webp").map { java.io.File(dir, it) }.firstOrNull { it.isFile && it.length() > 0 }
+    return mapOf(
+        "carName" to c.name,
+        "carBox" to c.canBox,
+        "carKnown" to c.known,
+        "carPicture" to own?.absolutePath,
+        "carDefaultPicture" to (!c.known || c.gm),
+        "carDecoder" to profile.decoderSetting().name,
     )
 }
 

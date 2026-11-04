@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/widgets.dart';
+import '../bridge.dart';
 import '../theme/mib.dart';
 import '../theme/mib_icons.dart';
 
@@ -15,6 +17,24 @@ class Splash extends StatefulWidget {
 class _SplashState extends State<Splash> with SingleTickerProviderStateMixin {
   late final AnimationController _t = AnimationController(vsync: this, duration: const Duration(milliseconds: 2600))
     ..forward().whenComplete(() => widget.onDone());
+  // Your own car photo (MMI/car.png), the Astra J, or no car on cars it isn't.
+  Widget? _car = Image.asset('assets/images/boot_car.webp', fit: BoxFit.contain);
+
+  @override
+  void initState() {
+    super.initState();
+    Bridge.call<Map<Object?, Object?>>('carGet').then((m) {
+      if (m == null || !mounted) return;
+      final own = m['carPicture'] as String?;
+      setState(() {
+        if (own != null && File(own).existsSync()) {
+          _car = Image.file(File(own), fit: BoxFit.contain, cacheWidth: 800);
+        } else if (m['carDefaultPicture'] == false) {
+          _car = null;
+        }
+      });
+    });
+  }
 
   @override
   void dispose() {
@@ -43,7 +63,7 @@ class _SplashState extends State<Splash> with SingleTickerProviderStateMixin {
                 height: 340,
                 child: Opacity(
                   opacity: car,
-                  child: Transform.scale(scale: 0.96 + 0.04 * car, child: Image.asset('assets/images/boot_car.webp', fit: BoxFit.contain)),
+                  child: Transform.scale(scale: 0.96 + 0.04 * car, child: _car ?? const SizedBox()),
                 ),
               ),
               Positioned(

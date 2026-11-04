@@ -159,6 +159,33 @@ class _CategoryPageState extends State<CategoryPage> with Live<CategoryPage>, Se
           open('Maps and offline data', 'classic:NAV'),
         ],
       'carset' => [
+          // The car the unit is set up for (vendor car list, read only).
+          MibRow(
+            label: 'Car',
+            value: (v('carName', null) as String?) ?? 'Not found in the car list',
+            sub: v('carBox', null) == null ? null : 'CAN box: ${v('carBox', '')}',
+          ),
+          const MibCaption('Car data', top: 18),
+          MibSegmented(
+            options: const ['Automatic', 'Opel / GM', 'Car service only'],
+            selected: const ['AUTO', 'GM', 'CAR_SERVICE_ONLY'].indexOf('${v('carDecoder', 'AUTO')}').clamp(0, 2),
+            onSelect: (i) => set('carDecoder', const ['AUTO', 'GM', 'CAR_SERVICE_ONLY'][i]),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 14),
+            child: Text(
+              'Automatic reads the car from the unit\'s car list. MMI\'s own Opel / GM decoding '
+              '(doors, tyres, range, oil life) is used only on those cars; every other car gets its '
+              'data from the unit\'s car service.',
+              style: Mib.text(19, color: Mib.grey),
+            ),
+          ),
+          MibRow(
+            label: 'Car picture',
+            value: v('carPicture', null) != null ? 'Your photo' : (v('carDefaultPicture', true) == true ? 'Astra J' : 'None'),
+            sub: 'Your own: put car.png in the MMI folder (unit storage)',
+          ),
+          open('Car buttons', 'carkeys', icon: MibIcons.tune, sub: 'give unknown steering-wheel or dash buttons a job'),
           open('Car information', 'carinfo', icon: MibIcons.directions_car),
           open('Diagnostics', 'classic:DIAGNOSTICS', icon: MibIcons.build),
           open('Climate', 'classic:DASHBOARD', icon: MibIcons.mode_fan),

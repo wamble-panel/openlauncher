@@ -9,6 +9,7 @@ import '../widgets/overlays.dart';
 import '../pages/apps.dart';
 import '../pages/bluetooth.dart';
 import '../pages/car.dart';
+import '../pages/carkeys.dart';
 import '../pages/equaliser.dart';
 import '../pages/weather.dart';
 import '../pages/help.dart';
@@ -41,6 +42,7 @@ enum MmiPage {
   language('Settings', 'Language & keyboard', null),
   system('Settings', 'System & updates', null),
   carinfo('Car', 'Car information', null),
+  carkeys('Car', 'Car buttons', null),
   weather(null, 'Weather', null),
   help(null, 'Help', null),
   vendor('Settings', 'Vendor apps', null),
@@ -96,6 +98,8 @@ class _MmiShellState extends State<MmiShell> {
   @override
   void initState() {
     super.initState();
+    // Car buttons the driver set up (Settings · Car · Car buttons).
+    Bridge.call<Map<Object?, Object?>>('settingsGet').then((m) => CarKeys.load(m?['keymap'] as String?));
     Bridge.listen((call) async {
       switch (call.method) {
         case 'key':
@@ -202,6 +206,25 @@ class _MmiShellState extends State<MmiShell> {
   // ── Car knob and buttons ───────────────────────────────────────────────────
 
   void _onKey(int code) {
+    // Learning a button on Settings · Car · Car buttons.
+    final capture = CarKeys.capture;
+    if (capture != null) {
+      capture(code);
+      return;
+    }
+    // A job the driver gave this button replaces the built-in one.
+    final job = CarKeys.map[code];
+    if (job != null) {
+      switch (job) {
+        case 'back':
+          _back();
+        case 'toggle' || 'next' || 'prev':
+          Bridge.call('media', {'cmd': job});
+        default:
+          _openKey(job);
+      }
+      return;
+    }
     switch (code) {
       case 6 || 19:
         _turn(-1);
@@ -362,6 +385,7 @@ class _MmiShellState extends State<MmiShell> {
       MmiPage.sound => SoundPage(onFineTune: () => _open(MmiPage.equaliser)),
       MmiPage.equaliser => const EqualiserPage(),
       MmiPage.carinfo => const CarInfoPage(),
+      MmiPage.carkeys => const CarKeysPage(),
       MmiPage.weather => const WeatherPage(),
       MmiPage.help => HelpPage(onOpen: _openKey),
       MmiPage.vendor => const VendorAppsPage(),
