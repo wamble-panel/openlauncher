@@ -60,7 +60,7 @@ object CarProfile {
      * Which built-in car picture MMI shows (Home CAR tile, start-up, Car information):
      * "opel", "sunny" or "none". AUTO follows the car chosen in the vendor car list
      * (Opel / GM → Opel, Nissan → Sunny); with no car list it is the owner's Opel on a
-     * TW unit and none elsewhere (pick it once in Settings › Car).
+     * TW unit, the owner's Sunny on a WJ unit, and none elsewhere.
      */
     fun artSetting(): String = app?.let { prefs().getString("car_art", "auto") } ?: "auto"
 
@@ -77,6 +77,8 @@ object CarProfile {
             c.known && c.gm -> "opel"
             c.known -> "none"
             twUnit -> "opel"
+            // The WJ (MediaTek) unit has no car list to read; the owner's is in the Nissan Sunny.
+            app?.let { UnitProfile.platform(it) } == UnitProfile.Platform.WJ -> "sunny"
             else -> "none"
         }
     }

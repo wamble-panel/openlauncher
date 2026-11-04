@@ -212,6 +212,7 @@ class _CategoryPageState extends State<CategoryPage> with Live<CategoryPage>, Se
           system('Date and time', 'date'),
         ],
       'system' => [
+          open('This unit', 'unitinfo', icon: MibIcons.devices, sub: 'what MMI found on this head unit, by itself'),
           open('Software update', 'update', icon: MibIcons.sync),
           open('Storage', 'update', icon: MibIcons.storage),
           MibRow(label: 'Version', value: '${v('version', '')}'),

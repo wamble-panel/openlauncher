@@ -121,6 +121,10 @@ class MmiFlutterActivity : FlutterActivity() {
                     "settingsGet" -> result.success(car.settings())
                     "settingsSet" -> { car.setSetting(arg<String>("key") ?: "", call.argument<Any>("value")); result.success(null) }
                     "system" -> { car.system(arg<String>("what") ?: ""); result.success(null) }
+                    // What this unit is and which features MMI does itself, leaves to the unit's apps, or hides.
+                    "unitGet" -> scope.launch {
+                        result.success(kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.openlauncher.app.util.UnitProfile.describe(this@MmiFlutterActivity) })
+                    }
                     "radioGet" -> result.success(car.radio())
                     "radioTune" -> {
                         TwBridge.radioTune(arg<Boolean>("am") == true, (arg<Number>("freq") ?: 98.5).toFloat())

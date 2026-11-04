@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart' hide Text;
 import '../car_art.dart';
 import '../i18n.dart';
+import '../unit.dart';
 import '../theme/mib.dart';
 import '../theme/mib_icons.dart';
 import '../widgets/pressable.dart';
@@ -17,6 +18,9 @@ class HomeTile {
 
 const _gold = Color(0xFFE8C25A), _amber = Color(0xFFF0A030), _silver = Color(0xFFD9DCE0);
 const _blue = Color(0xFF3FA9F5), _lime = Color(0xFFD8E05A), _red = Color(0xFFE5304A);
+
+/// The tiles this unit can use (unit.dart): e.g. no RADIO on a unit without a tuner.
+List<HomeTile> shownHomeTiles() => [for (final t in homeTiles) if (keyShown(t.key)) t];
 
 const homeTiles = [
   HomeTile('radio', 'RADIO', MibIcons.cell_tower, 'radio', _gold),
@@ -79,6 +83,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     carArt.addListener(_carArtChanged);
+    unit.addListener(_carArtChanged);
   }
 
   void _carArtChanged() {
@@ -88,6 +93,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     carArt.removeListener(_carArtChanged);
+    unit.removeListener(_carArtChanged);
     _pager.dispose();
     super.dispose();
   }
@@ -95,7 +101,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void didUpdateWidget(HomePage old) {
     super.didUpdateWidget(old);
-    final i = homeTiles.indexWhere((t) => t.key == widget.selected);
+    final i = shownHomeTiles().indexWhere((t) => t.key == widget.selected);
     if (i >= 0 && i ~/ 8 != _page) _pager.animateToPage(i ~/ 8, duration: const Duration(milliseconds: 320), curve: Curves.easeOutCubic);
   }
 
@@ -106,20 +112,21 @@ class _HomePageState extends State<HomePage> {
       final h = c.maxHeight;
       final tileTop = (_tileTop - topBarH) * k;
       final tileH = (h - tileTop - _tileBottomGap * k - _rowGap * k) / 2;
-      final pages = (homeTiles.length + 7) ~/ 8;
+      final tiles = shownHomeTiles();
+      final pages = (tiles.length + 7) ~/ 8;
       return Stack(children: [
         PageView.builder(
           controller: _pager,
           itemCount: pages,
           onPageChanged: (p) => setState(() => _page = p),
           itemBuilder: (context, page) => Stack(children: [
-            for (var i = 0; i < 8 && page * 8 + i < homeTiles.length; i++)
+            for (var i = 0; i < 8 && page * 8 + i < tiles.length; i++)
               PositionedDirectional(
                 start: (_tileX[i % 4] - railW) * k,
                 top: tileTop + (tileH + _rowGap * k) * (i ~/ 4),
                 width: _tileW[i % 4] * k,
                 height: tileH,
-                child: _Tile(homeTiles[page * 8 + i], homeTiles[page * 8 + i].key == widget.selected, k, _artReady, () => widget.onOpen(homeTiles[page * 8 + i].key)),
+                child: _Tile(tiles[page * 8 + i], tiles[page * 8 + i].key == widget.selected, k, _artReady, () => widget.onOpen(tiles[page * 8 + i].key)),
               ),
           ]),
         ),

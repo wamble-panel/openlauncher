@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart' hide Text;
 import '../car_art.dart';
 import '../i18n.dart';
+import '../unit.dart';
 import '../bridge.dart';
 import '../theme/mib.dart';
 import '../theme/mib_icons.dart';
@@ -23,6 +24,7 @@ import '../pages/radio.dart';
 import '../pages/settings.dart';
 import '../pages/developer.dart';
 import '../pages/update.dart';
+import '../pages/unit.dart';
 import '../pages/usb.dart';
 import '../pages/sound.dart';
 
@@ -57,7 +59,8 @@ enum MmiPage {
   health('Settings', 'Unit health', null),
   usb('Media', 'USB music', 'music'),
   phonelink('Telephone', 'Phone Link', 'phone'),
-  tuning('Settings', 'System tuning', null);
+  tuning('Settings', 'System tuning', null),
+  unitinfo('System', 'This unit', null);
 
   const MmiPage(this.section, this.title, this.rail);
   final String? section;
@@ -111,6 +114,8 @@ class _MmiShellState extends State<MmiShell> {
       lang.value = m?['lang'] as String? ?? 'en';
       carArt.value = m?['carArt'] as String? ?? 'opel';
     });
+    // Which unit this is and what it can do (rechecked on every start).
+    loadUnit();
     Bridge.listen((call) async {
       switch (call.method) {
         case 'key':
@@ -201,8 +206,21 @@ class _MmiShellState extends State<MmiShell> {
       Bridge.call('open', {'page': key.substring(8)});
       return;
     }
+    // A job this unit does with its own app (e.g. the radio on a unit MMI has no link
+    // to yet): open that app. Not on this unit at all: nothing to open.
+    final feature = featureFor(key);
+    if (feature != null) {
+      final mode = featureMode(feature);
+      final pkg = featurePkg(feature);
+      if (mode == 'app' && pkg != null) {
+        Bridge.call('launch', {'key': 'pkg:$pkg'});
+        return;
+      }
+      if (mode == 'none' && feature != 'carinfo') return;
+    }
     final page = switch (key) {
       'phone' => MmiPage.calls,
+      'car' => MmiPage.carinfo,
       'eq' => MmiPage.sound,
       'tone' => MmiPage.sound,
       _ => MmiPage.values.where((p) => p.name == key).firstOrNull,
@@ -272,8 +290,9 @@ class _MmiShellState extends State<MmiShell> {
       case MmiPage.radio:
         Bridge.call('radioStep', {'up': dir > 0});
       case MmiPage.home:
-        final i = homeTiles.indexWhere((t) => t.key == _selected);
-        setState(() => _selected = homeTiles[i < 0 ? (dir > 0 ? 0 : homeTiles.length - 1) : (i + dir) % homeTiles.length].key);
+        final tiles = shownHomeTiles();
+        final i = tiles.indexWhere((t) => t.key == _selected);
+        setState(() => _selected = tiles[i < 0 ? (dir > 0 ? 0 : tiles.length - 1) : (i + dir) % tiles.length].key);
       default:
         _moveFocus(dir);
     }
@@ -405,6 +424,7 @@ class _MmiShellState extends State<MmiShell> {
       MmiPage.vendor => const VendorAppsPage(),
       MmiPage.health => const HealthPage(),
       MmiPage.tuning => const TuningPage(),
+      MmiPage.unitinfo => const UnitPage(),
       MmiPage.usb => UsbPage(onPlaying: () => _open(MmiPage.music)),
       MmiPage.phonelink => PhoneLinkPage(onOpen: _openKey),
       _ => CategoryPage(category: _page.name, onOpen: _openKey),

@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mmi_ui/bridge.dart';
 import 'package:mmi_ui/car_art.dart';
+import 'package:mmi_ui/unit.dart';
 import 'dart:async';
 import 'package:mmi_ui/main.dart';
 import 'package:mmi_ui/pages/home.dart';
@@ -66,6 +67,13 @@ final _demo = <String, Object?>{
     ],
   },
   'eqGet': {'levels': [200, 200, 200, 200, 200], 'min': -1500, 'max': 1500, 'preset': 'Custom', 'speedVolume': 2},
+  'unitGet': {
+    'platform': 'TW', 'platformLabel': 'TW (Topway)', 'chip': 'ceres-b6', 'android': '10', 'build': 'V13.2.1',
+    'features': {
+      for (final k in ['radio', 'phone', 'carinfo', 'camera', 'keys', 'climate', 'sound', 'music', 'nav', 'apps', 'weather']) k: {'mode': 'mmi'},
+      'phonelink': {'mode': 'mmi', 'pkg': 'com.zjinnova.zlink'},
+    },
+  },
   'settingsGet': {'brightness': 0.55, 'dayNight': 0, 'touchSounds': true, 'screenOff': false, 'clock24': true, 'canWrite': true, 'metric': true, 'cameraAlerts': true, 'version': '2.0.0'},
   'radioGet': {
     'am': false, 'freq': 104.2, 'name': 'Nile FM', 'genre': 'Pop', 'stereo': true, 'text': 'Now: Morning Show with Ahmed',
@@ -179,15 +187,35 @@ void main() {
         ...saved,
         'carGet': {'speed': 0, 'rpm': 760, 'voltage': 13.9, 'outside': 31, 'carName': 'Nissan Sunny', 'carArt': 'sunny'},
         'settingsGet': {...saved['settingsGet']! as Map, 'carArt': 'sunny', 'carArtSetting': 'sunny', 'carName': 'Nissan Sunny'},
+        'unitGet': _wj,
       };
       carArt.value = 'sunny';
+      unit.value = _wj;
     });
     tearDown(() {
       Bridge.demo = saved;
       carArt.value = 'opel';
+      unit.value = const {};
     });
     testWidgets('render home', (tester) => _render(tester, const MmiApp(initialPage: 'home'), 'sunny_home'));
     testWidgets('render car information', (tester) => _render(tester, const MmiApp(initialPage: 'carinfo'), 'sunny_carinfo'));
     testWidgets('render car settings', (tester) => _render(tester, const MmiApp(initialPage: 'carset'), 'sunny_carset'));
+    testWidgets('render this unit', (tester) => _render(tester, const MmiApp(initialPage: 'unitinfo'), 'sunny_unitinfo'));
   });
 }
+
+/// The Sunny's WJ (MediaTek) unit as MMI would find it: the unit's own apps for the
+/// radio, phone and car data, the camera handled by the unit, no climate.
+const _wj = <String, Object?>{
+  'platform': 'WJ', 'platformLabel': 'WJ · MediaTek', 'chip': 'mt8163', 'android': '9', 'build': 'WJ_2025.06.13.16_1224',
+  'features': {
+    'radio': {'mode': 'app', 'pkg': 'com.hcn.radio'},
+    'phone': {'mode': 'app', 'pkg': 'com.hcn.btphone'},
+    'carinfo': {'mode': 'app', 'pkg': 'com.hcn.carinfo'},
+    'camera': {'mode': 'system', 'pkg': 'com.auto.hcamera'},
+    'keys': {'mode': 'app', 'pkg': 'com.hcn.swc'},
+    'climate': {'mode': 'none'},
+    'phonelink': {'mode': 'app', 'pkg': 'com.zjinnova.zlink'},
+    'sound': {'mode': 'mmi'}, 'music': {'mode': 'mmi'}, 'nav': {'mode': 'mmi'}, 'apps': {'mode': 'mmi'}, 'weather': {'mode': 'mmi'},
+  },
+};
