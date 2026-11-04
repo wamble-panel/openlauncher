@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'perf.dart';
 import 'i18n.dart';
+import 'car_art.dart';
 import 'shell/shell.dart';
 
 /// The host opens a page by route name, e.g. "/sound".
@@ -16,6 +17,9 @@ void main() {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   final uri = Uri.parse(PlatformDispatcher.instance.defaultRouteName);
   final page = uri.path.replaceFirst('/', '');
+  // This unit's car picture, from the host, before the first frame.
+  final car = uri.queryParameters['car'];
+  if (car != null && car.isNotEmpty) carArt.value = car;
   runApp(MmiApp(initialPage: page.isEmpty ? 'home' : page, splash: uri.queryParameters['splash'] == '1'));
 }
 

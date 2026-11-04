@@ -67,7 +67,8 @@ class MmiFlutterActivity : FlutterActivity() {
         if (prewarmed) return "/home" // already running; the page is sent on attach
         val splash = !splashShown && page == "home"
         splashShown = true
-        return "/$page" + if (splash) "?splash=1" else ""
+        val car = runCatching { com.openlauncher.app.util.CarProfile.art() }.getOrDefault("opel")
+        return "/$page?car=$car" + if (splash) "&splash=1" else ""
     }
 
     private var channel: MethodChannel? = null
@@ -511,7 +512,8 @@ internal object FlutterEngines {
     fun warm(c: Context) {
         if (running || !MmiFlutterActivity.isOn(c)) return
         val engine = get(c)
-        engine.navigationChannel.setInitialRoute("/home")
+        // The car picture goes with the first frame (no Opel flashing up on another car).
+        engine.navigationChannel.setInitialRoute("/home?car=" + runCatching { com.openlauncher.app.util.CarProfile.art() }.getOrDefault("opel"))
         engine.dartExecutor.executeDartEntrypoint(io.flutter.embedding.engine.dart.DartExecutor.DartEntrypoint.createDefault())
     }
 }
