@@ -1,0 +1,17 @@
+name: Radio logos (collect)
+# One-off helper: collects Egyptian radio stations and logo candidates for review.
+on:
+  push:
+    paths: [tools/radio_logos.py, .github/workflows/radio-logos.yml]
+  workflow_dispatch:
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/radio_logos.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: radio-logos
+          path: out/
