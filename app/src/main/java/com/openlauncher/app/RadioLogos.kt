@@ -92,9 +92,12 @@ internal object RadioLogos {
 
     /** A logo shipped with MMI (assets/radio_logos/<frequency>.png), copied out once so the screens can show it. */
     @Volatile private var shipped: Set<String>? = null
+    @Volatile private var installed: Long? = null
 
     private fun builtIn(ctx: Context, f: String): File? {
-        val out = File(dir(ctx), "builtin_$f.png")
+        // Named after the installed version, so an update brings its new logos.
+        val v = installed ?: runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).lastUpdateTime }.getOrDefault(0L).also { installed = it }
+        val out = File(dir(ctx), "builtin_${v}_$f.png")
         if (out.length() > 0) return out
         if (shipped == null) shipped = runCatching { ctx.assets.list("radio_logos")?.toSet() }.getOrNull() ?: emptySet()
         if ("$f.png" !in shipped!!) return null
