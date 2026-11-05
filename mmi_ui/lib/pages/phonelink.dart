@@ -32,14 +32,6 @@ class _PhoneLinkPageState extends State<PhoneLinkPage> with Live<PhoneLinkPage> 
     if (mounted && p != null && p.toString() != phone.toString()) setState(() => phone = p);
   }
 
-  String _mode(String? m) => switch (m) {
-        'carplay_wired' => 'Apple CarPlay · USB',
-        'carplay_wireless' => 'Apple CarPlay · wireless',
-        'auto_wired' => 'Android Auto · USB',
-        'auto_wireless' => 'Android Auto · wireless',
-        _ => m == null ? 'Phone connected' : m.replaceAll('_', ' '),
-      };
-
   @override
   Widget build(BuildContext context) {
     final linked = live?['connected'] == true;
@@ -51,15 +43,12 @@ class _PhoneLinkPageState extends State<PhoneLinkPage> with Live<PhoneLinkPage> 
     final apShowing = ap['mirroring'] == true || ap['video'] == true;
     final apMusic = ap['audio'] == true;
     final apTitle = [ap['title'], ap['artist']].whereType<String>().where((t) => t.isNotEmpty).join(' · ');
-    final name = (phone?['name'] as String?)?.trim();
-    final battery = (phone?['battery'] as num?)?.toInt();
-    final signal = (phone?['signal'] as num?)?.toInt();
     return Padding(
       padding: const EdgeInsets.only(left: 8, top: 22),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         // CarPlay / Android Auto.
         SizedBox(
-            height: 150,
+            height: 196,
             child: Row(children: [
               if (available) ...[
               Expanded(child: _Card('Apple CarPlay', active: linked && (mode ?? '').startsWith('carplay'), onTap: linked ? () => Bridge.call('phoneLinkOpen') : null)),
@@ -88,38 +77,10 @@ class _PhoneLinkPageState extends State<PhoneLinkPage> with Live<PhoneLinkPage> 
               ),
             ]),
           ),
-        const SizedBox(height: 16),
-        // The phone.
-        Container(
-          height: 118,
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          decoration: Mib.glass(),
-          child: Row(children: [
-            Icon(MibIcons.mobile, size: 70, color: bt || linked ? Mib.white : const Color(0x66FFFFFF)),
-            const SizedBox(width: 20),
-            Expanded(
-              child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(
-                  linked ? _mode(mode) : bt ? (name?.isNotEmpty == true ? name! : 'Phone connected') : 'No phone connected',
-                  style: Mib.text(30),
-                ),
-                const SizedBox(height: 6),
-                if (bt && (battery != null || signal != null))
-                  Row(children: [
-                    if (battery != null) ...[_Battery(battery), const SizedBox(width: 26)],
-                    if (signal != null) _Signal(signal),
-                  ])
-                else if (!bt && !linked)
-                  Text('USB cable for CarPlay / Android Auto, or Bluetooth for calls and music.', style: Mib.text(20, color: Mib.grey)),
-              ]),
-            ),
-            if (linked) MibButton(label: 'Open', icon: MibIcons.open_in_new, width: 160, onTap: () => Bridge.call('phoneLinkOpen')),
-          ]),
-        ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         // Shortcuts.
         SizedBox(
-          height: 128,
+          height: 176,
           child: Row(children: [
             Expanded(child: _Tile('Calls', MibIcons.history, () => widget.onOpen('calls'))),
             const SizedBox(width: 14),
@@ -133,7 +94,7 @@ class _PhoneLinkPageState extends State<PhoneLinkPage> with Live<PhoneLinkPage> 
             Expanded(child: _Tile(bt ? 'Other phone' : 'Connect a phone', MibIcons.bluetooth_searching, () => widget.onOpen('btsearch'))),
           ]),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 12),
         if (available)
           MibRow(
             label: 'Open CarPlay / Android Auto when the phone connects',
@@ -197,38 +158,4 @@ class _Tile extends StatelessWidget {
           ]),
         ),
       );
-}
-
-/// Battery as the module reports it (0-5 or a percentage), drawn as a bar.
-class _Battery extends StatelessWidget {
-  const _Battery(this.v);
-  final int v;
-  @override
-  Widget build(BuildContext context) {
-    final f = v > 5 ? (v / 100).clamp(0.0, 1.0) : v / 5;
-    return Row(children: [
-      Container(
-        width: 42,
-        height: 20,
-        padding: const EdgeInsets.all(2),
-        decoration: BoxDecoration(border: Border.all(color: Mib.white, width: 1.5), borderRadius: BorderRadius.circular(3)),
-        child: Align(alignment: Alignment.centerLeft, child: FractionallySizedBox(widthFactor: f, child: Container(color: f < 0.2 ? const Color(0xFFE5484D) : Mib.white))),
-      ),
-      const SizedBox(width: 10),
-      Text(v > 5 ? '$v %' : 'Battery', style: Mib.text(20, color: Mib.grey)),
-    ]);
-  }
-}
-
-/// Signal bars (0-5).
-class _Signal extends StatelessWidget {
-  const _Signal(this.v);
-  final int v;
-  @override
-  Widget build(BuildContext context) => Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-        for (var i = 1; i <= 5; i++)
-          Container(margin: const EdgeInsets.only(right: 4), width: 8, height: 6.0 + i * 4, color: i <= v ? Mib.white : const Color(0x33FFFFFF)),
-        const SizedBox(width: 8),
-        Text('Signal', style: Mib.text(20, color: Mib.grey)),
-      ]);
 }
