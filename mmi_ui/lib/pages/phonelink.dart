@@ -67,20 +67,20 @@ class _PhoneLinkPageState extends State<PhoneLinkPage> with Live<PhoneLinkPage> 
               Expanded(child: _Card('Android Auto', active: linked && (mode ?? '').startsWith('auto'), onTap: linked ? () => Bridge.call('phoneLinkOpen') : null)),
               const SizedBox(width: 18),
               ],
-              // AirPlay: the iPhone's screen (parked) and music over Wi-Fi (MMI AirPlay app).
+              // Screen Mirroring: the iPhone's screen (parked) and music over Wi-Fi, by AirPlay.
               Expanded(
                 child: _Card(
-                  'AirPlay',
+                  'Screen Mirroring',
                   icon: MibIcons.cast_connected,
                   active: apShowing || apMusic,
                   status: !apInstalled
                       ? 'Not installed · tap to install'
                       : apShowing
-                          ? 'Screen mirroring · tap to open'
+                          ? 'iPhone screen · tap to open'
                           : apMusic
                               ? (apTitle.isNotEmpty ? apTitle : 'Playing music')
                               : ap['running'] == true
-                                  ? 'Ready · iPhone: Screen Mirroring › ${ap['name'] ?? 'MMI'}'
+                                  ? 'AirPlay · ready for iPhone'
                                   : 'Starting…',
                   onTap: () => Bridge.call('airplayOpen'),
                 ),
