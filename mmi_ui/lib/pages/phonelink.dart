@@ -23,32 +23,22 @@ class _PhoneLinkPageState extends State<PhoneLinkPage> with Live<PhoneLinkPage> 
   String get liveMethod => 'phoneLinkGet';
   @override
   String? get liveTopic => 'phonelink';
-  Map<Object?, Object?>? phone;
-
-  @override
-  Future<void> refresh() async {
-    await super.refresh();
-    final p = await Bridge.call<Map<Object?, Object?>>('phoneGet');
-    if (mounted && p != null && p.toString() != phone.toString()) setState(() => phone = p);
-  }
 
   @override
   Widget build(BuildContext context) {
     final linked = live?['connected'] == true;
     final mode = live?['mode'] as String?;
     final available = live?['installed'] != false;
-    final bt = phone?['connected'] == true;
     final ap = (live?['airplay'] as Map?) ?? const {};
     final apInstalled = ap['installed'] == true;
     final apShowing = ap['mirroring'] == true || ap['video'] == true;
     final apMusic = ap['audio'] == true;
     final apTitle = [ap['title'], ap['artist']].whereType<String>().where((t) => t.isNotEmpty).join(' · ');
     return Padding(
-      padding: const EdgeInsets.only(left: 8, top: 22),
+      padding: const EdgeInsets.only(left: 8, top: 22, bottom: 20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         // CarPlay / Android Auto.
-        SizedBox(
-            height: 196,
+        Expanded(
             child: Row(children: [
               if (available) ...[
               Expanded(child: _Card('Apple CarPlay', active: linked && (mode ?? '').startsWith('carplay'), onTap: linked ? () => Bridge.call('phoneLinkOpen') : null)),
@@ -78,23 +68,7 @@ class _PhoneLinkPageState extends State<PhoneLinkPage> with Live<PhoneLinkPage> 
             ]),
           ),
         const SizedBox(height: 20),
-        // Shortcuts.
-        SizedBox(
-          height: 176,
-          child: Row(children: [
-            Expanded(child: _Tile('Calls', MibIcons.history, () => widget.onOpen('calls'))),
-            const SizedBox(width: 14),
-            Expanded(child: _Tile('Keypad', MibIcons.dialpad, () => widget.onOpen('dial'))),
-            const SizedBox(width: 14),
-            Expanded(child: _Tile('Phone music', MibIcons.bluetooth, () async {
-              await Bridge.call('source', {'key': 'bt'});
-              widget.onOpen('music');
-            })),
-            const SizedBox(width: 14),
-            Expanded(child: _Tile(bt ? 'Other phone' : 'Connect a phone', MibIcons.bluetooth_searching, () => widget.onOpen('btsearch'))),
-          ]),
-        ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         if (available)
           MibRow(
             label: 'Open CarPlay / Android Auto when the phone connects',
@@ -126,35 +100,13 @@ class _Card extends StatelessWidget {
             border: Border.all(color: active ? Mib.white : const Color(0x80FFFFFF), width: active ? 2.5 : 1.2),
             gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF0B0B0B), Color(0xFF000000)]),
           ),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, size: 56, color: active ? Mib.white : const Color(0xCCFFFFFF)),
-            const SizedBox(width: 16),
-            Flexible(
-              child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(title, style: Mib.text(30), maxLines: 1, overflow: TextOverflow.ellipsis),
-                Text(status ?? (active ? 'Connected · tap to open' : 'Not connected'),
-                    style: Mib.text(19, color: active ? const Color(0xFF5BD35B) : Mib.grey), maxLines: 2, overflow: TextOverflow.ellipsis),
-              ]),
-            ),
-          ]),
-        ),
-      );
-}
-
-class _Tile extends StatelessWidget {
-  const _Tile(this.label, this.icon, this.onTap);
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => Pressable(
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(border: Border.all(color: const Color(0x80FFFFFF), width: 1.2)),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, size: 52, color: Mib.white),
-            const SizedBox(height: 10),
-            Text(label, style: Mib.text(22)),
+            Icon(icon, size: 96, color: active ? Mib.white : const Color(0xCCFFFFFF)),
+            const SizedBox(height: 22),
+            Text(title, style: Mib.text(34), maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 6),
+            Text(status ?? (active ? 'Connected · tap to open' : 'Not connected'),
+                style: Mib.text(21, color: active ? const Color(0xFF5BD35B) : Mib.grey), maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis),
           ]),
         ),
       );
