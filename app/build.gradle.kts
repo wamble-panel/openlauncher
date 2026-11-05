@@ -20,21 +20,7 @@ android {
     compileSdk = 37
     ndkVersion = "27.0.12077973"
 
-    // MMI: CI signs with the owner's shared key (MMI_KEYSTORE), the same key as MMI,
-    // so updates install over the last build and MMI can trust this app.
-    val mmiKey = System.getenv("MMI_KEYSTORE")?.let { file(it) }?.takeIf { it.isFile }
-    if (mmiKey != null) {
-        signingConfigs {
-            create("mmi") {
-                storeFile = mmiKey
-                storePassword = "android"
-                keyAlias = "androiddebugkey"
-                keyPassword = "android"
-                enableV1Signing = true
-                enableV2Signing = true
-            }
-        }
-    }
+    // MMI: CI builds this unsigned; a separate job (which runs none of this code) signs it.
     if (localProps.containsKey("storeFile")) {
         signingConfigs {
             create("release") {
@@ -75,7 +61,7 @@ android {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            (signingConfigs.findByName("mmi") ?: signingConfigs.findByName("release"))?.let { signingConfig = it }
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             ndk { abiFilters += carAbis }
         }
         // debuggable build with HWASan (arm64) + UBSan in native code

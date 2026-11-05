@@ -1,0 +1,77 @@
+name: MMI AirPlay APK
+# The AirPlay receiver for the MMI head unit, in two steps:
+#  1. build: compiles the app (and UxPlay, FFmpeg, OpenSSL) UNSIGNED, with no secrets;
+#  2. sign:  signs that APK with the owner's MMI key and publishes it. It runs none of
+#     the app's build scripts, so third-party code never sees the key.
+# Result: MMI-AirPlay.apk on the "airplay-latest" release.
+on:
+  push:
+    branches: [airplay]
+  workflow_dispatch:
+concurrency:
+  group: mmi-airplay
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: "21"
+          cache: gradle
+      - name: Build (unsigned)
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleRelease --stacktrace
+          ls -la app/build/outputs/apk/release/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsigned
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+  sign:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: unsigned
+          path: unsigned
+      - name: Sign with the MMI key
+        env:
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$DEBUG_KEYSTORE_BASE64" || { echo "No signing key secret"; exit 1; }
+          echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/mmi.keystore"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          IN=$(ls unsigned/*.apk | head -1)
+          "$BT/zipalign" -f -p 4 "$IN" aligned.apk
+          "$BT/apksigner" sign --ks "$RUNNER_TEMP/mmi.keystore" --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
+            --v1-signing-enabled true --v2-signing-enabled true --out MMI-AirPlay.apk aligned.apk
+          rm -f "$RUNNER_TEMP/mmi.keystore"
+          "$BT/apksigner" verify --print-certs MMI-AirPlay.apk | grep -i "sha-1"
+          "$BT/apksigner" verify --print-certs MMI-AirPlay.apk | tr -d ':' | grep -qi "9b967d15fe982ab968893994de619735618fa848" \
+            || { echo "Not signed with the shared key"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MMI-AirPlay-${{ github.sha }}
+          path: MMI-AirPlay.apk
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release view airplay-latest > /dev/null 2>&1 || gh release create airplay-latest --prerelease --target "$GITHUB_SHA" \
+            --title "MMI AirPlay (latest)" --notes "AirPlay receiver for MMI (fork of jqssun/android-airplay-server, GPL-3.0). Install MMI-AirPlay.apk on the head unit."
+          gh release upload airplay-latest MMI-AirPlay.apk --clobber
