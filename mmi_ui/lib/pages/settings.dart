@@ -404,7 +404,8 @@ class _Smoothness extends StatelessWidget {
     return MibRow(
       label: 'Smoothness',
       value: '$verdict · ${slow.toStringAsFixed(0)} % slow frames',
-      sub: 'average ${(s['avgMs'] ?? 0).toStringAsFixed(1)} ms per frame, worst ${(s['worstMs'] ?? 0).toStringAsFixed(0)} ms (16.7 ms = 60 fps)',
+      sub: '${(s['fps'] ?? 0).toStringAsFixed(0)} fps · 95 % of frames under ${(s['p95Ms'] ?? 0).toStringAsFixed(1)} ms · worst ${(s['worstMs'] ?? 0).toStringAsFixed(0)} ms '
+          '(${(s['worstBuildMs'] ?? 0) >= (s['worstRasterMs'] ?? 0) ? 'building' : 'drawing'}) · 16.7 ms = 60 fps',
     );
   }
 }

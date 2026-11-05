@@ -47,7 +47,9 @@ object DevUpload {
                     if (!awaitApproval(context, code)) { say("Not approved — tap Send to developer to try again."); return@launch }
                 }
                 say("Packing the car apps…")
-                prepare()
+                // A failed export is reported, never sent half-done.
+                val packed = runCatching { prepare() }
+                if (packed.isFailure) { say("Packing failed: ${packed.exceptionOrNull()?.message}"); return@launch }
                 runCatching { TwBridge.flushLogNow() }
                 val files = reportFiles(context)
                 say(send(context, files) { say(it) }.fold({ n -> "Sent $n files. Tell Claude \"sent\"." }, { e -> "Sending failed: ${e.message}" }))
@@ -65,14 +67,20 @@ object DevUpload {
 
     private fun form(url: String, fields: Map<String, String>): JSONObject {
         val c = URL(url).openConnection() as HttpURLConnection
-        c.requestMethod = "POST"
-        c.doOutput = true
-        c.setRequestProperty("Accept", "application/json")
-        c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-        c.outputStream.use { o ->
-            o.write(fields.entries.joinToString("&") { "${it.key}=${URLEncoder.encode(it.value, "UTF-8")}" }.toByteArray())
+        try {
+            c.requestMethod = "POST"
+            c.doOutput = true
+            c.connectTimeout = 20_000
+            c.readTimeout = 30_000
+            c.setRequestProperty("Accept", "application/json")
+            c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+            c.outputStream.use { o ->
+                o.write(fields.entries.joinToString("&") { "${it.key}=${URLEncoder.encode(it.value, "UTF-8")}" }.toByteArray())
+            }
+            return JSONObject(c.inputStream.bufferedReader().use { it.readText() })
+        } finally {
+            c.disconnect()
         }
-        return JSONObject(c.inputStream.bufferedReader().use { it.readText() })
     }
 
     /** Step 1: the code to type at github.com/login/device. */
@@ -108,6 +116,7 @@ object DevUpload {
 
     private fun api(context: Context, method: String, url: String, body: ByteArray? = null, type: String = "application/json"): Pair<Int, String> {
         val c = URL(url).openConnection() as HttpURLConnection
+        try {
         c.requestMethod = method
         c.setRequestProperty("Authorization", "Bearer " + prefs(context).getString("token", ""))
         c.setRequestProperty("Accept", "application/vnd.github+json")
@@ -122,6 +131,9 @@ object DevUpload {
         val code = c.responseCode
         val text = runCatching { (if (code < 400) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() } }.getOrNull().orEmpty()
         return code to text
+        } finally {
+            c.disconnect()
+        }
     }
 
     /**
@@ -131,6 +143,7 @@ object DevUpload {
      */
     private fun putFile(context: Context, url: String, file: File): Int {
         val c = URL(url).openConnection() as HttpURLConnection
+        try {
         c.requestMethod = "PUT"
         c.doOutput = true
         c.connectTimeout = 20_000
@@ -150,6 +163,9 @@ object DevUpload {
             out.write(tail)
         }
         return c.responseCode
+        } finally {
+            c.disconnect()
+        }
     }
 
     /** MMI's report files (package list, car-message log, car-app zips) gathered in one folder. */

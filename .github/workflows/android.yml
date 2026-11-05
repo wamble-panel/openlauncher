@@ -93,6 +93,21 @@ jobs:
       - name: Assemble APKs
         run: ./gradlew --no-daemon assembleDebug assembleRelease
 
+      # The car's Android is 32-bit only: the APK must carry 32-bit ARM libraries (and only
+      # those), including Flutter's and, when published, AirPlay's.
+      - name: Check native libraries
+        run: |
+          apk=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          unzip -l "$apk" 'lib/*' | awk '{print $4}' | grep '^lib/' | sort | tee libs.txt
+          grep -q '^lib/armeabi-v7a/libflutter.so$' libs.txt || { echo "libflutter.so (armeabi-v7a) missing"; exit 1; }
+          grep -q '^lib/armeabi-v7a/libapp.so$' libs.txt || { echo "libapp.so (armeabi-v7a) missing"; exit 1; }
+          if [ -d airplay/src/main/jniLibs/armeabi-v7a ]; then
+            for so in libairplay_native.so libcrypto.so liboboe.so libc++_shared.so; do
+              grep -q "^lib/armeabi-v7a/$so$" libs.txt || { echo "$so (armeabi-v7a) missing"; exit 1; }
+            done
+          fi
+          if grep -v '^lib/armeabi-v7a/' libs.txt; then echo "Libraries for another ABI found (above)"; exit 1; fi
+
       # A build signed with any other key can't update MMI on the car, so stop here.
       - name: Check signing key
         if: env.MMI_KEYSTORE != ''

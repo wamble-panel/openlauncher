@@ -64,6 +64,9 @@ object NavigationEngine {
     private var context: Context? = null
     private var graph: RoutingGraph? = null
     private var planner: RoutePlanner? = null
+    // Goes up with every new destination and with Stop: a route search still running for
+    // an older request gives up instead of keeping the route worker busy.
+    @Volatile private var request = 0
     private var cameras: List<SpeedCamera> = emptyList()
 
     private var lastLat = Double.NaN
@@ -205,7 +208,11 @@ object NavigationEngine {
     }
 
     fun stop() {
+        request++
         context?.let { NavigationService.stop(it) }
+        // No prompt after the guidance has ended, and the music gets its volume back.
+        tts?.stop()
+        releaseFocus()
         scope.launch(worker) {
             spokenStage.clear()
             arrivalSpoken = false
@@ -220,6 +227,7 @@ object NavigationEngine {
 
     /** Plans a route from the last GPS fix. Without routing data it falls back to a direct line. */
     fun navigateTo(place: Place) {
+        request++
         context?.let { NavigationService.start(it) }
         scope.launch(worker) { navigateNow(place) }
     }
@@ -253,7 +261,8 @@ object NavigationEngine {
         val start = g.snap(lat, lon, heading, 400.0) ?: return null
         val end = g.snap(place.lat, place.lon, null, 3000.0) ?: return null
         val p = planner ?: RoutePlanner(g).also { planner = it }
-        return runCatching { p.plan(start, end, heading) }.getOrNull()
+        val mine = request
+        return runCatching { p.plan(start, end, heading, cancelled = { request != mine }) }.getOrNull()
     }
 
     private fun update(lat: Double, lon: Double, speedMps: Float) {
@@ -406,6 +415,7 @@ object NavigationEngine {
     private fun nearestCameraAhead(lat: Double, lon: Double, course: Float, speedKmh: Float): CameraAlert? {
         if (speedKmh < 5f) return null
         var best: CameraAlert? = null
+        var bestIndex = -1
         cameras.forEachIndexed { i, c ->
             if (abs(c.lat - lat) > 0.01 || abs(c.lon - lon) > 0.012) {
                 announcedCameras.remove(i)
@@ -414,14 +424,22 @@ object NavigationEngine {
             val d = distanceMeters(lat, lon, c.lat, c.lon)
             if (d > 1000) announcedCameras.remove(i)
             if (d > 800 || angleDiff(bearing(lat, lon, c.lat, c.lon), course) > 40f) return@forEachIndexed
-            if (best == null || d < best!!.distanceM) best = CameraAlert(d, c.limit, c.user)
-            if (d < 500 && announcedCameras.add(i)) {
-                beep()
-                speak(if (c.limit > 0) "Speed camera ahead. Limit ${c.limit}" else "Speed camera ahead")
+            if (best == null || d < best!!.distanceM) {
+                best = CameraAlert(d, c.limit, c.user)
+                bestIndex = i
             }
+        }
+        // One announcement at most: the nearest camera ahead, once, and not right after another.
+        val b = best
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (b != null && b.distanceM < 500 && now - lastCameraAlert > 8_000 && announcedCameras.add(bestIndex)) {
+            lastCameraAlert = now
+            beep()
+            speak(if (b.limit > 0) "Speed camera ahead. Limit ${b.limit}" else "Speed camera ahead")
         }
         return best
     }
+    private var lastCameraAlert = 0L
 
     private fun speak(text: String) {
         val t = tts ?: return

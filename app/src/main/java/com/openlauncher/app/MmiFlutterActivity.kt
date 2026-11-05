@@ -386,6 +386,18 @@ class MmiFlutterActivity : FlutterActivity() {
         intent.getStringExtra("flutter_page")?.let { channel?.invokeMethod("page", it) }
     }
 
+    // GPS while MMI's screens are visible (speed, weather, the map), as the classic
+    // screens do; navigation and AirPlay hold their own while they need it.
+    override fun onStart() {
+        super.onStart()
+        com.openlauncher.app.util.CarLocation.acquire(this, "flutter-ui")
+    }
+
+    override fun onStop() {
+        com.openlauncher.app.util.CarLocation.release("flutter-ui")
+        super.onStop()
+    }
+
     override fun onResume() {
         super.onResume()
         resumed = true

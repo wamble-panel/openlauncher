@@ -47,7 +47,7 @@ mixin Live<T extends StatefulWidget> on State<T> {
 
   void _maybeRefresh() {
     if (appInFront.value) {
-      refresh();
+      _run();
     } else {
       _missed = true;
     }
@@ -56,7 +56,28 @@ mixin Live<T extends StatefulWidget> on State<T> {
   void _frontChanged() {
     if (appInFront.value && _missed) {
       _missed = false;
-      refresh();
+      _run();
+    }
+  }
+
+  // One request at a time: a burst of changes while one is still being answered (the
+  // unit can be slow) becomes a single follow-up request, never a pile of them.
+  bool _busy = false;
+  bool _again = false;
+  Future<void> _run() async {
+    if (_busy) {
+      _again = true;
+      return;
+    }
+    _busy = true;
+    try {
+      await refresh();
+    } finally {
+      _busy = false;
+    }
+    if (_again && mounted) {
+      _again = false;
+      _run();
     }
   }
 

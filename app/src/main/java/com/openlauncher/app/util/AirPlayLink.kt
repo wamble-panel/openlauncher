@@ -60,6 +60,10 @@ object AirPlayLink {
             started = true
             register(app, object : BroadcastReceiver() {
                 override fun onReceive(ctx: Context, i: Intent) {
+                    // GPS speed for the driving lock while the iPhone's picture is showing
+                    // (MMI's own screens, which normally hold GPS, are behind it then).
+                    val showing = i.getBooleanExtra("mirroring", false) || i.getBooleanExtra("video", false)
+                    if (showing) CarLocation.acquire(app, "airplay") else CarLocation.release("airplay")
                     _state.value = State(
                         running = i.getBooleanExtra("running", false),
                         mirroring = i.getBooleanExtra("mirroring", false),

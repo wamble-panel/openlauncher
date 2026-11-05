@@ -63,32 +63,43 @@ object MapInstaller {
             _state.value = InstallState(running = true, source = "Downloading")
             runCatching {
                 val sizes = FILES.associateWith { remoteSize(it) }
-                // Published fingerprints ("hash  name" per line); older packages have none.
-                val hashes = runCatching {
-                    open("maps.sha256").inputStream.bufferedReader().use { r ->
-                        r.readLines().mapNotNull { l -> l.trim().split(Regex("\\s+")).takeIf { it.size == 2 }?.let { it[1].removePrefix("*") to it[0] } }.toMap()
+                // Published fingerprints ("hash  name" per line). Required: a map file is only
+                // used once its content matches, never on its size alone.
+                val hashes = open("maps.sha256").let { c ->
+                    try {
+                        c.inputStream.bufferedReader().use { r ->
+                            r.readLines().mapNotNull { l -> l.trim().split(Regex("\\s+")).takeIf { it.size == 2 }?.let { it[1].removePrefix("*") to it[0].lowercase() } }.toMap()
+                        }
+                    } finally {
+                        c.disconnect()
                     }
-                }.getOrDefault(emptyMap())
+                }
+                for (name in FILES) if (hashes[name] == null) throw java.io.IOException("No fingerprint published for $name")
                 val total = sizes.values.sum()
                 var before = 0L
                 for (name in FILES) {
                     val size = sizes.getValue(name)
+                    val expected = hashes.getValue(name)
                     val dest = target(app, name)
-                    if (dest.length() == size) {
+                    // Already here: keep it only if its content is the published one.
+                    if (dest.length() == size && verified(dest, expected)) {
                         before += size
                         continue
                     }
-                    fetch(name, File(dest.parentFile, "$name.part"), size) { got ->
+                    val part = File(dest.parentFile, "$name.part")
+                    fetch(name, part, size) { got ->
                         _state.value = _state.value.copy(file = name, doneBytes = before + got, totalBytes = total)
                     }
-                    val part = File(dest.parentFile, "$name.part")
-                    hashes[name]?.let { expected ->
-                        if (!com.openlauncher.app.util.AppUpdater.sha256(part).equals(expected, ignoreCase = true)) {
-                            part.delete()
-                            throw java.io.IOException("Fingerprint mismatch for $name")
-                        }
+                    if (!com.openlauncher.app.util.AppUpdater.sha256(part).equals(expected, ignoreCase = true)) {
+                        part.delete()
+                        throw java.io.IOException("Fingerprint mismatch for $name")
                     }
-                    part.renameTo(dest)
+                    // Same folder, so the move is a rename; a failed move is a failed install.
+                    if (!part.renameTo(dest)) {
+                        dest.delete()
+                        if (!part.renameTo(dest)) throw java.io.IOException("Could not install $name")
+                    }
+                    markVerified(dest, expected)
                     before += size
                 }
             }.onSuccess {
@@ -98,6 +109,19 @@ object MapInstaller {
                 if (isActive) _state.value = _state.value.copy(running = false, error = downloadError(e))
             }
         }
+    }
+
+    /** A file's content was checked against [hash] (remembered, so it isn't hashed on every press). */
+    private fun verified(f: File, hash: String): Boolean {
+        val mark = File(f.parentFile, f.name + ".ok")
+        if (mark.isFile && mark.readText().trim() == "$hash ${f.length()} ${f.lastModified()}") return true
+        val ok = com.openlauncher.app.util.AppUpdater.sha256(f).equals(hash, ignoreCase = true)
+        if (ok) markVerified(f, hash) else { f.delete(); mark.delete() }
+        return ok
+    }
+
+    private fun markVerified(f: File, hash: String) {
+        runCatching { File(f.parentFile, f.name + ".ok").writeText("$hash ${f.length()} ${f.lastModified()}") }
     }
 
     private fun downloadError(e: Throwable): String = when (e) {
@@ -145,7 +169,9 @@ object MapInstaller {
                 val from = part.length()
                 val c = open(name, from)
                 // A server that ignores Range sends the whole file again: start over.
-                val append = from > 0 && c.responseCode == HttpURLConnection.HTTP_PARTIAL
+                // ...and a partial answer must start exactly where the file stopped.
+                val append = from > 0 && c.responseCode == HttpURLConnection.HTTP_PARTIAL &&
+                    c.getHeaderField("Content-Range")?.startsWith("bytes $from-") == true
                 c.inputStream.use { input ->
                     FileOutputStream(part, append).use { out ->
                         var got = if (append) from else 0L
@@ -233,10 +259,27 @@ object MapInstaller {
                             }
                         }
                     }
-                    if (!part.renameTo(dest)) {
-                        part.copyTo(dest, overwrite = true)
+                    // A short copy (stick pulled, read error) is never installed.
+                    if (part.length() != src.length()) {
                         part.delete()
+                        throw java.io.IOException("Incomplete copy of $name")
                     }
+                    // With the package's maps.sha256 next to the files, the content is checked too.
+                    val sums = File(src.parentFile, "maps.sha256")
+                    val expected = runCatching {
+                        sums.readLines().firstNotNullOfOrNull { l ->
+                            l.trim().split(Regex("\\s+")).takeIf { it.size == 2 && it[1].removePrefix("*") == name }?.get(0)
+                        }
+                    }.getOrNull()
+                    if (expected != null && !com.openlauncher.app.util.AppUpdater.sha256(part).equals(expected, ignoreCase = true)) {
+                        part.delete()
+                        throw java.io.IOException("Fingerprint mismatch for $name")
+                    }
+                    if (!part.renameTo(dest)) {
+                        dest.delete()
+                        if (!part.renameTo(dest)) throw java.io.IOException("Could not install $name")
+                    }
+                    if (expected != null) markVerified(dest, expected)
                     before += src.length()
                 }
             }.onSuccess {

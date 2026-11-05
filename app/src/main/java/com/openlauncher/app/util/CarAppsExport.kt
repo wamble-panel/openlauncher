@@ -78,22 +78,32 @@ object CarAppsExport {
         var zip: ZipOutputStream? = null
         var current: File? = null
         var entries = 0
+        // Every finished zip is opened again and must hold exactly what was written.
+        fun closeAndCheck() {
+            val z = zip ?: return
+            z.close()
+            val f = current ?: return
+            val found = java.util.zip.ZipFile(f).use { it.size() }
+            if (found != entries) throw java.io.IOException("${f.name}: $found of $entries entries readable")
+        }
         fun next() {
-            zip?.close()
+            closeAndCheck()
             part++
             current = File(out, "mmi-car-apps-$part.zip").also { names += it.name }
             zip = ZipOutputStream(current!!.outputStream().buffered())
             entries = 0
         }
+        // A write error stops the export: a half-written entry would leave a broken zip.
         fun add(name: String, write: (java.io.OutputStream) -> Unit) {
-            runCatching {
-                zip!!.putNextEntry(ZipEntry(name))
-                write(zip!!)
-                zip!!.closeEntry()
-                zip!!.flush()
-                entries++
-            }
+            zip!!.putNextEntry(ZipEntry(name))
+            write(zip!!)
+            zip!!.closeEntry()
+            zip!!.flush()
+            entries++
         }
+        // What went in (size and SHA-256 of each original file) and what could not be read.
+        val manifest = StringBuilder("MMI export manifest (path, bytes, sha256)\n")
+        val skipped = ArrayList<String>()
         next()
         files.forEachIndexed { i, (path, file) ->
             withContext(Dispatchers.Main) { onProgress("Packing ${i + 1} / ${files.size}…") }
@@ -122,11 +132,22 @@ object CarAppsExport {
                 next()
             } else {
                 // Start a new part when this file would push the current one over the limit.
+                val input = runCatching { file.inputStream() }.getOrNull()
+                if (input == null) {
+                    skipped += path
+                    return@forEachIndexed
+                }
                 if (entries > 0 && current!!.length() + size > PART_LIMIT) next()
-                add(path) { o -> file.inputStream().use { it.copyTo(o) } }
+                add(path) { o -> input.use { it.copyTo(o) } }
             }
         }
-        zip?.close()
+        closeAndCheck()
+        files.forEach { (path, file) ->
+            if (path !in skipped) manifest.append(path).append('\t').append(file.length()).append('\t')
+                .append(runCatching { AppUpdater.sha256(file) }.getOrDefault("?")).append('\n')
+        }
+        if (skipped.isNotEmpty()) manifest.append("\nNot readable, left out:\n").append(skipped.joinToString("\n")).append('\n')
+        File(out, "mmi-export-manifest.txt").writeText(manifest.toString())
         // The raw ZLink tar is now inside the zip parts; don't leave it to upload loose.
         zlinkData?.delete()
         names

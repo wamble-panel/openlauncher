@@ -16,10 +16,17 @@ Three ways, any one unblocks the build:
 1. **Pull it off the unit** — needs root or a working `adb` connection. Both currently
    unavailable (unit not rooted; USB port is host-only, laptop never enumerated it even
    with Force USB 1.1). If root or adb ever works, `RootOptimize.backupPartitions()` /
-   `dd` the by-name partitions = our stock image.
+   `dd` of the by-name partitions gives a **partial raw capture** (boot, dtbo, vbmeta*,
+   super, system_tw, misc, env, bootloader), not yet a proven, flashable stock image:
+   record each partition's size and SHA-256 and check the set against the partition
+   table, dynamic-partition metadata and vbmeta before relying on it.
 2. **Seller** — owner cannot reach them.
 3. **Forum** — exact-match firmware for this board (Allwinner A133 `ceres-b6`, TS10,
    Raise Opel Astra J) from a site like 4PDA. Must match the board exactly or it bricks.
+
+**What "Send unit data" is not:** Developer → Send unit data uploads diagnostics (system
+report, vendor APKs/libraries, logs, and ZLink data only on a rooted unit) with a file
+manifest. It has no access to partitions and is **not** a firmware image.
 
 ## Build steps (once the stock package is in hand)
 1. Unpack the stock image (Allwinner img; `imgRePacker`/`sunxi` tools, or the OTA zip).
@@ -33,7 +40,9 @@ Three ways, any one unblocks the build:
 4. Set `AIR_POPUP_WINDOW=0`, `SYSTEM_DOOR2=1` in the default settings (kills vendor popups).
 5. Custom boot logo via the factory menu's "LOGO setting", or the `bootlogo` partition.
    Boot animation: `tools/setup/opel-bootanimation-1280x800.zip`.
-6. Re-sign with **test-keys** (public — see UNIT-SPECS) so the unit accepts it.
+6. Re-sign with **test-keys** (public — see UNIT-SPECS). Unverified: test-keys in the
+   build properties don't prove the bootloader, verified boot (several vbmeta partitions)
+   and the updater accept a repacked image. Confirm on the stock package before flashing.
 7. Repack to the `twupdate` OTA format. Flash via **USB stick in the unit** (the host
    port reads sticks fine) through the unit's own update mechanism. Keep the stock
    package as the recovery image.
@@ -51,3 +60,8 @@ Three ways, any one unblocks the build:
 ## Risk
 - Wrong image or bad repack = brick. Always flash with the stock package on hand to
   recover. Test on a spare unit first if possible.
+- Safer order: (A) MMI as HOME on the stock system (today); (B) a reproducible image on
+  the exact stock base, removing vendor apps only after MMI matches each one on the car;
+  (C) deeper changes only once recovery is proven.
+- The Developer PIN is a convenience lock (the same on every unit), not security: never
+  rely on it to protect root actions, backups or uploads.

@@ -281,17 +281,25 @@ object Root {
      * chatty command can't fill an unread pipe and hang). With [requireSuccess],
      * a non-zero exit code returns null.
      */
-    fun run(command: String, requireSuccess: Boolean = true): String? = runCatching {
-        // The marker only prints if the root shell really ran, so a refused prompt is never "success".
-        val p = ProcessBuilder("su", "-c", "$command; echo $MARKER").redirectErrorStream(true).start()
+    fun run(command: String, requireSuccess: Boolean = true): String? {
+        val su = path() ?: return null
+        return runCatching {
+        // The marker only prints if the root shell really ran (a refused prompt is never
+        // "success"), and carries the command's own exit code, not the echo's. For a
+        // command made of several steps that is the last step's code.
+        val script = "$command\nrc=$?\necho $MARKER\$rc\nexit \$rc"
+        val p = ProcessBuilder(su, "-c", script).redirectErrorStream(true).start()
         val out = p.inputStream.bufferedReader().readText()
-        val code = p.waitFor()
+        p.waitFor()
+        val m = Regex("$MARKER(\\d+)").find(out)
+        val code = m?.groupValues?.get(1)?.toInt()
         when {
-            MARKER !in out -> null
+            m == null || code == null -> null
             requireSuccess && code != 0 -> null
-            else -> out.replace(MARKER, "").trimEnd()
+            else -> out.replace(m.value, "").trimEnd()
         }
-    }.getOrNull()
+        }.getOrNull()
+    }
 
     private const val MARKER = "__MMI_ROOT_OK__"
 }

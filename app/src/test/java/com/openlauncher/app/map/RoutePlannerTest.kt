@@ -54,4 +54,36 @@ class RoutePlannerTest {
         assertEquals(90f, bearing(30.0, 31.0, 30.0, 31.01), 0.5f)
         assertEquals(20f, angleDiff(350f, 10f), 0.001f)
     }
+
+    @Test
+    fun refusesDamagedGraphs() {
+        val good = File(javaClass.classLoader!!.getResource("routing/test.graph")!!.toURI()).readBytes()
+        fun opens(bytes: ByteArray): Boolean {
+            val f = File.createTempFile("graph", ".bin")
+            try {
+                f.writeBytes(bytes)
+                return RoutingGraph.open(f) != null
+            } finally {
+                f.delete()
+            }
+        }
+        assertTrue(opens(good))
+        // Cut short: sections would run past the end.
+        assertTrue(!opens(good.copyOf(good.size - 64)))
+        // Unknown format version.
+        assertTrue(!opens(good.copyOf().also { it[4] = 9 }))
+        // A negative node count.
+        assertTrue(!opens(good.copyOf().also { it[11] = 0x80.toByte() }))
+        // Header only.
+        assertTrue(!opens(good.copyOf(100)))
+    }
+
+    @Test
+    fun cancelledSearchGivesUp() {
+        val from = graph.snap(30.0, 31.001, 90f)!!
+        val to = graph.snap(30.0095, 31.01)!!
+        // The cancel check runs every 4096 search steps, so a tiny graph still finishes;
+        // this checks the new parameters are accepted and harmless.
+        assertNotNull(RoutePlanner(graph).plan(from, to, 90f, cancelled = { true }, budgetMs = 0))
+    }
 }

@@ -212,10 +212,45 @@ class RoutingGraph private constructor(private val buf: ByteBuffer) {
             RandomAccessFile(file, "r").use { raf ->
                 val map = raf.channel.map(FileChannel.MapMode.READ_ONLY, 0, raf.length())
                 map.order(ByteOrder.LITTLE_ENDIAN)
-                if (map.getInt(0) != 0x52494D4D) return null // "MMIR"
+                if (!valid(map, raf.length())) return null
                 RoutingGraph(map)
             }
         }.getOrNull()
+
+        /**
+         * The whole layout checked before anything is read from it (format: tools/map/
+         * build_routing_graph.py, version 1): counts, every section inside the file and in
+         * order, and the index arrays' end markers. A damaged or foreign file is refused
+         * instead of failing later in the middle of a route.
+         */
+        internal fun valid(b: ByteBuffer, length: Long): Boolean {
+            if (length < 256) return false
+            fun h(i: Int) = b.getInt(i * 4)
+            if (h(0) != 0x52494D4D || h(1) != 1) return false // "MMIR", version 1
+            val nodes = h(2); val usegs = h(3); val dedges = h(4); val geom = h(5)
+            val names = h(6); val nameBytes = h(7); val gridKeys = h(8); val gridEntries = h(9)
+            if (listOf(nodes, usegs, dedges, geom, names, nameBytes, gridKeys, gridEntries).any { it < 0 }) return false
+            if (h(12) <= 0 || h(13) <= 0) return false // grid cell size and columns
+            // Byte length of each of the 19 sections, in file order.
+            val ints = longArrayOf(
+                nodes.toLong(), nodes.toLong(), nodes + 1L, dedges.toLong(), dedges.toLong(),
+                usegs.toLong(), usegs.toLong(), usegs.toLong(), usegs.toLong(), usegs.toLong(), usegs.toLong(), usegs.toLong(),
+                geom.toLong(), geom.toLong(), names + 1L, -1L, gridKeys.toLong(), gridKeys + 1L, gridEntries.toLong(),
+            )
+            var end = 256L
+            for (i in ints.indices) {
+                val off = b.getInt(56 + i * 4).toLong()
+                val len = if (ints[i] < 0) nameBytes.toLong() else ints[i] * 4
+                if (off < end || off % 4 != 0L || off + len > length) return false
+                end = off + len
+            }
+            fun at(section: Int, index: Int) = b.getInt(b.getInt(56 + section * 4) + index * 4)
+            // CSR end markers: edges per node, names, grid cells.
+            if (at(2, 0) != 0 || at(2, nodes) != dedges) return false
+            if (at(14, 0) != 0 || at(14, names) != nameBytes) return false
+            if (at(17, 0) != 0 || at(17, gridKeys) != gridEntries) return false
+            return true
+        }
 
         private fun binarySearch(buf: IntBuffer, count: Int, key: Int): Int {
             var lo = 0

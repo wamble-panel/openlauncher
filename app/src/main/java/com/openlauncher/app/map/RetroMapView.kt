@@ -82,7 +82,26 @@ class RetroMapView(context: Context) : GLSurfaceView(context) {
         wake()
     }
 
-    fun wake() = requestRender()
+    /**
+     * False while a full-screen panel covers the map: no frames are drawn for pixels nobody
+     * sees (the route and guidance carry on in NavigationEngine). True draws again at once.
+     */
+    var active = true
+        set(v) {
+            if (field == v) return
+            field = v
+            if (v) requestRender()
+        }
+
+    fun wake() {
+        if (active) requestRender()
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        // The map left the screen for good: its road builder thread goes too.
+        renderer.close()
+    }
 
     // ── Panning ──────────────────────────────────────────────────────────────
     private var lastX = 0f
@@ -129,6 +148,16 @@ class RetroMapView(context: Context) : GLSurfaceView(context) {
         private var mx = 111_320.0
         private val my = 110_574.0
         private val builder = Executors.newSingleThreadExecutor()
+
+        fun close() {
+            builder.shutdownNow()
+        }
+
+        /** Background work, unless the map has been closed. */
+        private fun background(job: () -> Unit) {
+            if (builder.isShutdown) return
+            runCatching { builder.execute(job) }
+        }
         @Volatile private var building = false
         @Volatile private var builtRoads: Built? = null
         @Volatile private var builtRoute: BuiltRoute? = null
@@ -280,9 +309,9 @@ class RetroMapView(context: Context) : GLSurfaceView(context) {
                 kotlin.math.abs(angle(camBearing, bearingTarget)) < 0.1f && kotlin.math.abs(targetScale - scale) < targetScale * 0.002 &&
                 panDx == 0f && panDy == 0f && !building && builtRoads == null && builtRoute == null && routeShown == routeVersion
             when {
-                !settled -> requestRender()
+                !settled -> if (active) requestRender()
                 // Road data still loading: look again in a second instead of drawing non-stop.
-                !haveRoads -> { lastFrame = 0L; postDelayed({ requestRender() }, 1000) }
+                !haveRoads -> { lastFrame = 0L; postDelayed({ wake() }, 1000) }
                 else -> lastFrame = 0L
             }
         }
@@ -376,7 +405,7 @@ class RetroMapView(context: Context) : GLSurfaceView(context) {
         private fun requestRoads(lat: Double, lon: Double) {
             val graph = NavigationEngine.roads ?: return
             building = true
-            builder.execute {
+            background {
                 val t = SystemClock.uptimeMillis()
                 val built = runCatching { buildRoads(graph, lat, lon) }.getOrNull()
                 lastBuildMs = SystemClock.uptimeMillis() - t
@@ -444,7 +473,7 @@ class RetroMapView(context: Context) : GLSurfaceView(context) {
             val oLat = originLat; val oLon = originLon; val lx = mx
             builtRoute = null
             routeShown = version
-            builder.execute {
+            background {
                 val out = FloatList()
                 if (r != null) {
                     for (i in 0 until r.lat.size - 1) segment(
@@ -548,14 +577,24 @@ class RetroMapView(context: Context) : GLSurfaceView(context) {
         """
 
         private fun link(vs: String, fs: String): Int {
+            // A driver that refuses a shader is logged with its reason (otherwise the map
+            // would just stay blank with nothing to go on).
+            val ok = IntArray(1)
             fun shader(type: Int, src: String) = GLES20.glCreateShader(type).also {
                 GLES20.glShaderSource(it, src)
                 GLES20.glCompileShader(it)
+                GLES20.glGetShaderiv(it, GLES20.GL_COMPILE_STATUS, ok, 0)
+                if (ok[0] == 0) android.util.Log.e("MmiMap", "Shader compile failed: " + GLES20.glGetShaderInfoLog(it))
             }
             val p = GLES20.glCreateProgram()
             GLES20.glAttachShader(p, shader(GLES20.GL_VERTEX_SHADER, vs))
             GLES20.glAttachShader(p, shader(GLES20.GL_FRAGMENT_SHADER, fs))
             GLES20.glLinkProgram(p)
+            GLES20.glGetProgramiv(p, GLES20.GL_LINK_STATUS, ok, 0)
+            if (ok[0] == 0) {
+                android.util.Log.e("MmiMap", "Shader link failed: " + GLES20.glGetProgramInfoLog(p))
+                runCatching { com.openlauncher.app.util.TwBridge.log("Map: shader link failed: " + GLES20.glGetProgramInfoLog(p)) }
+            }
             return p
         }
     }

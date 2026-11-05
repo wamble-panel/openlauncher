@@ -83,7 +83,13 @@ class RoutePlanner(private val g: RoutingGraph) {
     private var heapKey = FloatArray(4096)
     private var heapSize = 0
 
-    fun plan(from: Snap, to: Snap, heading: Float?): Route? {
+    /**
+     * Fastest route from [from] to [to]. Gives up (null) when [cancelled] says a newer
+     * request or Stop replaced this one, or after [budgetMs] (checked every few thousand
+     * steps), so the single route worker is never stuck on a hopeless search.
+     */
+    fun plan(from: Snap, to: Snap, heading: Float?, cancelled: () -> Boolean = { false }, budgetMs: Long = 8_000): Route? {
+        val startedAt = System.nanoTime() / 1_000_000
         val s = from.useg
         val t = to.useg
         val sLen = g.lengthM(s)
@@ -139,12 +145,13 @@ class RoutePlanner(private val g: RoutingGraph) {
             val gCost = cost[node]
             if (f > gCost + h(node) + 0.01f) continue
             if (++popped > 4_000_000) return null
+            if ((popped and 4095) == 0 && (cancelled() || System.nanoTime() / 1_000_000 - startedAt > budgetMs)) return null
             if (node == g.from(t) && viaFrom >= 0 && gCost + viaFrom < best) { best = (gCost + viaFrom).toFloat(); bestEnd = node }
             if (node == g.to(t) && viaTo >= 0 && gCost + viaTo < best) { best = (gCost + viaTo).toFloat(); bestEnd = node }
             for (e in g.firstEdge(node) until g.endEdge(node)) {
                 val v = g.edgeTarget(e)
                 val u = g.edgeUseg(e)
-                val c = gCost + g.travelSeconds(u, g.lengthM(u)).toFloat() + turnPenalty(e)
+                val c = gCost + g.travelSeconds(u, g.lengthM(u)).toFloat() + turnPenalty(parent[node], node, v)
                 if (stamp[v] != run || c < cost[v]) {
                     stamp[v] = run
                     cost[v] = c
@@ -166,8 +173,34 @@ class RoutePlanner(private val g: RoutingGraph) {
         return build(from, to, edges, direct = false, startNode = n, endNode = bestEnd)
     }
 
-    // Small cost for every junction so equal-time routes prefer fewer turns.
-    private fun turnPenalty(@Suppress("UNUSED_PARAMETER") e: Int) = 1.5f
+    /**
+     * Seconds added for the turn at [node] when arriving by edge [inEdge] (-1 at the start)
+     * and leaving towards [next]: none going straight on, a little for a turn, more for a
+     * sharp turn, most for turning back. Equal-time routes then prefer fewer, gentler turns.
+     * (A node-based search: the arriving edge is the best one found so far.)
+     */
+    private fun turnPenalty(inEdge: Int, node: Int, next: Int): Float {
+        if (inEdge < 0) return 0f
+        val prev = g.edgeSource(inEdge)
+        if (prev == next) return 30f // straight back the way we came
+        val ax = (g.lonE6(node) - g.lonE6(prev)).toFloat() * lonScale
+        val ay = (g.latE6(node) - g.latE6(prev)).toFloat()
+        val bx = (g.lonE6(next) - g.lonE6(node)).toFloat() * lonScale
+        val by = (g.latE6(next) - g.latE6(node)).toFloat()
+        val la = ax * ax + ay * ay
+        val lb = bx * bx + by * by
+        if (la <= 0f || lb <= 0f) return 0f
+        // cos of the angle between the two directions, without trigonometry.
+        val cos = (ax * bx + ay * by) / sqrt((la * lb).toDouble()).toFloat()
+        return when {
+            cos > 0.87f -> 0f  // under ~30°: straight on
+            cos > -0.5f -> 4f  // up to ~120°: an ordinary turn
+            else -> 12f        // sharper
+        }
+    }
+
+    // Longitude degrees shrink with latitude (Egypt: ~cos 27°); good enough for angles.
+    private val lonScale = 0.89f
 
     private fun build(from: Snap, to: Snap, edges: List<Int>, direct: Boolean, startNode: Int = -1, endNode: Int = -1): Route {
         val lat = ArrayList<Double>()

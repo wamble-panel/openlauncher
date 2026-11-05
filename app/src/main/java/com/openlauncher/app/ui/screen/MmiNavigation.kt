@@ -145,6 +145,7 @@ internal fun MmiNavigationPage(location: LocationData?, metric: Boolean, onOpenP
     Box(Modifier.fillMaxSize()) {
         if (installed) key(mapGeneration) {
             NavMap(
+                active = screen == NavScreen.MAP,
                 here = here,
                 nav = nav,
                 metric = metric,
@@ -231,6 +232,8 @@ internal fun MmiNavigationPage(location: LocationData?, metric: Boolean, onOpenP
 
 @Composable
 private fun NavMap(
+    // False while a full-screen panel covers the map: it stops drawing until shown again.
+    active: Boolean,
     here: LatLng?,
     nav: NavState,
     metric: Boolean,
@@ -305,7 +308,7 @@ private fun NavMap(
     }
 
     Box(Modifier.fillMaxSize()) {
-        AndroidView(factory = { map }, modifier = Modifier.fillMaxSize())
+        AndroidView(factory = { map }, update = { it.active = active }, modifier = Modifier.fillMaxSize())
 
         // Panels from the design: flat black boxes with thin fading outlines, floating on the map.
         val panel = Modifier.background(Color(0xF0000000)).border(1.5.dp, Brush.verticalGradient(listOf(Color(0x88FFFFFF), Color(0xCCFFFFFF))), RectangleShape)
