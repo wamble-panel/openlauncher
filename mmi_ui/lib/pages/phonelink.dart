@@ -46,6 +46,11 @@ class _PhoneLinkPageState extends State<PhoneLinkPage> with Live<PhoneLinkPage> 
     final mode = live?['mode'] as String?;
     final available = live?['installed'] != false;
     final bt = phone?['connected'] == true;
+    final ap = (live?['airplay'] as Map?) ?? const {};
+    final apInstalled = ap['installed'] == true;
+    final apShowing = ap['mirroring'] == true || ap['video'] == true;
+    final apMusic = ap['audio'] == true;
+    final apTitle = [ap['title'], ap['artist']].whereType<String>().where((t) => t.isNotEmpty).join(' · ');
     final name = (phone?['name'] as String?)?.trim();
     final battery = (phone?['battery'] as num?)?.toInt();
     final signal = (phone?['signal'] as num?)?.toInt();
@@ -53,16 +58,36 @@ class _PhoneLinkPageState extends State<PhoneLinkPage> with Live<PhoneLinkPage> 
       padding: const EdgeInsets.only(left: 8, top: 22),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         // CarPlay / Android Auto.
-        if (available)
-          SizedBox(
+        SizedBox(
             height: 150,
             child: Row(children: [
+              if (available) ...[
               Expanded(child: _Card('Apple CarPlay', active: linked && (mode ?? '').startsWith('carplay'), onTap: linked ? () => Bridge.call('phoneLinkOpen') : null)),
               const SizedBox(width: 18),
               Expanded(child: _Card('Android Auto', active: linked && (mode ?? '').startsWith('auto'), onTap: linked ? () => Bridge.call('phoneLinkOpen') : null)),
+              const SizedBox(width: 18),
+              ],
+              // AirPlay: the iPhone's screen (parked) and music over Wi-Fi (MMI AirPlay app).
+              Expanded(
+                child: _Card(
+                  'AirPlay',
+                  icon: MibIcons.cast_connected,
+                  active: apShowing || apMusic,
+                  status: !apInstalled
+                      ? 'Not installed · tap to install'
+                      : apShowing
+                          ? 'Screen mirroring · tap to open'
+                          : apMusic
+                              ? (apTitle.isNotEmpty ? apTitle : 'Playing music')
+                              : ap['running'] == true
+                                  ? 'Ready · iPhone: Screen Mirroring › ${ap['name'] ?? 'MMI'}'
+                                  : 'Starting…',
+                  onTap: () => Bridge.call('airplayOpen'),
+                ),
+              ),
             ]),
           ),
-        if (available) const SizedBox(height: 16),
+        const SizedBox(height: 16),
         // The phone.
         Container(
           height: 118,
@@ -123,26 +148,32 @@ class _PhoneLinkPageState extends State<PhoneLinkPage> with Live<PhoneLinkPage> 
 }
 
 class _Card extends StatelessWidget {
-  const _Card(this.title, {required this.active, this.onTap});
+  const _Card(this.title, {required this.active, this.onTap, this.status, this.icon = MibIcons.mobile_share});
   final String title;
   final bool active;
   final VoidCallback? onTap;
+  final String? status;
+  final IconData icon;
   @override
   Widget build(BuildContext context) => Pressable(
         // Only with a phone connected: never the engine's own start screen.
         onTap: onTap ?? () {},
         child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
             border: Border.all(color: active ? Mib.white : const Color(0x80FFFFFF), width: active ? 2.5 : 1.2),
             gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF0B0B0B), Color(0xFF000000)]),
           ),
           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(MibIcons.mobile_share, size: 60, color: active ? Mib.white : const Color(0xCCFFFFFF)),
-            const SizedBox(width: 20),
-            Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: Mib.text(30)),
-              Text(active ? 'Connected · tap to open' : 'Not connected', style: Mib.text(20, color: active ? const Color(0xFF5BD35B) : Mib.grey)),
-            ]),
+            Icon(icon, size: 56, color: active ? Mib.white : const Color(0xCCFFFFFF)),
+            const SizedBox(width: 16),
+            Flexible(
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: Mib.text(30), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(status ?? (active ? 'Connected · tap to open' : 'Not connected'),
+                    style: Mib.text(19, color: active ? const Color(0xFF5BD35B) : Mib.grey), maxLines: 2, overflow: TextOverflow.ellipsis),
+              ]),
+            ),
           ]),
         ),
       );

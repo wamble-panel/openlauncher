@@ -198,9 +198,23 @@ class MmiFlutterActivity : FlutterActivity() {
                             "installed" to com.openlauncher.app.util.PhoneLink.installed(this),
                             "connected" to st.connected, "mode" to st.mode,
                             "auto" to com.openlauncher.app.util.PhoneLink.autoOpen(this),
+                            "airplay" to com.openlauncher.app.util.AirPlayLink.let { ap ->
+                                val a = ap.state.value
+                                mapOf(
+                                    "installed" to ap.installed(this), "running" to a.running, "mirroring" to a.mirroring,
+                                    "audio" to a.audio, "video" to a.video, "title" to a.title, "artist" to a.artist, "name" to a.name,
+                                )
+                            },
                         ))
                     }
                     "phoneLinkOpen" -> result.success(com.openlauncher.app.util.PhoneLink.open(this))
+                    "airplayOpen" -> {
+                        val ap = com.openlauncher.app.util.AirPlayLink
+                        result.success(if (ap.installed(this)) { ap.start(this); ap.open(this) } else {
+                            // Not installed yet: its download page, to install it.
+                            runCatching { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(ap.DOWNLOAD)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
+                        })
+                    }
                     "phoneGet" -> {
                         val ph = TwBridge.phone.value
                         result.success(mapOf(
@@ -305,7 +319,7 @@ class MmiFlutterActivity : FlutterActivity() {
         push("media", kotlinx.coroutines.flow.combine(com.openlauncher.app.service.MediaListenerService.nowPlaying, TwBridge.btTrack, com.openlauncher.app.util.UsbMusic.state) { a, b, u -> listOf(a?.title, a?.artist, a?.isPlaying, a?.albumArt?.generationId, b?.title, b?.playing, u.song?.id, u.playing) }, 300)
         push("radio", kotlinx.coroutines.flow.combine(TwBridge.radio, com.openlauncher.app.util.CarCore.radio) { a, b -> a to b }, 250)
         push("calls", TwBridge.call.map { it.state })
-        push("phonelink", com.openlauncher.app.util.PhoneLink.status)
+        push("phonelink", kotlinx.coroutines.flow.combine(com.openlauncher.app.util.PhoneLink.status, com.openlauncher.app.util.AirPlayLink.state) { a, b -> a to b })
         push("unit", com.openlauncher.app.util.UnitProfile.version)
         push("phone", kotlinx.coroutines.flow.combine(TwBridge.phoneConnected, TwBridge.phone) { a, b -> a to b })
         push("car", kotlinx.coroutines.flow.combine(com.openlauncher.app.util.CarCore.data, com.openlauncher.app.util.CarInfoLink.info) { a, b -> a to b }, 1000)

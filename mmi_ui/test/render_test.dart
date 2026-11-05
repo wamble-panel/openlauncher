@@ -23,7 +23,7 @@ Future<void> _fonts() async {
 
 final _demo = <String, Object?>{
   'phoneGet': {'connected': true, 'name': 'iPhone', 'battery': 4, 'signal': 3, 'music': 'Blinding Lights'},
-  'phoneLinkGet': {'installed': true, 'connected': true, 'mode': 'carplay_wireless', 'auto': true},
+  'phoneLinkGet': {'installed': true, 'connected': true, 'mode': 'carplay_wireless', 'auto': true, 'airplay': {'installed': true, 'running': true, 'audio': true, 'title': 'Blinding Lights', 'artist': 'The Weeknd', 'name': 'MMI'}},
   'usbGet': {
     'scanning': false, 'count': 214,
     'items': [

@@ -70,6 +70,12 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <!-- MMI system check + Bluetooth page: read adapter/profile state -->
+    <!-- MMI AirPlay (separate app, same key): only it and MMI can use this link. Defined
+         here too, so the order the two apps are installed in doesn't matter. -->
+    <permission
+        android:name="com.openlauncher.permission.MMI_LINK"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="com.openlauncher.permission.MMI_LINK" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <!-- MMI Bluetooth page: find nearby phones, pair, make the car visible -->

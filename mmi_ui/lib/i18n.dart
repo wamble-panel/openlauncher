@@ -136,7 +136,10 @@ const _ar = <String, String>{
   // Car.
   'Car information': 'معلومات السيارة', 'Car buttons': 'أزرار السيارة', 'Diagnostics': 'التشخيص', 'Climate': 'التكييف',
   'Not found in the car list': 'غير موجودة في قائمة السيارات', 'Car picture': 'صورة السيارة', 'Your photo': 'صورتك',
-  'Astra J': 'Astra J', 'Opel': 'أوبل', 'Mix FM': 'ميكس إف إم', 'Radio Hits': 'راديو هيتس', 'Holy Quran Radio': 'إذاعة القرآن الكريم',
+  'Astra J': 'Astra J', 'Opel': 'أوبل', 'AirPlay': 'AirPlay', 'Not installed · tap to install': 'غير مثبت · اضغط للتثبيت',
+  'Screen mirroring · tap to open': 'انعكاس الشاشة · اضغط للفتح', 'Playing music': 'يشغّل الموسيقى', 'Starting…': 'جارٍ التشغيل…',
+  'Ready · iPhone: Screen Mirroring › MMI': 'جاهز · آيفون: انعكاس الشاشة › MMI',
+  'Mix FM': 'ميكس إف إم', 'Radio Hits': 'راديو هيتس', 'Holy Quran Radio': 'إذاعة القرآن الكريم',
   'Radio Masr': 'راديو مصر', 'Middle East Radio': 'إذاعة الشرق الأوسط', 'El Radio 9090': 'الراديو 9090',
   'Cultural Programme': 'البرنامج الثقافي', 'NRJ Egypt': 'إنرجي مصر', 'Mega FM': 'ميجا إف إم', 'On Sport FM': 'أون سبورت إف إم',
   'Shaabi FM': 'شعبي إف إم', 'European Programme': 'البرنامج الأوروبي', 'Music Programme': 'البرنامج الموسيقي',

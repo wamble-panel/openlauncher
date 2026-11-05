@@ -37,6 +37,8 @@ class CarApp : Application() {
             com.openlauncher.app.util.UsbMusic.init(this)
             com.openlauncher.app.util.VendorCommand.start(this)
             com.openlauncher.app.util.PhoneLink.startEngine(this)
+            // MMI AirPlay (iPhone screen and music over Wi-Fi), when installed.
+            com.openlauncher.app.util.AirPlayLink.start(this)
             // New MMI: start its screens in the background so they open instantly.
             runCatching { FlutterEngines.warm(this) }
             // Only restarts MMI for an update while the car stands still.
