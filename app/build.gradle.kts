@@ -12,12 +12,29 @@ val localProps = Properties().apply {
 }
 
 val allAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+// MMI: car head units (the owner's is 32-bit only); fewer ABIs also build much faster.
+val carAbis = listOf("armeabi-v7a", "arm64-v8a")
 
 android {
     namespace = "io.github.jqssun.airplay"
     compileSdk = 37
     ndkVersion = "27.0.12077973"
 
+    // MMI: CI signs with the owner's shared key (MMI_KEYSTORE), the same key as MMI,
+    // so updates install over the last build and MMI can trust this app.
+    val mmiKey = System.getenv("MMI_KEYSTORE")?.let { file(it) }?.takeIf { it.isFile }
+    if (mmiKey != null) {
+        signingConfigs {
+            create("mmi") {
+                storeFile = mmiKey
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+    }
     if (localProps.containsKey("storeFile")) {
         signingConfigs {
             create("release") {
@@ -30,7 +47,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "io.github.jqssun.airplay"
+        // MMI: own id, so it installs next to the original app.
+        applicationId = "com.openlauncher.airplay"
         minSdk = 23
         targetSdk = 37
         versionCode = 36
@@ -57,8 +75,8 @@ android {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfigs.findByName("release")?.let { signingConfig = it }
-            ndk { abiFilters += allAbis }
+            (signingConfigs.findByName("mmi") ?: signingConfigs.findByName("release"))?.let { signingConfig = it }
+            ndk { abiFilters += carAbis }
         }
         // debuggable build with HWASan (arm64) + UBSan in native code
         create("sanitize") {
