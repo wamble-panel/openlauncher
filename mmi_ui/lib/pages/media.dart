@@ -31,15 +31,18 @@ class _NowPlayingPageState extends State<NowPlayingPage> with Live<NowPlayingPag
 
   Object? _artId;
   // The position moves on locally between updates from the car side.
+  // Only the time and the bar follow it (not the whole page): a one-second clock.
+  // _now counts the milliseconds played since the car side last reported the position.
+  final _now = ValueNotifier<int>(0);
   late final Timer _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-    if (live?['playing'] == true && _drag == null) setState(() => _sinceUpdate += 1000);
+    if (live?['playing'] == true && _drag == null) _now.value += 1000;
   });
-  int _sinceUpdate = 0;
   Object? _lastPos;
 
   @override
   void dispose() {
     _tick.cancel();
+    _now.dispose();
     super.dispose();
   }
   Uint8List? _art;
@@ -105,12 +108,15 @@ class _NowPlayingPageState extends State<NowPlayingPage> with Live<NowPlayingPag
     final dur = ((live?['dur'] ?? 0) as num).toInt();
     if (live?['pos'] != _lastPos) {
       _lastPos = live?['pos'];
-      _sinceUpdate = 0;
+      _now.value = 0;
     }
-    final raw = ((live?['pos'] ?? 0) as num).toInt() + (_tick.isActive ? _sinceUpdate : 0);
-    final pos = dur > 0 ? raw.clamp(0, dur) : raw;
+    final base = ((live?['pos'] ?? 0) as num).toInt();
+    // Where the song is now: the last reported place plus the time since, while playing.
+    int posNow() {
+      final raw = base + (_tick.isActive ? _now.value : 0);
+      return dur > 0 ? raw.clamp(0, dur) : raw;
+    }
     final source = (live?['source'] as String?) ?? 'Media';
-    final v = _drag ?? (dur > 0 ? (pos / dur).clamp(0.0, 1.0) : 0.0);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       // Header.
       Container(
@@ -207,7 +213,13 @@ class _NowPlayingPageState extends State<NowPlayingPage> with Live<NowPlayingPag
               const SizedBox(height: 18),
               Row(children: [
                 const Spacer(flex: 63),
-                Text(dur > 0 ? '${_t(pos)}   |   -${_t(dur - pos)}' : (playing ? 'Playing' : 'Paused'), style: Mib.text(24)),
+                ValueListenableBuilder<int>(
+                  valueListenable: _now,
+                  builder: (context, _, _) {
+                    final pos = posNow();
+                    return Text(dur > 0 ? '${_t(pos)}   |   -${_t(dur - pos)}' : (playing ? 'Playing' : 'Paused'), style: Mib.text(24));
+                  },
+                ),
                 const Spacer(flex: 30),
               ]),
               const SizedBox(height: 6),
@@ -222,7 +234,15 @@ class _NowPlayingPageState extends State<NowPlayingPage> with Live<NowPlayingPag
                           setState(() => _drag = null);
                         }
                       : null,
-                  child: RepaintBoundary(child: SizedBox(height: 40, child: CustomPaint(painter: _Position(v)))),
+                  child: RepaintBoundary(
+                    child: ValueListenableBuilder<int>(
+                      valueListenable: _now,
+                      builder: (context, _, _) {
+                        final v = _drag ?? (dur > 0 ? (posNow() / dur).clamp(0.0, 1.0) : 0.0);
+                        return SizedBox(height: 40, child: CustomPaint(painter: _Position(v)));
+                      },
+                    ),
+                  ),
                 );
               })),
               const SizedBox(height: 28),

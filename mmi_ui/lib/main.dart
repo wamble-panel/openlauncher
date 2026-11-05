@@ -2,6 +2,7 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'perf.dart';
+import 'live.dart';
 import 'i18n.dart';
 import 'car_art.dart';
 import 'shell/shell.dart';
@@ -12,6 +13,8 @@ void main() {
   // Picture cache sized for a 2 GB unit (Flutter's default is 100 MB).
   PaintingBinding.instance.imageCache.maximumSizeBytes = 32 << 20;
   FrameMonitor.start();
+  // Pages stop asking the car side for data while MMI is in the background.
+  AppFrontObserver.start();
   // Full screen, and Flutter re-applies it each time MMI comes back to the front
   // (otherwise it resets to its default and the navigation bar returns).
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
