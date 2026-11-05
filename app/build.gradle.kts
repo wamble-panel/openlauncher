@@ -13,7 +13,7 @@ val localProps = Properties().apply {
 
 val allAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
 // MMI: car head units (the owner's is 32-bit only); fewer ABIs also build much faster.
-val carAbis = listOf("armeabi-v7a", "arm64-v8a")
+val carAbis = listOf("armeabi-v7a", "arm64-v8a", "x86_64")
 
 android {
     namespace = "io.github.jqssun.airplay"

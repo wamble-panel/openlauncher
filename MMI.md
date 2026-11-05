@@ -1,12 +1,11 @@
-# MMI AirPlay
+# MMI AirPlay (native part)
 
-The AirPlay receiver for the MMI car head unit: iPhone screen mirroring (while parked)
-and music. A fork of [jqssun/android-airplay-server](https://github.com/jqssun/android-airplay-server),
-which is built on [UxPlay](https://github.com/FDH2/UxPlay); GPL-3.0 like the original.
+MMI's built-in AirPlay (iPhone screen mirroring while parked, and music) uses the
+receiver from [jqssun/android-airplay-server](https://github.com/jqssun/android-airplay-server),
+built on [UxPlay](https://github.com/FDH2/UxPlay); GPL-3.0 like the original.
 
-It is a separate app (`com.openlauncher.airplay`); MMI starts it and shows it on its
-Phone Link page. The iPhone sees it as **MMI**.
-
-Built by `.github/workflows/mmi-airplay.yml`: compiled unsigned without secrets, then
-signed with the MMI key in a separate job that runs none of this code. The APK is
-`MMI-AirPlay.apk` on the `airplay-latest` release.
+This branch builds only the native libraries (UxPlay, FFmpeg, OpenSSL, libplist) and
+publishes them as `airplay-native.zip` on the `airplay-latest` release
+(`.github/workflows/mmi-airplay.yml`, no secrets). MMI's own build downloads that zip into
+its `airplay` module, which carries the receiver's Kotlin code; the app here is only
+the original receiver and is not shipped.
