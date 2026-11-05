@@ -345,6 +345,12 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
                 .debounce(SERVER_RESTART_DEBOUNCE_MS)
                 .collect { _restartServer() }
         }
+        // MMI: its Phone Link page shows whether an iPhone is mirroring or playing.
+        lifecycleScope.launch {
+            kotlinx.coroutines.flow.combine(_serverState, _mirroringActive, _audioOnly, _videoPlaybackActive, _trackInfo) { st, mir, aud, vid, t ->
+                io.github.jqssun.airplay.MmiLink.State(st == ServerState.RUNNING, mir, aud, vid, t.title, t.artist)
+            }.collect { io.github.jqssun.airplay.MmiLink.send(this@AirPlayService, it) }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

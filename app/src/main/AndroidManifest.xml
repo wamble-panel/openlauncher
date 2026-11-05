@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- MMI: shared with MMI (same key), so only MMI can talk to this receiver. -->
+    <permission
+        android:name="com.openlauncher.permission.MMI_LINK"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="com.openlauncher.permission.MMI_LINK" />
+
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -58,6 +64,16 @@
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".MmiLink$Receiver"
+            android:exported="true"
+            android:permission="com.openlauncher.permission.MMI_LINK">
+            <intent-filter>
+                <action android:name="com.openlauncher.airplay.START" />
+                <action android:name="com.openlauncher.airplay.QUERY" />
             </intent-filter>
         </receiver>
 
