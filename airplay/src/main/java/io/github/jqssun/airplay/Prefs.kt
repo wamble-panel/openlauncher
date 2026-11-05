@@ -99,7 +99,8 @@ object Prefs {
     // on: sender volume drives receiver volume; off: volume = receiver volume x sender volume
     val SYNC_CLIENT_VOLUME = bool("sync_client_volume", true)
     val RESOLUTION = str("resolution", AUTO, restart = true) { it in setOf(AUTO, PORTRAIT, LANDSCAPE) || SIZE.matches(it) }
-    val MAX_FPS = int("max_fps", 60, 1..Int.MAX_VALUE, restart = true)
+    // MMI: 30 fps is smooth for mirroring on the 7" panel and halves the decoding work on the A133.
+    val MAX_FPS = int("max_fps", 30, 1..Int.MAX_VALUE, restart = true)
     val OVERSCANNED = bool("overscanned", false, restart = true)
     val REQUIRE_PIN = bool("require_pin", false, restart = true)
     val ALLOW_NEW_CONN = bool("allow_new_conn", true, restart = true)
