@@ -201,7 +201,7 @@ class MmiFlutterActivity : FlutterActivity() {
                             "airplay" to com.openlauncher.app.util.AirPlayLink.let { ap ->
                                 val a = ap.state.value
                                 mapOf(
-                                    "installed" to ap.installed(this), "running" to a.running, "mirroring" to a.mirroring,
+                                    "installed" to ap.available(this), "running" to a.running, "mirroring" to a.mirroring,
                                     "audio" to a.audio, "video" to a.video, "title" to a.title, "artist" to a.artist, "name" to a.name,
                                 )
                             },
@@ -209,11 +209,10 @@ class MmiFlutterActivity : FlutterActivity() {
                     }
                     "phoneLinkOpen" -> result.success(com.openlauncher.app.util.PhoneLink.open(this))
                     "airplayOpen" -> {
+                        // The iPhone's screen, when it is mirroring or playing a video.
                         val ap = com.openlauncher.app.util.AirPlayLink
-                        result.success(if (ap.installed(this)) { ap.start(this); ap.open(this) } else {
-                            // Not installed yet: its download page, to install it.
-                            runCatching { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(ap.DOWNLOAD)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
-                        })
+                        val st = ap.state.value
+                        result.success((st.mirroring || st.video) && ap.open(this))
                     }
                     "phoneGet" -> {
                         val ph = TwBridge.phone.value

@@ -18,3 +18,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "OpenLauncher"
 include(":app")
+// Built-in AirPlay (iPhone screen mirroring and music); GPL-3.0, see airplay/README.md.
+include(":airplay")

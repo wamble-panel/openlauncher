@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_channel">AirPlay</string>
+    <string name="notification_title">AirPlay ready</string>
+    <string name="notification_text">Your iPhone can mirror its screen or play music on MMI</string>
+    <string name="notification_pin_title">AirPlay PIN</string>
+    <string name="notification_pin_text">PIN: %1$s</string>
+</resources>

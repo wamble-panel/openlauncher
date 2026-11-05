@@ -26,6 +26,28 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # Built-in AirPlay: its native libraries (UxPlay, FFmpeg, OpenSSL) are built on the
+      # "airplay" branch (no secrets there) and only downloaded here, checked against
+      # their published SHA-256. Without them the build still works; AirPlay is then off.
+      - name: Fetch AirPlay native libraries
+        run: |
+          base=https://github.com/${{ github.repository }}/releases/download/airplay-latest
+          if curl -fsSL -o airplay-native.zip "$base/airplay-native.zip" && curl -fsSL -o airplay-native.zip.sha256 "$base/airplay-native.zip.sha256"; then
+            sha256sum -c airplay-native.zip.sha256
+            mkdir -p airplay/src/main/jniLibs
+            unzip -q -o airplay-native.zip -d airplay-native
+            # Only AirPlay's own libraries (the zip also holds AndroidX helpers MMI already has).
+            for d in airplay-native/lib/*/; do
+              abi=$(basename "$d"); mkdir -p "airplay/src/main/jniLibs/$abi"
+              for so in libairplay_native.so libcrypto.so liboboe.so libc++_shared.so; do
+                [ -f "$d$so" ] && cp "$d$so" "airplay/src/main/jniLibs/$abi/"
+              done
+            done
+            find airplay/src/main/jniLibs -name '*.so' | sort
+          else
+            echo "::warning::AirPlay native libraries not published yet; building without AirPlay"
+          fi
+
       # New MMI screens (Flutter module mmi_ui): page renders at 1280 x 800, then the
       # release AAR the APK is built with.
       - uses: subosito/flutter-action@v2

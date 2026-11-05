@@ -10,6 +10,9 @@ import com.openlauncher.app.util.CrashLog
 class CarApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        // The built-in AirPlay receiver runs in its own process (":airplay"): none of
+        // MMI's start-up work belongs there.
+        if (processName().endsWith(":airplay")) return
         CrashLog.install(this)
         // Needed for the very first frame (car picture, background) or to catch
         // car messages from the start.
@@ -48,6 +51,10 @@ class CarApp : Application() {
             false
         }
     }
+
+    private fun processName(): String =
+        if (android.os.Build.VERSION.SDK_INT >= 28) Application.getProcessName()
+        else runCatching { java.io.File("/proc/self/cmdline").readText().trimEnd('\u0000') }.getOrDefault("")
 
     /** Whether a vendor app is still installed and switched on (MMI takes over its job when not). */
     fun vendorEnabled(pkg: String): Boolean =

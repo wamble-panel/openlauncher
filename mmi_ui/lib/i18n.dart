@@ -136,7 +136,7 @@ const _ar = <String, String>{
   // Car.
   'Car information': 'معلومات السيارة', 'Car buttons': 'أزرار السيارة', 'Diagnostics': 'التشخيص', 'Climate': 'التكييف',
   'Not found in the car list': 'غير موجودة في قائمة السيارات', 'Car picture': 'صورة السيارة', 'Your photo': 'صورتك',
-  'Astra J': 'Astra J', 'Opel': 'أوبل', 'AirPlay': 'AirPlay', 'Not installed · tap to install': 'غير مثبت · اضغط للتثبيت',
+  'Astra J': 'Astra J', 'Opel': 'أوبل', 'AirPlay': 'AirPlay', 'Not available in this build': 'غير متوفر في هذا الإصدار',
   'iPhone screen · tap to open': 'شاشة الآيفون · اضغط للفتح', 'Screen Mirroring': 'انعكاس الشاشة', 'Playing music': 'يشغّل الموسيقى', 'Starting…': 'جارٍ التشغيل…',
   'AirPlay · ready for iPhone': 'AirPlay · جاهز للآيفون',
   'Mix FM': 'ميكس إف إم', 'Radio Hits': 'راديو هيتس', 'Holy Quran Radio': 'إذاعة القرآن الكريم',

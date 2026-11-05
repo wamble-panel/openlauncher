@@ -62,6 +62,11 @@ android {
         }
     }
 
+    // The built-in AirPlay's native libraries bring their own C++ runtime.
+    packaging {
+        jniLibs { pickFirsts += "**/libc++_shared.so" }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -101,6 +106,9 @@ dependencies {
 
     // New MMI screens, drawn by Flutter (mmi_ui module, AOT-compiled release build).
     implementation("com.openlauncher.mmi_ui:flutter_release:1.0")
+
+    // Built-in AirPlay (iPhone screen mirroring and music); GPL-3.0, see airplay/README.md.
+    implementation(project(":airplay"))
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
